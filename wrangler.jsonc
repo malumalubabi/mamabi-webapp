@@ -4,7 +4,7 @@
   // Cloudflare's newer unified "wrangler deploy" defaults to expecting a
   // plain Worker entry-point and fails with "Missing entry-point to Worker
   // script or to assets directory".
-  "name": "mamabi-webapp",
+  "name": "malumalubabi",
   "compatibility_date": "2025-07-18",
   "pages_build_output_dir": "."
 }
