@@ -1,0 +1,376 @@
+/* Ported from the old Apps Script app's 99 Shared/Layout/LayoutStyles.html.
+   Same visual language on purpose - internal tool, function over form. */
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+}
+
+header {
+  padding: 0 16px;
+}
+
+footer {
+  padding: 0 16px;
+  color: #888;
+  font-size: 13px;
+}
+
+#content {
+  padding: 16px;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+th, td {
+  border: 1px solid #ddd;
+  padding: 6px 10px;
+  text-align: left;
+  font-size: 14px;
+}
+th {
+  background: #f0f0f0;
+}
+
+/* Drag-to-scroll wrapper - see enableDragScroll() in shared.js */
+.drag-scroll {
+  cursor: grab;
+}
+.drag-scroll.dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
+/* Navbar - ported verbatim from the old app's
+   99 Shared/Layout/LayoutNavbar.html (same dropdown/flyout-submenu
+   structure and highlighting rules). */
+#navbar {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #ccc;
+}
+#navbar > button {
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+}
+#navbar > button:hover {
+  text-decoration: underline;
+}
+
+.navbar-item {
+  position: relative;
+}
+.navbar-item > button {
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+}
+.navbar-item > button:hover {
+  text-decoration: underline;
+}
+.navbar-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  flex-direction: column;
+  min-width: 170px;
+  background: #fff;
+  border: 1px solid #ccc;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  z-index: 100;
+}
+.navbar-item.open .navbar-dropdown {
+  display: flex;
+}
+.navbar-dropdown button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+}
+.navbar-dropdown button:hover {
+  background: #f0f0f0;
+}
+
+/* Level-2 submenu (e.g. Menu > Engineering > Pricing) - flyout to the right
+   of its parent item within the same dropdown, not flattened into one long
+   list. */
+.navbar-subitem {
+  position: relative;
+}
+.navbar-subitem > button::after {
+  content: " \25B8";
+}
+.navbar-subdropdown {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 100%;
+  flex-direction: column;
+  min-width: 170px;
+  background: #fff;
+  border: 1px solid #ccc;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  z-index: 101;
+}
+.navbar-subitem.open .navbar-subdropdown {
+  display: flex;
+}
+.navbar-subdropdown button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+}
+.navbar-subdropdown button:hover {
+  background: #f0f0f0;
+}
+
+/* Active-page marker - leaf button (in a dropdown, or a standalone item
+   like Dashboard) gets highlighted; parent toggles (e.g. "Finance", or
+   "Engineering" at level 2) get highlighted too when a descendant is
+   active, so it stays visible even while the dropdown/submenu is closed. */
+#navbar [data-page].navbar-active,
+.navbar-item > button.navbar-active,
+.navbar-subitem > button.navbar-active {
+  font-weight: bold;
+  background: #e8f0fe;
+  border-radius: 4px;
+}
+
+/* Simple tab strip used inside a module page (e.g. Inventory's
+   Overview/Purchase/Batch/Opname sections), separate from the top navbar. */
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid #ccc;
+  margin-bottom: 16px;
+}
+.tabs button {
+  padding: 8px 14px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+}
+.tabs button.tab-active {
+  border-color: #ccc;
+  border-radius: 4px 4px 0 0;
+  background: #fff;
+  font-weight: bold;
+  margin-bottom: -1px;
+}
+
+/* Stat tiles (Dashboard) */
+.tile {
+  border: 1px solid #ccc;
+  padding: 20px;
+  width: 200px;
+}
+.tile h4 {
+  margin: 0 0 8px 0;
+  font-weight: normal;
+  color: #555;
+}
+.tile h2 {
+  margin: 0;
+}
+.tile.alert {
+  border-color: #d32f2f;
+  background: #fff5f5;
+}
+.tile-row {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+/* Combobox - dropdown replacement for <select> where we need name + SKU
+   styled differently (SKU small & faded). Native <option> can't do that. */
+.combo-wrapper {
+  position: relative;
+  display: inline-block;
+  min-width: 100%;
+}
+.combo-wrapper .combo-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+.combo-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid #999;
+  background: #fff;
+  padding: 5px 8px;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.combo-trigger:focus {
+  outline: 2px solid #4a90d9;
+  outline-offset: -1px;
+}
+.combo-trigger-text.combo-placeholder {
+  color: #999;
+}
+.combo-arrow {
+  font-size: 10px;
+  color: #666;
+}
+.combo-panel {
+  display: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: #fff;
+  border: 1px solid #ccc;
+}
+.combo-search {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  border: none;
+  border-bottom: 1px solid #ccc;
+  padding: 6px 8px;
+}
+.combo-search:focus {
+  outline: none;
+  background: #f7f7f7;
+}
+.combo-options {
+  max-height: 220px;
+  overflow-y: auto;
+}
+.combo-option {
+  padding: 6px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.combo-option:hover {
+  background: #f0f0f0;
+}
+.combo-empty {
+  padding: 6px 10px;
+  color: #999;
+  font-size: 13px;
+}
+.combo-label {
+  font-size: 14px;
+}
+.combo-sub {
+  font-size: 11px;
+  color: #999;
+  margin-left: 6px;
+}
+
+/* "Saving X..." / "X saved." next to Save buttons */
+.save-status {
+  margin-left: 10px;
+  font-size: 13px;
+  color: #666;
+}
+.save-status.success {
+  color: #2e7d32;
+}
+.save-status.error {
+  color: #d32f2f;
+}
+
+/* Prev/Next nav under log/ledger tables */
+.pagination-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+.pagination-info {
+  font-size: 13px;
+  color: #555;
+}
+
+/* Stock Overview status colors - ported from the old app's
+   04 Inventory/StockOverviewTable.html */
+.status-Aman { color: #1a7f37; font-weight: bold; }
+.status-Mepet { color: #b08800; font-weight: bold; }
+.status-Habis { color: #cf222e; font-weight: bold; }
+
+/* Stock Opname checklist row lock state - ported from StockOpnameEntry.html */
+#opnameChecklistBody tr.done { background: #f0f7f0; }
+#opnameChecklistBody input[disabled] { background: #eee; }
+
+/* Modal overlay - used by the Cashflow "Input Transaction" popup (and
+   reusable for future ones). Backdrop blur is purely cosmetic; the
+   underlying page stays mounted and untouched behind it. */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+  padding: 24px;
+  box-sizing: border-box;
+}
+.modal-box {
+  background: #fff;
+  border-radius: 8px;
+  padding: 24px;
+  max-width: 900px;
+  width: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+  position: relative;
+}
+.modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  border: none;
+  background: none;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  color: #666;
+  padding: 4px 8px;
+}
+.modal-close:hover {
+  color: #000;
+}
+
+/* Repeating item-row pattern (Order items, Purchase items, Cashflow entries) */
+.item-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.item-row > div {
+  display: flex;
+  flex-direction: column;
+}

@@ -1,0 +1,956 @@
+registerPage("orders", renderOrdersPage);
+
+let _ordersLookups = null;
+let _customerCombo = null;
+let _driverCombo = null;
+let _activeScope = "ongoing";
+let _ordersByCode = {}; // last-rendered Ongoing/History rows, keyed by order_code - lets the Mark Paid modal show order details without a re-fetch
+
+async function renderOrdersPage(content) {
+  await ensureOrdersLookups();
+
+  content.innerHTML = "<h2>Orders</h2>" + buildOrdersTableShellHtml();
+
+  wireOrdersTabs();
+  await loadOrdersTable(_activeScope);
+}
+
+async function ensureOrdersLookups() {
+  if (!_ordersLookups) _ordersLookups = await api("lookups");
+  return _ordersLookups;
+}
+
+// ---------- New Order modal ----------
+
+async function openOrderModal() {
+  const lookups = await ensureOrdersLookups();
+  openModal(buildOrderFormHtml());
+  initOrderForm(lookups);
+}
+
+function buildOrderFormHtml() {
+  return (
+    "<h2>New Order</h2>" +
+    '<div style="display:flex; gap:20px; flex-wrap:wrap;">' +
+      "<div>" +
+        "<label>Order Date</label><br>" +
+        '<div style="display:flex; align-items:center; gap:8px;">' +
+          '<input type="checkbox" id="orderToday" onchange="setOrderToday()">' +
+          '<label for="orderToday">Today</label>' +
+          '<input type="date" id="orderDate">' +
+        "</div>" +
+      "</div>" +
+      "<div>" +
+        "<label>Delivery Date</label><br>" +
+        '<div style="display:flex; align-items:center; gap:8px;">' +
+          '<input type="checkbox" id="deliveryToday" onchange="setDeliveryToday()">' +
+          '<label for="deliveryToday">Today</label>' +
+          '<input type="date" id="deliveryDate">' +
+        "</div>" +
+      "</div>" +
+    "</div><br>" +
+
+    "<div>" +
+      "<label>Customer</label><br>" +
+      '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">' +
+        '<div id="orderCustomerCombo" style="min-width:220px;"></div>' +
+        '<label style="display:flex; align-items:center; gap:4px; font-weight:normal;">' +
+          '<input type="checkbox" id="newCustomerToggle" onchange="toggleNewCustomer()">' +
+          "New Customer" +
+        "</label>" +
+        '<input type="text" id="newCustomerName" placeholder="New customer name" style="display:none;">' +
+      "</div>" +
+      '<label style="display:block; margin-top:8px;">Contact</label>' +
+      '<input type="text" id="orderContact" readonly style="background:#f5f5f5; margin-top:2px;">' +
+    "</div><br>" +
+
+    "<label>Items</label>" +
+    '<div id="orderItemRows"></div>' +
+    '<button type="button" onclick="addOrderItemRow()">+ Add Product</button>' +
+    '<div style="margin-top:8px; font-weight:bold;">Total: <span id="orderGrandTotal">Rp 0</span></div><br>' +
+
+    '<div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-end;">' +
+      "<div>" +
+        "<label>Fulfillment Type</label><br>" +
+        '<select id="orderType" onchange="onOrderTypeChange()">' +
+          "<option>Delivery</option><option>Takeaway</option>" +
+        "</select>" +
+      "</div>" +
+      '<div id="orderDeliveryFeeWrap">' +
+        "<label>Delivery Fee</label><br>" +
+        '<input type="text" id="orderDeliveryFee" inputmode="numeric" oninput="formatAmount(this)">' +
+      "</div>" +
+      '<div id="orderDriverWrap">' +
+        "<label>Driver</label><br>" +
+        '<div id="orderDriverCombo" style="min-width:180px;"></div>' +
+      "</div>" +
+    "</div><br>" +
+
+    '<div style="display:flex; gap:20px; flex-wrap:wrap;">' +
+      "<div>" +
+        "<label>Order Status</label><br>" +
+        '<select id="orderStatus">' +
+          "<option>Ongoing</option><option>Confirmed</option><option>Completed</option><option>Cancelled</option>" +
+        "</select>" +
+      "</div>" +
+      "<div>" +
+        "<label>Fulfillment Status</label><br>" +
+        '<select id="orderFulfillmentStatus">' +
+          "<option>Pending</option><option>Delivered</option><option>Picked Up</option>" +
+        "</select>" +
+      "</div>" +
+      "<div>" +
+        "<label>Payment Status</label><br>" +
+        '<select id="orderPaymentStatus" onchange="onOrderPaymentStatusChange()">' +
+          "<option>Unpaid</option><option>Paid</option>" +
+        "</select>" +
+      "</div>" +
+      '<div id="orderMethodWrap" style="display:none;">' +
+        "<label>Method</label><br>" +
+        '<select id="orderMethod"></select>' +
+      "</div>" +
+    "</div><br>" +
+
+    "<label>Notes</label><br>" +
+    '<input type="text" id="orderNotes" style="width:400px;"><br><br>' +
+
+    '<button id="saveOrderBtn" onclick="saveOrder()">Save Order</button>' +
+    '<span id="saveOrderStatus" class="save-status"></span>'
+  );
+}
+
+function initOrderForm(lookups) {
+  document.getElementById("orderDate").value = todayISO();
+
+  const customerContainer = document.getElementById("orderCustomerCombo");
+  _customerCombo = createCombobox(
+    customerContainer,
+    lookups.customers.map((c) => ({ value: c.id, label: c.name, sub: c.area || c.contact || "" })),
+    {
+      placeholder: "Select customer...",
+      onSelect: function (value, item) {
+        const c = lookups.customers.find((x) => x.id === value);
+        document.getElementById("orderContact").value = c && c.contact ? formatPhoneDisplay(c.contact) : "";
+      }
+    }
+  );
+
+  const driverContainer = document.getElementById("orderDriverCombo");
+  _driverCombo = createCombobox(
+    driverContainer,
+    // "GrabExpress" is a fixed quick-select (not just free-text) so it
+    // always saves as the exact string driver_payout auto-Paid logic
+    // matches on (functions/api/orders.js) - typing it by hand still works
+    // too, but risks a typo that'd silently skip that logic.
+    [{ value: "GrabExpress", label: "GrabExpress", sub: "External" }].concat(
+      lookups.staff.map((s) => ({ value: s.id, label: s.name, sub: "Staff" }))
+    ),
+    { placeholder: "Driver (staff, GrabExpress, or type external)", allowFreeText: true }
+  );
+
+  const methodSelect = document.getElementById("orderMethod");
+  methodSelect.innerHTML = lookups.paymentMethods.map((m) => "<option>" + m + "</option>").join("");
+
+  addOrderItemRow(); // start with one row like the old app
+  onOrderTypeChange();
+}
+
+function setOrderToday() {
+  if (document.getElementById("orderToday").checked) document.getElementById("orderDate").value = todayISO();
+}
+function setDeliveryToday() {
+  if (document.getElementById("deliveryToday").checked) document.getElementById("deliveryDate").value = todayISO();
+}
+
+function toggleNewCustomer() {
+  const isNew = document.getElementById("newCustomerToggle").checked;
+  document.getElementById("orderCustomerCombo").style.display = isNew ? "none" : "";
+  document.getElementById("newCustomerName").style.display = isNew ? "" : "none";
+  if (isNew) {
+    _customerCombo.clear();
+    document.getElementById("orderContact").value = "";
+  } else {
+    document.getElementById("newCustomerName").value = "";
+  }
+}
+
+function onOrderTypeChange() {
+  const isDelivery = document.getElementById("orderType").value === "Delivery";
+  document.getElementById("orderDeliveryFeeWrap").style.display = isDelivery ? "" : "none";
+  document.getElementById("orderDriverWrap").style.display = isDelivery ? "" : "none";
+  if (!isDelivery) {
+    document.getElementById("orderDeliveryFee").value = "";
+    _driverCombo.clear();
+  }
+}
+
+function onOrderPaymentStatusChange() {
+  const isPaid = document.getElementById("orderPaymentStatus").value === "Paid";
+  document.getElementById("orderMethodWrap").style.display = isPaid ? "" : "none";
+}
+
+// Ported verbatim (field order + sizing) from the old app's
+// 05 Orders/OngoingOrders_JS.html -> addOrderItemRow(). Product -> Qty ->
+// Price -> Total, in that order - confirmed against the source file, not
+// from memory.
+function addOrderItemRow() {
+  const wrap = document.getElementById("orderItemRows");
+  const row = document.createElement("div");
+  row.className = "item-row";
+  row.innerHTML =
+    '<div><label>Product</label><br><div class="sku-combo" style="min-width:200px;"></div></div>' +
+    '<div><label>Qty</label><br><input type="number" class="qty" min="1" style="width:80px;" oninput="updateOrderRowTotal(this.closest(\'.item-row\'))"></div>' +
+    '<div><label>Price</label><br><input type="text" class="unitPrice" inputmode="numeric" oninput="formatAmount(this); updateOrderRowTotal(this.closest(\'.item-row\'))"></div>' +
+    '<div><label>Total</label><br><input type="text" class="lineTotal" readonly style="background:#f5f5f5;"></div>' +
+    '<button type="button" onclick="removeOrderItemRow(this)">Remove</button>';
+  wrap.appendChild(row);
+
+  const productSkus = _ordersLookups.skus.filter((s) => s.item_type === "Product");
+  const combo = createCombobox(
+    row.querySelector(".sku-combo"),
+    productSkus.map((s) => ({ value: s.id, label: s.name, sub: s.sku })),
+    { placeholder: "Select product..." }
+  );
+  row._combo = combo;
+}
+
+function removeOrderItemRow(btn) {
+  const rows = document.querySelectorAll("#orderItemRows .item-row");
+  if (rows.length <= 1) return; // old app keeps at least one row on screen
+  btn.closest(".item-row").remove();
+  updateOrderGrandTotal();
+}
+
+function updateOrderRowTotal(row) {
+  const qty = Number(row.querySelector(".qty").value) || 0;
+  const price = parseAmount(row.querySelector(".unitPrice").value);
+  const total = qty * price;
+  row.querySelector(".lineTotal").value = total ? formatRupiah(total) : "";
+  updateOrderGrandTotal();
+}
+
+function updateOrderGrandTotal() {
+  let total = 0;
+  document.querySelectorAll("#orderItemRows .item-row").forEach(function (row) {
+    const qty = Number(row.querySelector(".qty").value) || 0;
+    const price = parseAmount(row.querySelector(".unitPrice").value);
+    total += qty * price;
+  });
+  document.getElementById("orderGrandTotal").textContent = formatRupiah(total);
+}
+
+function collectOrderItems() {
+  const items = [];
+  document.querySelectorAll("#orderItemRows .item-row").forEach(function (row) {
+    const skuId = row._combo.getValue();
+    const qty = Number(row.querySelector(".qty").value) || 0;
+    const price = parseAmount(row.querySelector(".unitPrice").value);
+    if (skuId && qty > 0) items.push({ skuId: skuId, qty: qty, unitPrice: price });
+  });
+  return items;
+}
+
+// Driver combo value is either a staff id (picked from the list) or raw
+// typed text (external driver, e.g. "GrabExpress") - tell them apart by
+// checking against the staff ids we loaded into the combo.
+function resolveDriver(value) {
+  if (!value) return { driverStaffId: null, driverNameRaw: null };
+  const isStaff = _ordersLookups.staff.some((s) => s.id === value);
+  return isStaff ? { driverStaffId: value, driverNameRaw: null } : { driverStaffId: null, driverNameRaw: value };
+}
+
+async function saveOrder() {
+  const btn = document.getElementById("saveOrderBtn");
+  const statusEl = document.getElementById("saveOrderStatus");
+
+  withSaveStatus(btn, statusEl, "Order", async function () {
+    const isNewCustomer = document.getElementById("newCustomerToggle").checked;
+    let customerId = _customerCombo.getValue();
+
+    if (isNewCustomer) {
+      const name = document.getElementById("newCustomerName").value.trim();
+      if (!name) throw new Error("New customer name is required");
+      const created = await api("customers", { method: "POST", body: { name: name } });
+      customerId = created.id;
+      _ordersLookups.customers.push(created); // so it's pickable next time without a reload
+    }
+    if (!customerId) throw new Error("Please select or add a customer");
+
+    const items = collectOrderItems();
+    if (!items.length) throw new Error("Add at least one product");
+
+    const orderType = document.getElementById("orderType").value;
+    const driver = orderType === "Delivery" ? resolveDriver(_driverCombo.getValue()) : { driverStaffId: null, driverNameRaw: null };
+
+    const payload = {
+      orderDate: document.getElementById("orderDate").value,
+      deliveryDate: document.getElementById("deliveryDate").value || null,
+      customerId: customerId,
+      items: items,
+      orderType: orderType,
+      deliveryFee: orderType === "Delivery" ? parseAmount(document.getElementById("orderDeliveryFee").value) : 0,
+      driverStaffId: driver.driverStaffId,
+      driverNameRaw: driver.driverNameRaw,
+      orderStatus: document.getElementById("orderStatus").value,
+      fulfillmentStatus: document.getElementById("orderFulfillmentStatus").value,
+      paymentStatus: document.getElementById("orderPaymentStatus").value,
+      paymentMethod: document.getElementById("orderPaymentStatus").value === "Paid" ? document.getElementById("orderMethod").value : null,
+      notes: document.getElementById("orderNotes").value || null
+    };
+
+    await api("orders", { method: "POST", body: payload });
+    closeModal();
+    await loadOrdersTable(_activeScope);
+  });
+}
+
+// ---------- Table (Ongoing / History / Driver Payout) ----------
+
+function buildOrdersTableShellHtml() {
+  return (
+    '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+      '<div class="tabs" style="margin-bottom:0;">' +
+        '<button id="tabOngoing" class="tab-active" onclick="switchOrdersTab(\'ongoing\')">Ongoing Orders</button>' +
+        '<button id="tabHistory" onclick="switchOrdersTab(\'history\')">Order History</button>' +
+        '<button id="tabPayout" onclick="switchOrdersTab(\'payout\')">Driver Payout</button>' +
+      "</div>" +
+      '<button onclick="openOrderModal()">+ New Order</button>' +
+    "</div>" +
+    '<div id="ordersTableWrap"><p>Loading...</p></div>'
+  );
+}
+
+function wireOrdersTabs() {
+  _activeScope = "ongoing";
+}
+
+function switchOrdersTab(scope) {
+  if (scope === _activeScope) return;
+  _activeScope = scope;
+  document.getElementById("tabOngoing").classList.toggle("tab-active", scope === "ongoing");
+  document.getElementById("tabHistory").classList.toggle("tab-active", scope === "history");
+  document.getElementById("tabPayout").classList.toggle("tab-active", scope === "payout");
+  loadOrdersTable(scope);
+}
+
+async function loadOrdersTable(scope) {
+  const wrap = document.getElementById("ordersTableWrap");
+  wrap.innerHTML = "<p>Loading...</p>";
+
+  // Driver Payout is its own tab (not merged into Order History). Sourced
+  // from every Delivery order regardless of Ongoing/History status (a
+  // payout can still be owed on an order that's otherwise done, or vice
+  // versa), split by driver_payout_status - ported from
+  // 05 Orders/DriverPayout.html + DriverPayoutTable.html/_JS.html.
+  if (scope === "payout") {
+    const [ongoing, history] = await Promise.all([api("orders?scope=ongoing"), api("orders?scope=history")]);
+    renderDriverPayoutSections(wrap, ongoing.concat(history));
+    return;
+  }
+
+  const orders = await api("orders?scope=" + scope);
+  renderOrdersTable(wrap, orders, scope);
+}
+
+// Ported verbatim (columns + action buttons) from the old app's
+// 05 Orders/OngoingOrdersTable.html + OrderHistoryTable.html +
+// OngoingOrdersTable_JS.html - read directly from the source files, not
+// reconstructed from memory. Order code isn't a visible column there
+// either (only used internally as the row's reference); kept that way here.
+function orderTotal(o) {
+  return o.items.reduce((s, it) => s + it.lineTotal, 0) + o.deliveryFee;
+}
+
+function dateCell(o) {
+  return (
+    '<div><span style="font-size:11px; color:#666;">Order</span><br>' + o.orderDate + "</div>" +
+    '<div style="margin-top:4px;"><span style="font-size:11px; color:#666;">Fulfillment</span><br>' + (o.deliveryDate || "") + "</div>"
+  );
+}
+
+function customerCell(o) {
+  return (
+    o.customerName +
+    '<br><span style="color:#666; font-size:12px;">' + (o.customerContact ? formatPhoneDisplay(o.customerContact) : "") + "</span>" +
+    '<br><span style="color:#999; font-size:11px;">' + o.orderCode + "</span>"
+  );
+}
+
+function itemsCell(o) {
+  return o.items
+    .map(function (it) {
+      return (
+        '<div style="padding:1px 0;">' +
+          it.name + ' <span style="color:#666; white-space:nowrap;">x' + it.qty + "</span><br>" +
+          '<span style="color:#666; font-size:12px;">' + formatRupiah(it.unitPrice) + "</span>" +
+        "</div>"
+      );
+    })
+    .join("");
+}
+
+function typeCell(o) {
+  let html = o.orderType;
+  if (o.orderType === "Delivery") {
+    html += '<br><span style="font-size:11px; color:#666;">Fee<br>' + formatRupiah(o.deliveryFee) + "</span>";
+  }
+  return html;
+}
+
+function renderOrdersTable(wrap, orders, scope) {
+  _ordersByCode = {};
+  orders.forEach((o) => { _ordersByCode[o.orderCode] = o; });
+
+  const title = scope === "history" ? "Order History" : "Ongoing Orders";
+
+  if (!orders.length) {
+    wrap.innerHTML = "<h3>" + title + "</h3><p>No orders here.</p>";
+    return;
+  }
+
+  const rows = scope === "history"
+    ? orders.map(historyRowHtml).join("")
+    : orders.map(ongoingRowHtml).join("");
+
+  const head = scope === "history"
+    ? "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Fulfillment Type</th><th>Notes</th><th>Order Status</th></tr>"
+    : "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total Price</th><th>Type</th><th>Payment</th><th>Status</th><th>Notes</th><th></th></tr>";
+
+  wrap.innerHTML =
+    "<h3>" + title + "</h3>" +
+    '<div id="ordersPaginationNav" class="pagination-nav"></div>' +
+    '<div id="ordersScrollWrap" style="overflow-x:auto;">' +
+      "<table><thead>" + head + "</thead>" +
+      '<tbody id="ordersTbody">' + rows + "</tbody></table>" +
+    "</div>";
+
+  paginateTable("ordersTbody", "ordersPaginationNav", 20);
+  enableDragScroll(document.getElementById("ordersScrollWrap"));
+}
+
+// ================================================================
+// Driver Payout - Unpaid Payout (bulk Mark Paid) + Payout History
+// (per-row Edit), ported from 05 Orders/DriverPayoutTable.html +
+// DriverPayoutTable_JS.html. Not paginated (same as the old app - this
+// list is small, a handful to a few dozen delivery orders at a time).
+// ================================================================
+
+let _driverPayoutOrdersByCode = {};
+
+function driverStaffOptions() {
+  return _ordersLookups.staff.filter((s) => Array.isArray(s.roles) && s.roles.indexOf("Driver") !== -1);
+}
+
+function driverDisplayName(driver) {
+  if (driver.driverStaffId) {
+    const s = _ordersLookups.staff.find((x) => x.id === driver.driverStaffId);
+    return s ? s.name : driver.driverStaffId;
+  }
+  return driver.driverNameRaw || "";
+}
+
+// Value is either a staff id or (for a driver not in the Driver-role list -
+// e.g. GrabExpress, or role changed since) the raw name - same dual scheme
+// as resolveDriver() uses for the New Order form's driver combo, so it
+// round-trips through the same PATCH fields.
+function driverSelectOptionsHtml(o) {
+  const drivers = driverStaffOptions();
+  const currentValue = o.driverStaffId || o.driverNameRaw || "";
+  const alreadyListed = drivers.some((d) => d.id === currentValue);
+
+  let html = '<option value="">-- Select driver --</option>';
+  drivers.forEach((d) => {
+    html += '<option value="' + d.id + '"' + (d.id === currentValue ? " selected" : "") + ">" + d.name + "</option>";
+  });
+  if (currentValue && !alreadyListed) {
+    html += '<option value="' + currentValue + '" selected>' + (o.driverName || currentValue) + " (not in Staff list)</option>";
+  }
+  return html;
+}
+
+function methodSelectOptionsHtml(current) {
+  let html = '<option value="">-</option>';
+  _ordersLookups.paymentMethods.forEach((m) => {
+    html += "<option" + (m === current ? " selected" : "") + ">" + m + "</option>";
+  });
+  return html;
+}
+
+function renderDriverPayoutSections(wrap, orders) {
+  const deliveryOrders = orders.filter((o) => o.orderType === "Delivery");
+  _driverPayoutOrdersByCode = {};
+  deliveryOrders.forEach((o) => { _driverPayoutOrdersByCode[o.orderCode] = o; });
+
+  const unpaid = deliveryOrders.filter((o) => o.driverPayoutStatus !== "Paid");
+  const paid = deliveryOrders.filter((o) => o.driverPayoutStatus === "Paid");
+
+  wrap.innerHTML =
+    "<h3>Unpaid Payout</h3>" +
+    buildUnpaidPayoutTableShellHtml(unpaid) +
+    '<h3 style="margin-top:28px;">Payout History</h3>' +
+    buildPayoutHistoryTableHtml(paid);
+
+  // Same helper as the Purchase Log (inventory.js) - keeps each driver's
+  // group of rows intact across page breaks instead of slicing blindly.
+  if (unpaid.length) paginateGroupedTable("unpaidPayoutTbody", "unpaidPayoutPaginationNav", 20);
+  enableDragScroll(document.getElementById("payoutHistoryScrollWrap"));
+}
+
+// ---------- Unpaid Payout (single table, grouped by Driver) ----------
+
+// Groups purely from the Unpaid data itself (distinct driverStaffId/
+// driverNameRaw among currently-unpaid Delivery orders) - not looped from
+// the Staff master list, so a driver with zero unpaid orders never shows
+// up as an empty group. Orders with no driver at all fall into their own
+// "Unassigned" bucket (still a real, data-derived group - just one with a
+// null key), which has no Mark Paid control since there's no one to pay.
+const UNASSIGNED_DRIVER_KEY = "__unassigned__";
+
+function groupUnpaidByDriver(rows) {
+  const byKey = {};
+  rows.forEach((o) => {
+    const key = o.driverStaffId || o.driverNameRaw || UNASSIGNED_DRIVER_KEY;
+    if (!byKey[key]) {
+      byKey[key] = { key: key, label: key === UNASSIGNED_DRIVER_KEY ? "Unassigned" : (o.driverName || key), orders: [] };
+    }
+    byKey[key].orders.push(o);
+  });
+
+  const groups = Object.values(byKey);
+  groups.sort((a, b) => {
+    if (a.key === UNASSIGNED_DRIVER_KEY) return 1;
+    if (b.key === UNASSIGNED_DRIVER_KEY) return -1;
+    return a.label.localeCompare(b.label);
+  });
+  return groups;
+}
+
+// Every order currently unpaid and belonging to one driver group - shared
+// by the group header (for its Total/Mark Paid) and the Mark Paid modal
+// (so it re-checks live data at confirm time, not a stale snapshot).
+function ordersInUnpaidGroup(groupKey) {
+  return Object.values(_driverPayoutOrdersByCode).filter((o) =>
+    o.orderType === "Delivery" &&
+    o.driverPayoutStatus !== "Paid" &&
+    (o.driverStaffId || o.driverNameRaw || UNASSIGNED_DRIVER_KEY) === groupKey
+  );
+}
+
+function buildUnpaidPayoutTableShellHtml(rows) {
+  if (!rows.length) return "<p>No unpaid delivery fees.</p>";
+  const body = groupUnpaidByDriver(rows).map(unpaidDriverGroupRowsHtml).join("");
+  return (
+    '<div id="unpaidPayoutPaginationNav" class="pagination-nav"></div>' +
+    "<table>" +
+      "<thead><tr><th>Order Date</th><th>Customer</th><th>Delivery Fee</th><th>Order ID</th><th></th></tr></thead>" +
+      '<tbody id="unpaidPayoutTbody">' + body + "</tbody>" +
+    "</table>"
+  );
+}
+
+// One full-width header row per driver group (name / total / Mark Paid),
+// followed by that driver's order rows. The header row carries
+// "group-start" so paginateGroupedTable never splits a group mid-page.
+function unpaidDriverGroupRowsHtml(group) {
+  const total = group.orders.reduce((sum, o) => sum + o.deliveryFee, 0);
+  const isUnassigned = group.key === UNASSIGNED_DRIVER_KEY;
+  const markPaidBtn = isUnassigned
+    ? '<span style="color:#666; font-size:13px;">Assign a driver (Edit) to enable Mark Paid</span>'
+    : '<button onclick="openMarkGroupPaidModal(\'' + group.key + '\')">Mark Paid</button>';
+
+  const header =
+    '<tr class="group-start driver-group-row">' +
+      '<td colspan="5" style="background:#f4f4f4;">' +
+        '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+          "<strong>" + group.label + "</strong>" +
+          '<div style="display:flex; align-items:center; gap:12px;">' +
+            "<strong>Total: " + formatRupiah(total) + "</strong>" +
+            markPaidBtn +
+          "</div>" +
+        "</div>" +
+      "</td>" +
+    "</tr>";
+
+  return header + group.orders.map(unpaidPayoutRowHtml).join("");
+}
+
+function unpaidPayoutRowHtml(o) {
+  return (
+    "<tr>" +
+      "<td>" + o.orderDate + "</td>" +
+      "<td>" + o.customerName + "</td>" +
+      "<td>" + formatRupiah(o.deliveryFee) + "</td>" +
+      "<td>" + o.orderCode + "</td>" +
+      '<td><button onclick="openPayoutEditModal(\'' + o.orderCode + '\')">Edit</button></td>' +
+    "</tr>"
+  );
+}
+
+// Per-transaction Edit modal - only Delivery Fee and Driver (Method is now
+// chosen once per group at Mark Paid time, not per order). Saving re-loads
+// the whole tab, so the order re-groups under its new driver automatically
+// (and the old group just disappears on its own if that was its last order
+// - grouping is recomputed fresh from the data every render, never
+// tracked/mutated in place).
+function openPayoutEditModal(orderCode) {
+  const order = _driverPayoutOrdersByCode[orderCode];
+  openModal(
+    "<h2>Edit Payout - " + orderCode + "</h2>" +
+    "<label>Delivery Fee</label><br>" +
+    '<input type="text" id="editPayoutFee" inputmode="numeric" value="' + formatRupiah(order.deliveryFee) + '" oninput="formatAmount(this)"><br><br>' +
+    "<label>Driver</label><br>" +
+    '<select id="editPayoutDriver">' + driverSelectOptionsHtml(order) + "</select><br><br>" +
+    '<button id="savePayoutEditBtn" onclick="savePayoutEditModal(\'' + orderCode + '\')">Save</button>' +
+    '<span id="savePayoutEditStatus" class="save-status"></span>'
+  );
+}
+
+function savePayoutEditModal(orderCode) {
+  const fee = parseAmount(document.getElementById("editPayoutFee").value);
+  const driverValue = document.getElementById("editPayoutDriver").value;
+
+  if (!driverValue) { alert("Please select a driver."); return; }
+
+  const driver = resolveDriver(driverValue);
+  const btn = document.getElementById("savePayoutEditBtn");
+  const statusEl = document.getElementById("savePayoutEditStatus");
+
+  withSaveStatus(btn, statusEl, "Payout", async function () {
+    await api("orders/" + encodeURIComponent(orderCode), {
+      method: "PATCH",
+      body: { deliveryFee: fee, driverStaffId: driver.driverStaffId, driverNameRaw: driver.driverNameRaw }
+    });
+    closeModal();
+    await loadOrdersTable(_activeScope);
+  });
+}
+
+// Mark Paid opens a modal (Payout Method + Confirm) rather than acting
+// immediately, since Method now applies to the whole group at once and
+// needs picking every time (unlike the old per-row select that stayed on
+// screen). Re-reads ordersInUnpaidGroup() fresh at open and at confirm time
+// so it always reflects whatever's currently in the group.
+function openMarkGroupPaidModal(groupKey) {
+  const orders = ordersInUnpaidGroup(groupKey);
+  if (!orders.length) return;
+
+  const driverLabel = orders[0].driverName || groupKey;
+  const total = orders.reduce((sum, o) => sum + o.deliveryFee, 0);
+
+  openModal(
+    "<h2>Mark Paid - " + driverLabel + "</h2>" +
+    "<p>" + orders.length + " order(s), total " + formatRupiah(total) + "</p>" +
+    "<label>Payment Date</label><br>" +
+    '<div style="display:flex; align-items:center; gap:8px;">' +
+      '<input type="checkbox" id="markPaidToday" checked onchange="setMarkPaidToday()">' +
+      '<label for="markPaidToday">Today</label>' +
+      '<input type="date" id="markPaidDate">' +
+    "</div><br><br>" +
+    "<label>Payout Method</label><br>" +
+    '<select id="markPaidMethod">' + methodSelectOptionsHtml(null) + "</select><br><br>" +
+    '<button id="markPaidConfirmBtn" onclick="confirmMarkGroupPaid(\'' + groupKey + '\')">Confirm</button>' +
+    '<span id="markPaidStatus" class="save-status"></span>'
+  );
+  setMarkPaidToday();
+}
+
+function setMarkPaidToday() {
+  const today = document.getElementById("markPaidToday");
+  const date = document.getElementById("markPaidDate");
+  if (today.checked) { date.valueAsDate = new Date(); date.disabled = true; }
+  else { date.value = ""; date.disabled = false; }
+}
+
+// Ported from the old app's markDriverFeesPaid(): one OpEx entry per order
+// (category "Logistic"). Dated to the modal's own Payment Date (defaults to
+// today, per explicit request) rather than the order's date - the fee is
+// only actually paid out (and should book as an expense) whenever this
+// button is clicked, which can be well after the order/delivery happened.
+// Skipped for a zero fee (free delivery), same rule as before.
+function confirmMarkGroupPaid(groupKey) {
+  const orders = ordersInUnpaidGroup(groupKey);
+  if (!orders.length) { closeModal(); return; }
+
+  const paymentDate = document.getElementById("markPaidDate").value;
+  if (!paymentDate) { alert("Please select a payment date."); return; }
+
+  const methodSelect = document.getElementById("markPaidMethod");
+  const method = methodSelect && methodSelect.value ? methodSelect.value : null;
+  const driver = orders[0].driverStaffId
+    ? { driverStaffId: orders[0].driverStaffId, driverNameRaw: null }
+    : { driverStaffId: null, driverNameRaw: orders[0].driverNameRaw };
+  const driverLabel = orders[0].driverName || groupKey;
+
+  const btn = document.getElementById("markPaidConfirmBtn");
+  const statusEl = document.getElementById("markPaidStatus");
+
+  withSaveStatus(btn, statusEl, "Payout", async function () {
+    await Promise.all(orders.map(async (o) => {
+      let opexCode = null;
+
+      if (o.deliveryFee > 0) {
+        const created = await api("opex", {
+          method: "POST",
+          body: {
+            date: paymentDate,
+            category: "Logistic",
+            desc: "Driver Fee " + driverLabel + ", " + o.orderCode,
+            grossAmount: o.deliveryFee,
+            amort: "No",
+            period: 1
+          }
+        });
+        opexCode = created.opexCode;
+      }
+
+      await api("orders/" + encodeURIComponent(o.orderCode), {
+        method: "PATCH",
+        body: {
+          driverStaffId: driver.driverStaffId,
+          driverNameRaw: driver.driverNameRaw,
+          driverPayoutMethod: method,
+          driverPayoutStatus: "Paid",
+          driverPayout: o.deliveryFee,
+          driverPayoutOpexCode: opexCode
+        }
+      });
+    }));
+    closeModal();
+    await loadOrdersTable(_activeScope);
+  });
+}
+
+// ---------- Payout History ----------
+
+function buildPayoutHistoryTableHtml(rows) {
+  const body = rows.length ? rows.map(payoutHistoryRowHtml).join("") : '<tr><td colspan="8">No paid driver fees yet.</td></tr>';
+  return (
+    '<div style="overflow-x:auto;" id="payoutHistoryScrollWrap">' +
+      "<table>" +
+        "<thead><tr><th>Order Date</th><th>Customer</th><th>Delivery Fee</th><th>Driver</th><th>Method</th><th>Status</th><th>Order ID</th><th></th></tr></thead>" +
+        "<tbody>" + body + "</tbody>" +
+      "</table>" +
+    "</div>"
+  );
+}
+
+function payoutHistoryRowHtml(o) {
+  return (
+    '<tr data-order="' + o.orderCode + '">' +
+      "<td>" + o.orderDate + "</td>" +
+      "<td>" + o.customerName + "</td>" +
+      "<td>" +
+        '<span class="payoutFeeDisplay">' + formatRupiah(o.deliveryFee) + "</span>" +
+        '<input type="text" class="payoutFeeInput" value="' + o.deliveryFee + '" inputmode="numeric" style="display:none;" oninput="formatAmount(this)">' +
+      "</td>" +
+      "<td>" +
+        '<span class="payoutDriverDisplay">' + (o.driverName || "") + "</span>" +
+        '<select class="payoutDriverSelect" style="display:none;">' + driverSelectOptionsHtml(o) + "</select>" +
+      "</td>" +
+      "<td>" +
+        '<span class="payoutMethodDisplay">' + (o.driverPayoutMethod || "") + "</span>" +
+        '<select class="payoutMethodSelect" style="display:none;">' + methodSelectOptionsHtml(o.driverPayoutMethod) + "</select>" +
+      "</td>" +
+      "<td>" +
+        '<span class="payoutStatusDisplay">Paid</span>' +
+        '<select class="payoutStatusSelect" style="display:none;"><option>Paid</option><option>Unpaid</option></select>' +
+      "</td>" +
+      "<td>" + o.orderCode + "</td>" +
+      "<td>" +
+        '<button class="payoutEditBtn" onclick="startEditPayout(this)">Edit</button>' +
+        '<button class="payoutSaveBtn" onclick="savePayoutEdit(this)" style="display:none;">Save</button> ' +
+        '<button class="payoutCancelBtn" onclick="cancelEditPayout()" style="display:none;">Cancel</button>' +
+      "</td>" +
+    "</tr>"
+  );
+}
+
+function startEditPayout(btn) {
+  const row = btn.closest("tr");
+  row.querySelectorAll(".payoutFeeDisplay, .payoutDriverDisplay, .payoutMethodDisplay, .payoutStatusDisplay").forEach((el) => { el.style.display = "none"; });
+  row.querySelectorAll(".payoutFeeInput, .payoutDriverSelect, .payoutMethodSelect, .payoutStatusSelect").forEach((el) => { el.style.display = ""; });
+  row.querySelector(".payoutEditBtn").style.display = "none";
+  row.querySelector(".payoutSaveBtn").style.display = "";
+  row.querySelector(".payoutCancelBtn").style.display = "";
+  formatAmount(row.querySelector(".payoutFeeInput"));
+}
+
+// Simplest correct "discard changes" - reload the tab fresh rather than
+// manually restoring every cell's original display state.
+function cancelEditPayout() {
+  loadOrdersTable(_activeScope);
+}
+
+// Status here is Paid/Unpaid, backed by the same driver_payout_status
+// column Unpaid Payout/Mark Paid use ("Unpaid" -> null, matching how the
+// rest of the app represents not-yet-paid - there's no literal "Unpaid"
+// value in the data, just an unset status). Saving as Unpaid moves the row
+// back out of Payout History into Unpaid Payout on the next load, since
+// both sections are just a driverPayoutStatus filter over the same list.
+function savePayoutEdit(btn) {
+  const row = btn.closest("tr");
+  const orderCode = row.dataset.order;
+  const order = _driverPayoutOrdersByCode[orderCode];
+  const fee = parseAmount(row.querySelector(".payoutFeeInput").value);
+  const driverValue = row.querySelector(".payoutDriverSelect").value;
+  const method = row.querySelector(".payoutMethodSelect").value;
+  const status = row.querySelector(".payoutStatusSelect").value;
+
+  if (!driverValue) { alert("Please select a driver."); return; }
+
+  const driver = resolveDriver(driverValue);
+
+  withInlineSaveStatus(btn, "Payout", async function () {
+    // Ported from updateDriverPayoutPaid() (Fee/Driver/Method edit syncs the
+    // linked OpEx entry's amount+desc) and markDriverPayoutUnpaid() (Status
+    // switched to Unpaid deletes the linked OpEx entry outright, same as
+    // Mark Unpaid in the old app).
+    let opexCode = order.driverPayoutOpexCode || null;
+
+    if (status === "Paid" && fee > 0) {
+      const desc = "Driver Fee " + driverDisplayName(driver) + ", " + orderCode;
+      if (opexCode) {
+        await api("opex/" + encodeURIComponent(opexCode), { method: "PATCH", body: { grossAmount: fee, desc: desc } });
+      } else {
+        // Shouldn't normally happen for a row already in Payout History, but
+        // stay correct if it's ever missing rather than silently dropping it.
+        const created = await api("opex", { method: "POST", body: { date: order.orderDate, category: "Logistic", desc: desc, grossAmount: fee, amort: "No", period: 1 } });
+        opexCode = created.opexCode;
+      }
+    } else if (opexCode) {
+      // Either switched to Unpaid, or the fee was edited down to 0 (nothing
+      // left to expense) - either way, any existing linked entry has to go.
+      await api("opex/" + encodeURIComponent(opexCode), { method: "DELETE" });
+      opexCode = null;
+    }
+
+    await api("orders/" + encodeURIComponent(orderCode), {
+      method: "PATCH",
+      body: {
+        deliveryFee: fee,
+        driverStaffId: driver.driverStaffId,
+        driverNameRaw: driver.driverNameRaw,
+        driverPayoutMethod: method || null,
+        driverPayoutStatus: status === "Paid" ? "Paid" : null,
+        driverPayoutOpexCode: opexCode
+      }
+    });
+    await loadOrdersTable(_activeScope);
+  });
+}
+
+function ongoingRowHtml(o) {
+  const fulfillmentDone = o.fulfillmentStatus !== "Pending";
+  const statusHtml = fulfillmentDone
+    ? o.fulfillmentStatus + (o.driverName ? "<br><span style=\"font-size:11px; color:#666;\">by " + o.driverName + "</span>" : "")
+    : "";
+
+  const paymentHtml = o.paymentStatus + (o.paymentStatus === "Paid" && o.paymentMethod ? '<br><span style="font-size:11px; color:#666;">' + o.paymentMethod + "</span>" : "");
+
+  const actions =
+    (o.paymentStatus !== "Paid" ? '<button style="font-size:11px;" onclick="startMarkOrderPaid(\'' + o.orderCode + '\')">Mark Paid</button><br>' : "") +
+    (!fulfillmentDone ? '<button style="font-size:11px;" onclick="markOrderDeliveryStatus(this, \'' + o.orderCode + '\', \'' + o.orderType + '\')">' + (o.orderType === "Takeaway" ? "Mark Picked Up" : "Mark Delivered") + "</button><br>" : "") +
+    // Extra top margin so Cancel sits visibly apart from Mark Paid/Mark
+    // Delivered above it - those two get used often, Cancel rarely, so a
+    // slip of the mouse shouldn't land on it. Label spelled out
+    // ("Cancel Order") since a bare "Cancel" reads as "cancel this action".
+    '<button style="font-size:11px; margin-top:10px;" onclick="markOrderCancelled(\'' + o.orderCode + '\')">Cancel Order</button>';
+
+  return (
+    "<tr>" +
+      "<td>" + dateCell(o) + "</td>" +
+      "<td>" + customerCell(o) + "</td>" +
+      "<td>" + itemsCell(o) + "</td>" +
+      "<td>" + formatRupiah(orderTotal(o)) + "</td>" +
+      "<td>" + typeCell(o) + "</td>" +
+      "<td>" + paymentHtml + "</td>" +
+      "<td>" + statusHtml + "</td>" +
+      "<td>" + (o.notes || "") + "</td>" +
+      '<td class="orderActions" data-order="' + o.orderCode + '">' + actions + "</td>" +
+    "</tr>"
+  );
+}
+
+function historyRowHtml(o) {
+  const totalHtml = formatRupiah(orderTotal(o)) + (o.paymentMethod ? '<br><span style="font-size:11px; color:#666;">' + o.paymentMethod + "</span>" : "");
+  const statusLabel = o.orderStatus === "Cancelled" ? "Cancelled" : "Completed";
+  const statusSub = o.orderStatus !== "Cancelled" && o.fulfillmentStatus !== "Pending"
+    ? '<br><span style="font-size:11px; color:#666;">' + o.fulfillmentStatus + (o.driverName ? " by " + o.driverName : "") + "</span>"
+    : "";
+
+  return (
+    "<tr>" +
+      "<td>" + dateCell(o) + "</td>" +
+      "<td>" + customerCell(o) + "</td>" +
+      "<td>" + itemsCell(o) + "</td>" +
+      "<td>" + totalHtml + "</td>" +
+      "<td>" + typeCell(o) + "</td>" +
+      "<td>" + (o.notes || "") + "</td>" +
+      "<td>" + statusLabel + statusSub + "</td>" +
+    "</tr>"
+  );
+}
+
+// ---------- Ongoing row actions (Mark Paid / Mark Delivered / Cancel) ----------
+// Ported from OngoingOrdersTable_JS.html. Note: the old app also reversed
+// stock consumption and removed a Driver Payout row on Cancel - neither has
+// an equivalent here (our schema doesn't tie ingredient stock to orders;
+// driver payout is just a couple of columns on the order itself), so Cancel
+// here is just the order_status flip.
+// Modal, same pattern as Driver Payout's Mark Paid (openPayoutEditModal /
+// openMarkGroupPaidModal) - a dropdown pick-then-Confirm in an overlay
+// instead of swapping the row's action cell in place. Order details are
+// read-only context (from _ordersByCode, populated on every table render)
+// so whoever's confirming payment can double-check they've got the right
+// order without leaving the modal.
+function startMarkOrderPaid(orderCode) {
+  const o = _ordersByCode[orderCode];
+  const summary = o
+    ? (
+        "<p><strong>Customer:</strong> " + o.customerName + (o.customerContact ? " (" + formatPhoneDisplay(o.customerContact) + ")" : "") + "</p>" +
+        "<div>" + itemsCell(o) + "</div>" +
+        (o.orderType === "Delivery" && o.deliveryFee > 0 ? "<p><strong>Delivery Fee:</strong> " + formatRupiah(o.deliveryFee) + "</p>" : "") +
+        "<p><strong>Total Price:</strong> " + formatRupiah(orderTotal(o)) + "</p>"
+      )
+    : "";
+
+  openModal(
+    "<h2>Mark Paid - " + orderCode + "</h2>" +
+    summary +
+    "<label>Payment Method</label><br>" +
+    '<select id="markOrderPaidMethod">' + methodSelectOptionsHtml(null) + "</select><br><br>" +
+    '<button id="markOrderPaidConfirmBtn" onclick="confirmMarkOrderPaid(\'' + orderCode + '\')">Confirm</button>' +
+    '<span id="markOrderPaidStatus" class="save-status"></span>'
+  );
+}
+
+function confirmMarkOrderPaid(orderCode) {
+  const method = document.getElementById("markOrderPaidMethod").value;
+  if (!method) { alert("Please select a payment method."); return; }
+
+  const btn = document.getElementById("markOrderPaidConfirmBtn");
+  const statusEl = document.getElementById("markOrderPaidStatus");
+
+  withSaveStatus(btn, statusEl, "Payment", async function () {
+    await api("orders/" + encodeURIComponent(orderCode), { method: "PATCH", body: { paymentStatus: "Paid", paymentMethod: method } });
+    closeModal();
+    await loadOrdersTable(_activeScope);
+  });
+}
+
+function markOrderDeliveryStatus(btn, orderCode, orderType) {
+  const status = orderType === "Takeaway" ? "Picked Up" : "Delivered";
+  if (!confirm("Mark this order as " + status + "?")) return;
+
+  withInlineSaveStatus(btn, "Status", async function () {
+    await api("orders/" + encodeURIComponent(orderCode), { method: "PATCH", body: { fulfillmentStatus: status } });
+    await loadOrdersTable(_activeScope);
+  });
+}
+
+function markOrderCancelled(orderCode) {
+  if (!confirm("Mark this order as Cancelled?")) return;
+  api("orders/" + encodeURIComponent(orderCode), { method: "PATCH", body: { orderStatus: "Cancelled" } })
+    .then(() => loadOrdersTable(_activeScope))
+    .catch((err) => alert(err.message));
+}

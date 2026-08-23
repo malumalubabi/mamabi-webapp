@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MaluMaluBabi WebApp</title>
+  <link rel="stylesheet" href="/shared.css">
+</head>
+<body>
+
+  <header>
+    <h2>MaluMaluBabi WebApp</h2>
+    <hr>
+  </header>
+
+  <nav id="navbar">
+
+    <button data-page="dashboard" onclick="navigateTo('dashboard'); closeNavDropdowns();">
+      Dashboard
+    </button>
+
+    <div class="navbar-item">
+      <button onclick="toggleNavDropdown(this)">Finance &#9662;</button>
+      <div class="navbar-dropdown">
+        <button data-page="cashflow" onclick="navigateTo('cashflow'); closeNavDropdowns();">Cashflow</button>
+        <div class="navbar-subitem">
+          <button onclick="toggleNavSubmenu(this, event)">Opex</button>
+          <div class="navbar-subdropdown">
+            <button data-page="finance-opex" data-tab="summary" onclick="navigateTo('finance-opex?tab=summary'); closeNavDropdowns();">Summary</button>
+            <button data-page="finance-opex" data-tab="log" onclick="navigateTo('finance-opex?tab=log'); closeNavDropdowns();">Log</button>
+          </div>
+        </div>
+        <button data-page="finance-pnl" onclick="navigateTo('finance-pnl'); closeNavDropdowns();">P&amp;L</button>
+      </div>
+    </div>
+
+    <div class="navbar-item">
+      <button onclick="toggleNavDropdown(this)">Sales &#9662;</button>
+      <div class="navbar-dropdown">
+        <button data-page="sales" data-tab="summary" onclick="navigateTo('sales?tab=summary'); closeNavDropdowns();">Summary</button>
+        <button data-page="sales" data-tab="log" onclick="navigateTo('sales?tab=log'); closeNavDropdowns();">Log</button>
+      </div>
+    </div>
+
+    <div class="navbar-item">
+      <button onclick="toggleNavDropdown(this)">Inventory &#9662;</button>
+      <div class="navbar-dropdown">
+        <button data-page="inventory-stock" onclick="navigateTo('inventory-stock'); closeNavDropdowns();">Stock</button>
+        <button data-page="inventory-cost" onclick="navigateTo('inventory-cost'); closeNavDropdowns();">Cost</button>
+      </div>
+    </div>
+
+    <button data-page="orders" onclick="navigateTo('orders'); closeNavDropdowns();">
+      Orders
+    </button>
+    
+    <div class="navbar-item">
+      <button onclick="toggleNavDropdown(this)">Menu &#9662;</button>
+      <div class="navbar-dropdown">
+        <button data-page="batch-production" onclick="navigateTo('batch-production'); closeNavDropdowns();">Batch Production</button>
+        <div class="navbar-subitem">
+          <button onclick="toggleNavSubmenu(this, event)">Engineering</button>
+          <div class="navbar-subdropdown">
+            <button data-page="menu-engineering" data-tab="pricing" onclick="navigateTo('menu-engineering?tab=pricing'); closeNavDropdowns();">Pricing</button>
+            <button data-page="menu-engineering" data-tab="platform" onclick="navigateTo('menu-engineering?tab=platform'); closeNavDropdowns();">Platform Pricing</button>
+            <button data-page="menu-engineering" data-tab="costing" onclick="navigateTo('menu-engineering?tab=costing'); closeNavDropdowns();">Costing</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="navbar-item">
+      <button onclick="toggleNavDropdown(this)">Database &#9662;</button>
+      <div class="navbar-dropdown">
+        <div class="navbar-subitem">
+          <button onclick="toggleNavSubmenu(this, event)">SKU</button>
+          <div class="navbar-subdropdown">
+            <button data-page="database" data-tab="sku-Ingredient" onclick="navigateTo('database?tab=sku-Ingredient'); closeNavDropdowns();">Ingredient</button>
+            <button data-page="database" data-tab="sku-Packaging" onclick="navigateTo('database?tab=sku-Packaging'); closeNavDropdowns();">Packaging</button>
+            <button data-page="database" data-tab="sku-Operating" onclick="navigateTo('database?tab=sku-Operating'); closeNavDropdowns();">Operating</button>
+            <button data-page="database" data-tab="sku-Product" onclick="navigateTo('database?tab=sku-Product'); closeNavDropdowns();">Product</button>
+            <button data-page="database" data-tab="sku-Component" onclick="navigateTo('database?tab=sku-Component'); closeNavDropdowns();">Component</button>
+            <button data-page="database" data-tab="sku-Semi-Finished" onclick="navigateTo('database?tab=sku-Semi-Finished'); closeNavDropdowns();">Semi-Finished</button>
+          </div>
+        </div>
+        <button data-page="database" data-tab="supplier" onclick="navigateTo('database?tab=supplier'); closeNavDropdowns();">Supplier</button>
+        <button data-page="database" data-tab="customer" onclick="navigateTo('database?tab=customer'); closeNavDropdowns();">Customer</button>
+        <button data-page="database" data-tab="staff" onclick="navigateTo('database?tab=staff'); closeNavDropdowns();">Staff</button>
+      </div>
+    </div>
+
+    <button data-page="settings" onclick="navigateTo('settings'); closeNavDropdowns();">
+      Settings
+    </button>
+
+  </nav>
+
+  <main id="content">
+    <p>Loading...</p>
+  </main>
+
+  <footer>
+    <hr>
+    <p>&copy; MaMaBi System</p>
+  </footer>
+
+  <script src="/shared.js"></script>
+  <script src="/pages/dashboard.js"></script>
+  <script src="/pages/orders.js"></script>
+  <script src="/pages/inventory.js"></script>
+  <script src="/pages/menu.js"></script>
+  <script src="/pages/cashflow.js"></script>
+  <script src="/pages/opex.js"></script>
+  <script src="/pages/pnl.js"></script>
+  <script src="/pages/sales.js"></script>
+  <script src="/pages/database.js"></script>
+  <script src="/pages/settings.js"></script>
+  <script>
+    renderCurrentPage();
+  </script>
+
+</body>
+</html>

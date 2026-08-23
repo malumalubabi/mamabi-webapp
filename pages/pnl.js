@@ -1,0 +1,107 @@
+// P&L - ported from the old app's PnLService.gs getPnLReport(), which was
+// 100% computed live from Sales + Opex (no manual entry table at all). Same
+// here, except a past month can be explicitly "closed" (frozen into
+// pnl_lines) so its numbers stop moving even if Sales/Opex data changes
+// later - see functions/api/pnl.js's file comment for the full reasoning.
+// The report itself (rows/months/values shape) is built entirely server-side
+// (functions/api/pnl.js) - this file just renders it and drives the
+// Close/Recalculate actions per month.
+registerPage("finance-pnl", renderPnlPage);
+
+let _lastPnlData = null;
+
+async function renderPnlPage(content) {
+  content.innerHTML =
+    "<h2>Profit and Loss</h2>" +
+    '<div style="margin-bottom:8px;"><button onclick="loadPnl()">Refresh</button></div>' +
+    '<div id="pnlWrap"><p>Loading...</p></div>';
+  await loadPnl();
+}
+
+async function loadPnl() {
+  const wrap = document.getElementById("pnlWrap");
+  if (!wrap) return;
+  wrap.innerHTML = "<p>Loading...</p>";
+
+  _lastPnlData = await api("pnl");
+  if (!document.getElementById("pnlWrap")) return;
+  renderPnlTable(wrap);
+}
+
+function renderPnlTable(wrap) {
+  const data = _lastPnlData;
+
+  const warningHtml = data.unpricedProductNames.length
+    ? ('<p style="background:#fff3cd; border:1px solid #ffe08a; padding:8px 12px; border-radius:4px;">' +
+        "<strong>Heads up:</strong> Food Cost/Packaging Cost below excludes these products because they don't have costing set up yet (Menu &gt; Engineering &gt; Costing) - Total COGS is understated until they're costed: " +
+        data.unpricedProductNames.join(", ") + "</p>")
+    : "";
+
+  wrap.innerHTML =
+    warningHtml +
+    '<div id="pnlScrollWrap" style="overflow-x:auto;">' +
+      "<table>" +
+        "<thead>" +
+          "<tr><th>Item</th>" + data.months.map((m) => "<th>" + monthHeaderHtml(m) + "</th>").join("") + "</tr>" +
+        "</thead>" +
+        "<tbody>" + data.rows.map(pnlRowHtml).join("") + "</tbody>" +
+      "</table>" +
+    "</div>";
+  enableDragScroll(document.getElementById("pnlScrollWrap"));
+}
+
+function monthHeaderHtml(m) {
+  return (
+    '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">' +
+      "<span>" + m.label + "</span>" +
+      '<span style="display:flex; align-items:center; gap:8px; font-weight:normal;">' + monthActionHtml(m) + "</span>" +
+    "</div>"
+  );
+}
+
+function monthActionHtml(m) {
+  if (m.closed) {
+    return (
+      '<span style="font-size:11px; color:#666; white-space:nowrap;">&#128274; Closed ' + formatPnlClosedDate(m.closedAt) + "</span>" +
+      '<button style="font-size:11px;" onclick="closeOrRecalculatePnlMonth(\'' + m.key + '\', true)">Recalculate</button>'
+    );
+  }
+  if (!m.closeable) {
+    return '<span style="font-size:11px; color:#666;">&#128275; Live</span>';
+  }
+  return (
+    '<span style="font-size:11px; color:#666; white-space:nowrap;">&#128275; Live</span>' +
+    '<button style="font-size:11px;" onclick="closeOrRecalculatePnlMonth(\'' + m.key + '\', false)">Close Month</button>'
+  );
+}
+
+function formatPnlClosedDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function pnlRowHtml(r) {
+  const colspan = 1 + _lastPnlData.months.length;
+  if (r.values === null) {
+    return '<tr><td colspan="' + colspan + '"><strong>' + r.label + "</strong></td></tr>";
+  }
+  const cells = r.values.map((v) => "<td>" + formatPnlValue(r.label, v) + "</td>").join("");
+  return "<tr" + (r.bold ? ' style="font-weight:bold;"' : "") + "><td>" + r.label + "</td>" + cells + "</tr>";
+}
+
+function formatPnlValue(label, value) {
+  if (typeof value !== "number") return value === null || value === undefined ? "" : value;
+  return String(label).trim().slice(-1) === "%" ? formatPercent(value) : formatRupiah(value);
+}
+
+function closeOrRecalculatePnlMonth(monthKey, isRecalculate) {
+  const confirmMsg = isRecalculate
+    ? "Recalculate " + monthKey + "? This re-derives its numbers from CURRENT Sales/Opex data (and current PnL Categories Fixed/Variable settings) and overwrites the frozen snapshot."
+    : "Close " + monthKey + "? This freezes its P&L numbers so they won't change even if Sales/Opex data is edited later. You can Recalculate afterwards if a correction is needed.";
+  if (!confirm(confirmMsg)) return;
+
+  api("pnl-close", { method: "POST", body: { monthKey: monthKey } })
+    .then(loadPnl)
+    .catch((err) => alert(err.message));
+}

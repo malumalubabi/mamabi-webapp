@@ -1,0 +1,17 @@
+{
+  "name": "mamabi-webapp",
+  "private": true,
+  "version": "1.0.0",
+  "description": "MaMaBi internal web app - Cloudflare Pages + Supabase",
+  "scripts": {
+    "dev": "wrangler pages dev . --compatibility-date=2025-07-18",
+    "deploy": "wrangler pages deploy .",
+    "backup": "node scripts/backup.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^3"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2"
+  }
+}
