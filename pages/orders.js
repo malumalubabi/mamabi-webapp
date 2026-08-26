@@ -88,16 +88,8 @@ function buildOrderFormHtml() {
 
     '<div style="display:flex; gap:20px; flex-wrap:wrap;">' +
       "<div>" +
-        "<label>Order Status</label><br>" +
-        '<select id="orderStatus">' +
-          "<option>Ongoing</option><option>Confirmed</option><option>Completed</option><option>Cancelled</option>" +
-        "</select>" +
-      "</div>" +
-      "<div>" +
         "<label>Fulfillment Status</label><br>" +
-        '<select id="orderFulfillmentStatus">' +
-          "<option>Pending</option><option>Delivered</option><option>Picked Up</option>" +
-        "</select>" +
+        '<select id="orderFulfillmentStatus"></select>' +
       "</div>" +
       "<div>" +
         "<label>Payment Status</label><br>" +
@@ -138,14 +130,15 @@ function initOrderForm(lookups) {
   const driverContainer = document.getElementById("orderDriverCombo");
   _driverCombo = createCombobox(
     driverContainer,
-    // "GrabExpress" is a fixed quick-select (not just free-text) so it
-    // always saves as the exact string driver_payout auto-Paid logic
-    // matches on (functions/api/orders.js) - typing it by hand still works
-    // too, but risks a typo that'd silently skip that logic.
+    // Dropdown-only, no free text - Staff (Driver role) + GrabExpress are
+    // the only real delivery driver options, per explicit request. Also
+    // keeps "GrabExpress" saving as the exact string driver_payout
+    // auto-Paid logic matches on (functions/api/orders.js) - a free-typed
+    // variant risked a typo that'd silently skip that logic.
     [{ value: "GrabExpress", label: "GrabExpress", sub: "External" }].concat(
-      lookups.staff.map((s) => ({ value: s.id, label: s.name, sub: "Staff" }))
+      driverStaffOptions().map((s) => ({ value: s.id, label: s.name, sub: "Staff" }))
     ),
-    { placeholder: "Driver (staff, GrabExpress, or type external)", allowFreeText: true }
+    { placeholder: "Select driver..." }
   );
 
   const methodSelect = document.getElementById("orderMethod");
@@ -175,13 +168,19 @@ function toggleNewCustomer() {
 }
 
 function onOrderTypeChange() {
-  const isDelivery = document.getElementById("orderType").value === "Delivery";
+  const orderType = document.getElementById("orderType").value;
+  const isDelivery = orderType === "Delivery";
   document.getElementById("orderDeliveryFeeWrap").style.display = isDelivery ? "" : "none";
   document.getElementById("orderDriverWrap").style.display = isDelivery ? "" : "none";
   if (!isDelivery) {
     document.getElementById("orderDeliveryFee").value = "";
     _driverCombo.clear();
   }
+
+  // Delivered only makes sense for Delivery, Picked Up only for Takeaway -
+  // Pending is valid (and the reset default) either way.
+  const options = isDelivery ? ["Pending", "Delivered"] : ["Pending", "Picked Up"];
+  document.getElementById("orderFulfillmentStatus").innerHTML = options.map((o) => "<option>" + o + "</option>").join("");
 }
 
 function onOrderPaymentStatusChange() {
@@ -209,9 +208,25 @@ function addOrderItemRow() {
   const combo = createCombobox(
     row.querySelector(".sku-combo"),
     productSkus.map((s) => ({ value: s.id, label: s.name, sub: s.sku })),
-    { placeholder: "Select product..." }
+    {
+      placeholder: "Select product...",
+      onSelect: function (skuId) { onOrderRowProductChange(row, skuId); }
+    }
   );
   row._combo = combo;
+}
+
+// Price auto-fills from the product's Base Selling Price - Orders always
+// represents the "Online" channel (Base Pricing meta, same as Dine In - see
+// salePlatformOptionsHtml in pages/sales.js), never a Platform Pricing
+// channel, so there's no channel toggle to check here unlike Input Sales.
+// Still freely editable after, same as Input Sales's onSaleRowProductChange.
+function onOrderRowProductChange(row, skuId) {
+  const product = _ordersLookups.skus.find((s) => s.id === skuId);
+  const price = product ? Number(product.selling_price) || 0 : 0;
+
+  row.querySelector(".unitPrice").value = price ? formatRupiah(price) : "";
+  updateOrderRowTotal(row);
 }
 
 function removeOrderItemRow(btn) {
@@ -291,7 +306,6 @@ async function saveOrder() {
       deliveryFee: orderType === "Delivery" ? parseAmount(document.getElementById("orderDeliveryFee").value) : 0,
       driverStaffId: driver.driverStaffId,
       driverNameRaw: driver.driverNameRaw,
-      orderStatus: document.getElementById("orderStatus").value,
       fulfillmentStatus: document.getElementById("orderFulfillmentStatus").value,
       paymentStatus: document.getElementById("orderPaymentStatus").value,
       paymentMethod: document.getElementById("orderPaymentStatus").value === "Paid" ? document.getElementById("orderMethod").value : null,
@@ -439,14 +453,6 @@ let _driverPayoutOrdersByCode = {};
 
 function driverStaffOptions() {
   return _ordersLookups.staff.filter((s) => Array.isArray(s.roles) && s.roles.indexOf("Driver") !== -1);
-}
-
-function driverDisplayName(driver) {
-  if (driver.driverStaffId) {
-    const s = _ordersLookups.staff.find((x) => x.id === driver.driverStaffId);
-    return s ? s.name : driver.driverStaffId;
-  }
-  return driver.driverNameRaw || "";
 }
 
 // Value is either a staff id or (for a driver not in the Driver-role list -
@@ -630,6 +636,11 @@ function savePayoutEditModal(orderCode) {
 // needs picking every time (unlike the old per-row select that stayed on
 // screen). Re-reads ordersInUnpaidGroup() fresh at open and at confirm time
 // so it always reflects whatever's currently in the group.
+//
+// No Payment Date field - the linked OpEx entry's date is now the group's
+// latest order_date (see functions/api/_lib/opex.js's
+// resyncDriverPayoutOpexGroup), not when this button gets clicked, so there
+// was nothing left for that field to drive.
 function openMarkGroupPaidModal(groupKey) {
   const orders = ordersInUnpaidGroup(groupKey);
   if (!orders.length) return;
@@ -640,81 +651,33 @@ function openMarkGroupPaidModal(groupKey) {
   openModal(
     "<h2>Mark Paid - " + driverLabel + "</h2>" +
     "<p>" + orders.length + " order(s), total " + formatRupiah(total) + "</p>" +
-    "<label>Payment Date</label><br>" +
-    '<div style="display:flex; align-items:center; gap:8px;">' +
-      '<input type="checkbox" id="markPaidToday" checked onchange="setMarkPaidToday()">' +
-      '<label for="markPaidToday">Today</label>' +
-      '<input type="date" id="markPaidDate">' +
-    "</div><br><br>" +
     "<label>Payout Method</label><br>" +
     '<select id="markPaidMethod">' + methodSelectOptionsHtml(null) + "</select><br><br>" +
     '<button id="markPaidConfirmBtn" onclick="confirmMarkGroupPaid(\'' + groupKey + '\')">Confirm</button>' +
     '<span id="markPaidStatus" class="save-status"></span>'
   );
-  setMarkPaidToday();
 }
 
-function setMarkPaidToday() {
-  const today = document.getElementById("markPaidToday");
-  const date = document.getElementById("markPaidDate");
-  if (today.checked) { date.valueAsDate = new Date(); date.disabled = true; }
-  else { date.value = ""; date.disabled = false; }
-}
-
-// Ported from the old app's markDriverFeesPaid(): one OpEx entry per order
-// (category "Logistic"). Dated to the modal's own Payment Date (defaults to
-// today, per explicit request) rather than the order's date - the fee is
-// only actually paid out (and should book as an expense) whenever this
-// button is clicked, which can be well after the order/delivery happened.
-// Skipped for a zero fee (free delivery), same rule as before.
+// One OpEx entry per (driver, month) - not per order, see
+// functions/api/_lib/opex.js's resyncDriverPayoutOpexGroup, which
+// POST /api/driver-payout/mark-paid runs server-side for every driver+month
+// touched (grouping orders that were already Paid earlier this month in with
+// the ones being paid right now, if any).
 function confirmMarkGroupPaid(groupKey) {
   const orders = ordersInUnpaidGroup(groupKey);
   if (!orders.length) { closeModal(); return; }
 
-  const paymentDate = document.getElementById("markPaidDate").value;
-  if (!paymentDate) { alert("Please select a payment date."); return; }
-
   const methodSelect = document.getElementById("markPaidMethod");
   const method = methodSelect && methodSelect.value ? methodSelect.value : null;
-  const driver = orders[0].driverStaffId
-    ? { driverStaffId: orders[0].driverStaffId, driverNameRaw: null }
-    : { driverStaffId: null, driverNameRaw: orders[0].driverNameRaw };
-  const driverLabel = orders[0].driverName || groupKey;
 
   const btn = document.getElementById("markPaidConfirmBtn");
   const statusEl = document.getElementById("markPaidStatus");
 
   withSaveStatus(btn, statusEl, "Payout", async function () {
-    await Promise.all(orders.map(async (o) => {
-      let opexCode = null;
-
-      if (o.deliveryFee > 0) {
-        const created = await api("opex", {
-          method: "POST",
-          body: {
-            date: paymentDate,
-            category: "Logistic",
-            desc: "Driver Fee " + driverLabel + ", " + o.orderCode,
-            grossAmount: o.deliveryFee,
-            amort: "No",
-            period: 1
-          }
-        });
-        opexCode = created.opexCode;
-      }
-
-      await api("orders/" + encodeURIComponent(o.orderCode), {
-        method: "PATCH",
-        body: {
-          driverStaffId: driver.driverStaffId,
-          driverNameRaw: driver.driverNameRaw,
-          driverPayoutMethod: method,
-          driverPayoutStatus: "Paid",
-          driverPayout: o.deliveryFee,
-          driverPayoutOpexCode: opexCode
-        }
-      });
-    }));
+    await api("driver-payout/mark-paid", {
+      method: "POST",
+      body: { orderCodes: orders.map((o) => o.orderCode), method: method }
+    });
     closeModal();
     await loadOrdersTable(_activeScope);
   });
@@ -800,39 +763,21 @@ function savePayoutEdit(btn) {
 
   const driver = resolveDriver(driverValue);
 
+  // The linked OpEx entry is shared with every other order in this driver's
+  // group for the same month now, so this can no longer just PATCH/DELETE
+  // "its own" entry directly (see functions/api/driver-payout/[code].js) -
+  // the server updates the order then fully resyncs whichever group(s) are
+  // affected (old driver+month if it was Paid before, new one if it's Paid
+  // now).
   withInlineSaveStatus(btn, "Payout", async function () {
-    // Ported from updateDriverPayoutPaid() (Fee/Driver/Method edit syncs the
-    // linked OpEx entry's amount+desc) and markDriverPayoutUnpaid() (Status
-    // switched to Unpaid deletes the linked OpEx entry outright, same as
-    // Mark Unpaid in the old app).
-    let opexCode = order.driverPayoutOpexCode || null;
-
-    if (status === "Paid" && fee > 0) {
-      const desc = "Driver Fee " + driverDisplayName(driver) + ", " + orderCode;
-      if (opexCode) {
-        await api("opex/" + encodeURIComponent(opexCode), { method: "PATCH", body: { grossAmount: fee, desc: desc } });
-      } else {
-        // Shouldn't normally happen for a row already in Payout History, but
-        // stay correct if it's ever missing rather than silently dropping it.
-        const created = await api("opex", { method: "POST", body: { date: order.orderDate, category: "Logistic", desc: desc, grossAmount: fee, amort: "No", period: 1 } });
-        opexCode = created.opexCode;
-      }
-    } else if (opexCode) {
-      // Either switched to Unpaid, or the fee was edited down to 0 (nothing
-      // left to expense) - either way, any existing linked entry has to go.
-      await api("opex/" + encodeURIComponent(opexCode), { method: "DELETE" });
-      opexCode = null;
-    }
-
-    await api("orders/" + encodeURIComponent(orderCode), {
+    await api("driver-payout/" + encodeURIComponent(orderCode), {
       method: "PATCH",
       body: {
         deliveryFee: fee,
         driverStaffId: driver.driverStaffId,
         driverNameRaw: driver.driverNameRaw,
         driverPayoutMethod: method || null,
-        driverPayoutStatus: status === "Paid" ? "Paid" : null,
-        driverPayoutOpexCode: opexCode
+        driverPayoutStatus: status === "Paid" ? "Paid" : null
       }
     });
     await loadOrdersTable(_activeScope);

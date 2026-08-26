@@ -1,31 +1,34 @@
 registerPage("cashflow", renderCashflowPage);
 
-// Mirrors functions/api/cashflow.js's CATEGORY_DEFS - cross-checked against
-// the "Category | Type | Flow" reference table in the original Google
-// Sheets migration source ("01. Cashflow"), not just what's already been
-// used in migrated data.
-const CASHFLOW_CATEGORY_DEFS = [
-  { name: "Sales Revenue", type: "Operating", flow: "IN" },
-  { name: "Other Income", type: "Operating", flow: "IN" },
-  { name: "Food Cost", type: "Operating", flow: "OUT" },
-  { name: "Packaging", type: "Operating", flow: "OUT" },
-  { name: "Operating Expenses", type: "Operating", flow: "OUT" },
-  { name: "Payroll", type: "Operating", flow: "OUT" },
-  { name: "Rent", type: "Operating", flow: "OUT" },
-  { name: "Utilities", type: "Operating", flow: "OUT" },
-  { name: "Marketing", type: "Operating", flow: "OUT" },
-  { name: "Logistics", type: "Operating", flow: "OUT" },
-  { name: "Maintenance", type: "Operating", flow: "OUT" },
-  { name: "Licenses", type: "Operating", flow: "OUT" },
-  { name: "Miscellaneous Expenses", type: "Operating", flow: "OUT" },
-  { name: "Capital Contribution", type: "Financing", flow: "IN" },
-  { name: "Loan Proceeds", type: "Financing", flow: "IN" },
-  { name: "Loan Repayment", type: "Financing", flow: "OUT" },
-  { name: "Capital Expenditure", type: "Investing", flow: "OUT" }
-];
-const CASHFLOW_TYPES = ["Operating", "Financing", "Investing"];
-
+// Category -> Type/Flow reference now lives in settings_lists (list_name
+// "Cashflow Category", meta = "Type - Flow") instead of being hardcoded
+// here and in functions/api/cashflow.js separately - see this app's
+// Settings page (Cashflow Category) to manage it. _cashflowCategoryDefs is
+// { categoryName: { type, flow } }, built once from api("settings").
 let _activeCfAccount = "Bank";
+let _cashflowCategoryOptions = null; // ordered array of category names
+let _cashflowCategoryDefs = null;
+
+async function ensureCashflowCategoryDefs() {
+  if (_cashflowCategoryDefs) return;
+  const data = await api("settings");
+  _cashflowCategoryOptions = data.lists["Cashflow Category"] || [];
+  _cashflowCategoryDefs = {};
+  _cashflowCategoryOptions.forEach((name) => {
+    const meta = (data.listsMeta["Cashflow Category"] || {})[name] || "";
+    const [type, flow] = meta.split(" - ");
+    _cashflowCategoryDefs[name] = { type: type || null, flow: flow || null };
+  });
+}
+
+// Every Description ever used, for the Input Transaction form's free-text
+// combobox (pick an existing one for consistency, or type a brand-new one).
+let _cashflowDescriptionOptions = null;
+
+async function ensureCashflowDescriptionOptions() {
+  if (_cashflowDescriptionOptions) return;
+  _cashflowDescriptionOptions = await api("cashflow/descriptions");
+}
 
 // ================================================================
 // Main page: Title -> Summary -> (Bank/Cash filter + Input
@@ -39,14 +42,14 @@ async function renderCashflowPage(content) {
     buildCashflowLedgerShellHtml();
   wireCashflowLedgerTabs();
   enableDragScroll(document.getElementById("cashflowLedgerScrollWrap"));
-  await Promise.all([loadCashflowSummary(), loadCashflowLedger(_activeCfAccount)]);
+  await Promise.all([ensureCashflowCategoryDefs(), loadCashflowSummary(), loadCashflowLedger(_activeCfAccount)]);
 }
 
 // ---------- Monthly summary (simplified from CashflowSummaryMonthly.html - Type-level net, not per-category/per-account) ----------
 
 function buildCashflowSummaryShellHtml() {
   return (
-    "<h3>Summary</h3>" +
+    "<h3>Cashflow Summary</h3>" +
     '<div id="cashflowSummaryWrap"><p>Loading...</p></div>' +
     '<hr style="margin:24px 0;">'
   );
@@ -85,19 +88,24 @@ async function loadCashflowSummary() {
 
 function buildCashflowLedgerShellHtml() {
   return (
+    "<h3>Cashflow Ledger</h3>" +
     '<div style="display:flex; justify-content:space-between; align-items:center;">' +
       '<div class="tabs" style="margin-bottom:0;">' +
         '<button id="cfTab-Bank" class="tab-active" onclick="switchCashflowLedgerTab(\'Bank\')">Bank</button>' +
         '<button id="cfTab-Cash" onclick="switchCashflowLedgerTab(\'Cash\')">Cash</button>' +
       "</div>" +
-      '<button onclick="openCashflowEntryModal()">+ Input Transaction</button>' +
+      '<div style="display:flex; align-items:center; gap:10px;">' +
+        '<span id="cashflowFilterBadge" style="color:#666; font-size:12px;">' + (_cashflowLedgerCategoryFilter.length ? _cashflowLedgerCategoryFilter.join(", ") : "All") + "</span>" +
+        '<button onclick="openCashflowLogFilterModal()">Set Filter</button>' +
+        '<button onclick="openCashflowEntryModal()">+ Input Transaction</button>' +
+      "</div>" +
     "</div>" +
     '<div id="cashflowLedgerPaginationNav" class="pagination-nav"></div>' +
     '<div id="cashflowLedgerScrollWrap" style="overflow-x:auto;">' +
       "<table>" +
-        "<thead><tr><th>Transaction ID</th><th>Date</th><th>Type</th><th>Category</th><th>Description</th>" +
+        "<thead><tr><th>Date</th><th>Type</th><th>Category</th><th>Description</th>" +
         "<th>Cash In</th><th>Cash Out</th><th>Balance</th><th>Notes</th></tr></thead>" +
-        '<tbody id="cashflowLedgerTbody"><tr><td colspan="9">Loading...</td></tr></tbody>' +
+        '<tbody id="cashflowLedgerTbody"><tr><td colspan="8">Loading...</td></tr></tbody>' +
       "</table>" +
     "</div>"
   );
@@ -115,22 +123,63 @@ function switchCashflowLedgerTab(account) {
   loadCashflowLedger(account);
 }
 
+let _lastCashflowLedgerRows = [];
+let _cashflowLedgerCategoryFilter = []; // empty = show every Category (default)
+
 async function loadCashflowLedger(account) {
   const tbody = document.getElementById("cashflowLedgerTbody");
-  tbody.innerHTML = '<tr><td colspan="9">Loading...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="8">Loading...</td></tr>';
 
-  const rows = await api("cashflow?account=" + encodeURIComponent(account));
+  _lastCashflowLedgerRows = await api("cashflow?account=" + encodeURIComponent(account));
   if (!document.getElementById("cashflowLedgerTbody")) return;
 
-  tbody.innerHTML = rows.length ? rows.map(cashflowRowHtml).join("") : '<tr><td colspan="9">No transactions yet.</td></tr>';
+  renderCashflowLedgerRows();
+}
+
+function renderCashflowLedgerRows() {
+  const tbody = document.getElementById("cashflowLedgerTbody");
+  if (!tbody) return;
+
+  const rows = _cashflowLedgerCategoryFilter.length
+    ? _lastCashflowLedgerRows.filter((r) => _cashflowLedgerCategoryFilter.indexOf(r.category) !== -1)
+    : _lastCashflowLedgerRows;
+
+  tbody.innerHTML = rows.length ? rows.map(cashflowRowHtml).join("") : '<tr><td colspan="8">No transactions match this filter.</td></tr>';
   paginateTable("cashflowLedgerTbody", "cashflowLedgerPaginationNav", 20);
 }
 
+function openCashflowLogFilterModal() {
+  const checkboxes = (_cashflowCategoryOptions || []).map((c) =>
+    '<label style="display:block; margin:4px 0;">' +
+      '<input type="checkbox" class="cashflowCategoryFilterCheck" value="' + c + '"' + (_cashflowLedgerCategoryFilter.indexOf(c) !== -1 ? " checked" : "") + "> " + c +
+    "</label>"
+  ).join("");
+
+  openModal(
+    "<h2>Set Filter - Category</h2>" +
+    "<div>" + checkboxes + "</div>" +
+    '<div style="margin-top:16px;">' +
+      '<button onclick="closeModal()">Cancel</button> ' +
+      '<button onclick="applyCashflowLedgerFilter()">Apply Filter</button>' +
+    "</div>"
+  );
+}
+
+function applyCashflowLedgerFilter() {
+  _cashflowLedgerCategoryFilter = Array.from(document.querySelectorAll(".cashflowCategoryFilterCheck:checked")).map((cb) => cb.value);
+  closeModal();
+  const badge = document.getElementById("cashflowFilterBadge");
+  if (badge) badge.textContent = _cashflowLedgerCategoryFilter.length ? _cashflowLedgerCategoryFilter.join(", ") : "All";
+  renderCashflowLedgerRows();
+}
+
+// Transaction ID rides muted underneath Date now (not its own column),
+// same "shared context lives under Date" pattern as pages/sales.js's
+// dateCell (Channel/Order ID underneath).
 function cashflowRowHtml(r) {
   return (
     "<tr>" +
-      "<td>" + r.txnCode + "</td>" +
-      "<td>" + r.date + "</td>" +
+      '<td style="white-space:nowrap;">' + r.date + '<br><span style="color:#666; font-size:12px;">' + r.txnCode + "</span></td>" +
       "<td>" + r.type + "</td>" +
       "<td>" + r.category + "</td>" +
       "<td>" + (r.description || "") + "</td>" +
@@ -150,7 +199,8 @@ function cashflowRowHtml(r) {
 // 02 Finance/Cashflow/CashflowEntry.html + CashflowEntry_JS.html.
 // ================================================================
 
-function openCashflowEntryModal() {
+async function openCashflowEntryModal() {
+  await Promise.all([ensureCashflowCategoryDefs(), ensureCashflowDescriptionOptions()]);
   openModal(buildCashflowFormHtml());
   initCashflowForm();
 }
@@ -194,17 +244,25 @@ function addCashflowRow() {
   const row = document.createElement("div");
   row.className = "item-row";
   row.innerHTML =
-    '<div><label>Type</label><br><select class="cfType" onchange="loadCategoriesForRow(this)"></select></div>' +
-    '<div><label>Category</label><br><select class="cfCategory" style="min-width:160px;"></select></div>' +
-    '<div><label>Description</label><br><input type="text" class="cfDesc"></div>' +
+    '<div><label>Description</label><br><div class="cfDescCombo" style="min-width:200px;"></div></div>' +
     '<div><label>Amount</label><br><input type="text" class="cfAmount" inputmode="numeric" oninput="formatAmount(this)"></div>' +
+    '<div><label>Category</label><br><select class="cfCategory" style="min-width:180px;" onchange="onCashflowCategoryChange(this)"></select></div>' +
+    '<div><label>Type</label><br><input type="text" class="cfType" readonly style="background:#f5f5f5;"></div>' +
     '<div><label>Notes</label><br><input type="text" class="cfNotes"></div>' +
     '<button type="button" onclick="removeCashflowRow(this)">Remove</button>';
   wrap.appendChild(row);
 
-  const typeSelect = row.querySelector(".cfType");
-  typeSelect.innerHTML = CASHFLOW_TYPES.map((t) => "<option>" + t + "</option>").join("");
-  loadCategoriesForRow(typeSelect);
+  // Free-text combobox - pick a Description used before (for consistency
+  // across repeated entries, per explicit request) or type a brand-new one.
+  row._descCombo = createCombobox(
+    row.querySelector(".cfDescCombo"),
+    _cashflowDescriptionOptions.map((d) => ({ value: d, label: d })),
+    { placeholder: "Type or pick a description...", allowFreeText: true, commitValue: true }
+  );
+
+  const categorySelect = row.querySelector(".cfCategory");
+  categorySelect.innerHTML = _cashflowCategoryOptions.map((c) => "<option>" + c + "</option>").join("");
+  onCashflowCategoryChange(categorySelect);
 }
 
 function removeCashflowRow(btn) {
@@ -213,21 +271,21 @@ function removeCashflowRow(btn) {
   btn.closest(".item-row").remove();
 }
 
-function loadCategoriesForRow(typeSelect) {
-  const row = typeSelect.closest(".item-row");
-  const categorySelect = row.querySelector(".cfCategory");
-  const type = typeSelect.value;
-
-  const options = CASHFLOW_CATEGORY_DEFS.filter((c) => c.type === type);
-  categorySelect.innerHTML = options.map((c) => "<option>" + c.name + "</option>").join("");
+// Category drives Type now (not the other way around) - Type is a readonly
+// display auto-filled from the category's settings_lists meta
+// (_cashflowCategoryDefs), never a separate user choice.
+function onCashflowCategoryChange(categorySelect) {
+  const row = categorySelect.closest(".item-row");
+  const def = _cashflowCategoryDefs[categorySelect.value];
+  row.querySelector(".cfType").value = def ? def.type : "";
 }
 
 function collectCashflowItems() {
   const items = [];
   document.querySelectorAll("#cashflowRows .item-row").forEach((row) => {
-    const type = row.querySelector(".cfType").value;
     const category = row.querySelector(".cfCategory").value;
-    const desc = row.querySelector(".cfDesc").value;
+    const type = row.querySelector(".cfType").value;
+    const desc = row._descCombo ? row._descCombo.getValue() : "";
     const amount = parseAmount(row.querySelector(".cfAmount").value);
     const notes = row.querySelector(".cfNotes").value;
 

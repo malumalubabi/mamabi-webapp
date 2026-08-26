@@ -4,35 +4,30 @@
 // table in the original Google Sheets migration source ("01. Cashflow"),
 // not just derived from what's already been used in migrated data (which
 // would have missed never-yet-used categories like Payroll/Rent/Utilities/
-// Loan Proceeds/Loan Repayment). Hardcoded here (and mirrored in
-// pages/cashflow.js for the form's Type->Category cascade), same pattern
-// as STOCKABLE_TYPES in inventory/overview.js - no dedicated DB table for
-// it, matching the old app's approach.
+// Loan Proceeds/Loan Repayment). Lives in settings_lists now (list_name
+// "Cashflow Category", meta = "Type - Flow", e.g. "Operating - OUT") instead
+// of a hardcoded array, same as every other managed option list (Payment
+// Method, Sales Platform, PnL Categories) - manageable/renameable (with
+// cascade, see settings-lists.js's CASCADE_RENAME_TARGETS) from the Settings
+// page instead of needing a code change, and no longer duplicated in
+// pages/cashflow.js (that read it live off /api/settings instead).
 import { getSupabase, getBrandId, jsonResponse, errorResponse } from "./_lib/supabase.js";
 import { nextCode } from "./_lib/codes.js";
 
-const CATEGORY_DEFS = [
-  { name: "Sales Revenue", type: "Operating", flow: "IN" },
-  { name: "Other Income", type: "Operating", flow: "IN" },
-  { name: "Food Cost", type: "Operating", flow: "OUT" },
-  { name: "Packaging", type: "Operating", flow: "OUT" },
-  { name: "Operating Expenses", type: "Operating", flow: "OUT" },
-  { name: "Payroll", type: "Operating", flow: "OUT" },
-  { name: "Rent", type: "Operating", flow: "OUT" },
-  { name: "Utilities", type: "Operating", flow: "OUT" },
-  { name: "Marketing", type: "Operating", flow: "OUT" },
-  { name: "Logistics", type: "Operating", flow: "OUT" },
-  { name: "Maintenance", type: "Operating", flow: "OUT" },
-  { name: "Licenses", type: "Operating", flow: "OUT" },
-  { name: "Miscellaneous Expenses", type: "Operating", flow: "OUT" },
-  { name: "Capital Contribution", type: "Financing", flow: "IN" },
-  { name: "Loan Proceeds", type: "Financing", flow: "IN" },
-  { name: "Loan Repayment", type: "Financing", flow: "OUT" },
-  { name: "Capital Expenditure", type: "Investing", flow: "OUT" }
-];
+async function loadCategoryDefs(supabase, brandId) {
+  const { data, error } = await supabase
+    .from("settings_lists")
+    .select("value, meta")
+    .eq("brand_id", brandId)
+    .eq("list_name", "Cashflow Category");
+  if (error) throw error;
 
-function categoryDef(name) {
-  return CATEGORY_DEFS.find((c) => c.name === name) || null;
+  const defs = {};
+  data.forEach((r) => {
+    const [type, flow] = String(r.meta || "").split(" - ");
+    defs[r.value] = { name: r.value, type: type || null, flow: flow || null };
+  });
+  return defs;
 }
 
 export async function onRequestGet({ request, env }) {
@@ -80,6 +75,7 @@ export async function onRequestPost({ request, env }) {
 
     const supabase = getSupabase(env);
     const brandId = await getBrandId(supabase);
+    const categoryDefs = await loadCategoryDefs(supabase, brandId);
 
     // txn_code is one shared sequence across both accounts (matches the old
     // app's single Settings!B2 counter) - scoped by brand only, not account.
@@ -103,7 +99,7 @@ export async function onRequestPost({ request, env }) {
     const rows = [];
     for (let i = 0; i < body.items.length; i++) {
       const item = body.items[i];
-      const def = categoryDef(item.category);
+      const def = categoryDefs[item.category];
       if (!def) throw new Error("Category has no flow defined: " + item.category);
 
       const amount = Number(item.amount);

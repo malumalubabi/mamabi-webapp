@@ -348,7 +348,7 @@ function buildBatchFormHtml() {
     "</div><br><br>" +
 
     '<div style="display:flex; gap:20px;">' +
-      "<div><label>Batch Size</label><br><input type=\"number\" id=\"batchSize\" min=\"0\" step=\"any\"></div>" +
+      "<div><label>Batch Size</label><br><input type=\"number\" id=\"batchSize\" min=\"0\" step=\"any\" onchange=\"onBatchSizeChange()\"></div>" +
       "<div><label>Yield</label><br><input type=\"number\" id=\"batchYield\" min=\"0\" step=\"any\"></div>" +
       "<div><label>Status</label><br><select id=\"batchStatus\"><option>Ongoing</option><option>Done</option></select></div>" +
     "</div><br><br>" +
@@ -365,19 +365,22 @@ function buildBatchFormHtml() {
   );
 }
 
+// Recipe breakdown (base 1x qty per line, unscaled) for whichever output
+// SKU is currently selected - null if none selected yet, or if that SKU has
+// no recipe_lines set up (Menu Engineering > Costing), in which case
+// consumption falls back to fully manual entry same as before.
+let _batchRecipeItems = null;
+
 function initBatchForm() {
   document.getElementById("batchDate").value = todayISO();
 
+  _batchRecipeItems = null;
   _batchOutputCombo = createCombobox(
     document.getElementById("batchOutputCombo"),
     _batchLookups.skus.filter((s) => BATCH_OUTPUT_TYPES.indexOf(s.item_type) !== -1).map((s) => ({ value: s.id, label: s.name, sub: s.sku })),
     {
       placeholder: "Select output SKU...",
-      onSelect: function (skuId) {
-        const item = _batchLookups.skus.find((s) => s.id === skuId);
-        document.getElementById("batchOutputCategory").value = item ? item.category || "" : "";
-        document.getElementById("batchOutputUnit").value = item ? item.unit : "";
-      }
+      onSelect: onBatchOutputSelect
     }
   );
 
@@ -385,11 +388,52 @@ function initBatchForm() {
   addBatchConsumptionRow();
 }
 
+// Auto-populates Consumption from the output SKU's recipe (functions/api/
+// costing.js's live breakdown, same one the "Open Recipe" modal on an
+// already-started batch reads), scaled by whatever's currently in Batch
+// Size (defaults to 1x, the recipe's own reference batch, if empty) - per
+// explicit request. Still fully editable afterward: adding/removing rows or
+// changing a qty by hand isn't reverted by anything except deliberately
+// changing Batch Size or Output SKU again (see onBatchSizeChange below).
+async function onBatchOutputSelect(skuId) {
+  const item = _batchLookups.skus.find((s) => s.id === skuId);
+  document.getElementById("batchOutputCategory").value = item ? item.category || "" : "";
+  document.getElementById("batchOutputUnit").value = item ? item.unit : "";
+
+  _batchRecipeItems = null;
+  if (item) {
+    try {
+      const recipe = await api("costing?sku=" + encodeURIComponent(item.sku));
+      if (recipe.items && recipe.items.length) _batchRecipeItems = recipe.items;
+    } catch (err) {
+      _batchRecipeItems = null; // no recipe set up yet - fall back to manual entry, same as before
+    }
+  }
+  populateBatchConsumptionFromRecipe();
+}
+
+function onBatchSizeChange() {
+  if (_batchRecipeItems) populateBatchConsumptionFromRecipe();
+}
+
+function populateBatchConsumptionFromRecipe() {
+  if (!_batchRecipeItems) return; // no recipe found for this SKU - leave whatever's there (manual) alone
+
+  const batchSize = Number(document.getElementById("batchSize").value) || 1;
+  const wrap = document.getElementById("batchConsumptionRows");
+  wrap.innerHTML = "";
+
+  _batchRecipeItems.forEach((it) => {
+    addBatchConsumptionRow({ skuId: it.componentSkuId, qty: Math.round(it.qty * batchSize * 100) / 100 });
+  });
+  if (!wrap.children.length) addBatchConsumptionRow(); // recipe resolved to zero usable lines - don't leave the form with no row at all
+}
+
 function setBatchToday() {
   if (document.getElementById("batchToday").checked) document.getElementById("batchDate").value = todayISO();
 }
 
-function addBatchConsumptionRow() {
+function addBatchConsumptionRow(prefill) {
   const wrap = document.getElementById("batchConsumptionRows");
   const row = document.createElement("div");
   row.className = "item-row";
@@ -413,6 +457,15 @@ function addBatchConsumptionRow() {
     }
   );
   row._combo = combo;
+
+  if (prefill) {
+    const item = _batchLookups.skus.find((s) => s.id === prefill.skuId);
+    if (item) {
+      combo.setSelection(item.id, item.name);
+      row.querySelector(".unit").value = item.unit;
+    }
+    row.querySelector(".qty").value = prefill.qty;
+  }
 }
 
 function removeBatchConsumptionRow(btn) {

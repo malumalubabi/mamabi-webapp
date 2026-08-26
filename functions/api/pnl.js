@@ -53,6 +53,19 @@ function emptyBucket() {
   return { revenueByPlatform: {}, foodCost: 0, packagingCost: 0, opexByCategory: {}, sectionByCategory: {} };
 }
 
+// Amortized entries (amort=Yes, period=N) spread their accrued_expense
+// (already gross_amount/period, via the generated column) across N
+// consecutive months starting at entry_date's month, instead of landing
+// entirely in the entry's own month. The old app's OpexService/PnLService
+// never actually did this (accruedExpense was booked once, same as a
+// period=1 entry) despite having the Amort/Period fields - this is a real
+// fix, not a port.
+function addMonths(monthKey, n) {
+  const [y, m] = monthKey.split("-").map(Number);
+  const d = new Date(y, m - 1 + n, 1);
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+}
+
 // Live buckets for every month in range, before any closed-month snapshot
 // override - shared by the GET report below and pnl-close.js (closing/
 // recalculating a month always snapshots freshly-computed live numbers,
@@ -61,7 +74,7 @@ export async function computeLiveMonthlyData(supabase, brandId) {
   const [settingsRes, listsRes, opexRes, manualSales, onlineSales] = await Promise.all([
     supabase.from("settings").select("key, value").eq("brand_id", brandId).in("key", ["PnL Start Year", "PnL Start Month"]),
     supabase.from("settings_lists").select("list_name, value, meta").eq("brand_id", brandId).in("list_name", ["Sales Platform", "PnL Categories"]).order("sort_order"),
-    supabase.from("opex_entries").select("entry_date, category, accrued_expense").eq("brand_id", brandId),
+    supabase.from("opex_entries").select("entry_date, category, accrued_expense, period").eq("brand_id", brandId),
     getManualSalesRows(supabase, brandId),
     getOnlineSalesRows(supabase, brandId)
   ]);
@@ -104,11 +117,16 @@ export async function computeLiveMonthlyData(supabase, brandId) {
   });
 
   opexRes.data.forEach((r) => {
-    const mk = String(r.entry_date).slice(0, 7);
-    const b = buckets[mk];
-    if (!b) return;
-    b.opexByCategory[r.category] = (b.opexByCategory[r.category] || 0) + Number(r.accrued_expense);
-    b.sectionByCategory[r.category] = categoryMetaMap[r.category] === "Fixed" ? "Fixed" : "Variable";
+    const entryMonth = String(r.entry_date).slice(0, 7);
+    const period = Number(r.period) || 1;
+    const perMonthAmount = Number(r.accrued_expense);
+    for (let i = 0; i < period; i++) {
+      const mk = addMonths(entryMonth, i);
+      const b = buckets[mk];
+      if (!b) continue;
+      b.opexByCategory[r.category] = (b.opexByCategory[r.category] || 0) + perMonthAmount;
+      b.sectionByCategory[r.category] = categoryMetaMap[r.category] === "Fixed" ? "Fixed" : "Variable";
+    }
   });
 
   return { monthKeys, nowKey, buckets, salesPlatformOrder, categoryOrder, categoryMetaMap, unpricedNames };

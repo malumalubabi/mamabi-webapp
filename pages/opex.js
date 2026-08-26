@@ -3,6 +3,8 @@
 // tab), matching this app's established pattern (Input Sales, New Order,
 // Input Transaction are all modals) - deviates from the old app's
 // page-per-tab layout on purpose, same reasoning as pages/sales.js.
+// Summary and Log are stacked on one page (Log below Summary), mirroring
+// pages/cashflow.js's layout, instead of the old app's separate tabs.
 //
 // Two kinds of rows show up in the Log: auto-linked (Driver Payout's Mark
 // Paid, Sales's Platform/Marketing Fee - already live before this page
@@ -14,7 +16,6 @@
 // (Order/Sales Batch) instead. The old app never guarded this at all.
 registerPage("finance-opex", renderOpexPage);
 
-let _activeOpexTab = "summary";
 let _lastOpexRows = [];
 let _opexCategoryOptions = null;
 
@@ -26,51 +27,51 @@ async function ensureOpexCategoryOptions() {
 }
 
 async function renderOpexPage(content) {
-  const query = location.hash.split("?")[1] || "";
-  const params = new URLSearchParams(query);
-  const tabParam = params.get("tab");
-  _activeOpexTab = ["summary", "log"].indexOf(tabParam) !== -1 ? tabParam : "summary";
-
-  content.innerHTML = "<h2>OpEx</h2>" + buildOpexTabsShellHtml();
-  wireOpexTabs();
+  content.innerHTML =
+    "<h2>Operational Expenses</h2>" +
+    buildOpexSummaryShellHtml() +
+    buildOpexLogShellHtml();
+  enableDragScroll(document.getElementById("opexLogScrollWrap"));
   await ensureOpexCategoryOptions();
-  await loadOpexTab(_activeOpexTab);
+  await loadOpexData();
 }
 
-function buildOpexTabsShellHtml() {
+function buildOpexSummaryShellHtml() {
   return (
-    '<div style="display:flex; justify-content:space-between; align-items:center;">' +
-      '<div class="tabs" style="margin-bottom:0;">' +
-        '<button id="opexTab-summary" onclick="switchOpexTab(\'summary\')">Summary</button>' +
-        '<button id="opexTab-log" onclick="switchOpexTab(\'log\')">Log</button>' +
-      "</div>" +
-      '<button onclick="openOpexEntryModal()">+ Add Expense</button>' +
-    "</div>" +
-    '<div id="opexTableWrap"><p>Loading...</p></div>'
+    "<h3>OpEx Summary</h3>" +
+    '<div id="opexSummaryWrap"><p>Loading...</p></div>' +
+    '<hr style="margin:24px 0;">'
   );
 }
 
-function wireOpexTabs() {
-  document.getElementById("opexTab-summary").classList.toggle("tab-active", _activeOpexTab === "summary");
-  document.getElementById("opexTab-log").classList.toggle("tab-active", _activeOpexTab === "log");
+function buildOpexLogShellHtml() {
+  return (
+    '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+      "<h3>OpEx Log</h3>" +
+      '<div style="display:flex; align-items:center; gap:10px;">' +
+        '<span id="opexSortBadge" style="color:#666; font-size:12px;">Sort: ' + OPEX_SORT_LABELS[_opexSort] + "</span>" +
+        '<button onclick="openOpexSortModal()">Sort</button>' +
+        '<span id="opexFilterBadge" style="color:#666; font-size:12px;">' + (_opexCategoryFilter.length ? _opexCategoryFilter.join(", ") : "All") + "</span>" +
+        '<button onclick="openOpexFilterModal()">Set Filter</button>' +
+        '<button onclick="openOpexEntryModal()">+ Add Expense</button>' +
+      "</div>" +
+    "</div>" +
+    '<div id="opexPaginationNav" class="pagination-nav"></div>' +
+    '<div id="opexLogScrollWrap" style="overflow-x:auto;">' +
+      "<table>" +
+        "<thead><tr><th>Expense ID</th><th>Date</th><th>Category</th><th>Description</th><th>Gross Amount</th><th>Amort.</th><th>Period</th><th>Accrued Expense</th><th>Payment Method</th><th></th></tr></thead>" +
+        '<tbody id="opexTbody"></tbody>' +
+      "</table>" +
+    "</div>"
+  );
 }
 
-function switchOpexTab(tab) {
-  if (tab === _activeOpexTab) return;
-  _activeOpexTab = tab;
-  wireOpexTabs();
-  loadOpexTab(tab);
-}
-
-async function loadOpexTab(tab) {
-  const wrap = document.getElementById("opexTableWrap");
-  wrap.innerHTML = "<p>Loading...</p>";
-
+async function loadOpexData() {
   _lastOpexRows = await api("opex");
-  if (!document.getElementById("opexTableWrap")) return;
+  if (!document.getElementById("opexSummaryWrap")) return;
 
-  if (tab === "summary") renderOpexSummary(wrap);
-  else renderOpexLog(wrap);
+  renderOpexSummary(document.getElementById("opexSummaryWrap"));
+  renderOpexLogRows();
 }
 
 // ---------- Summary (current month recap by category, same shape as the
@@ -94,8 +95,7 @@ function renderOpexSummary(wrap) {
   const monthLabel = now.toLocaleString("en-US", { month: "short", year: "numeric" });
 
   wrap.innerHTML =
-    "<h3>OpEx Summary</h3>" +
-    '<div id="opexScrollWrap" style="overflow-x:auto;">' +
+    '<div id="opexSummaryScrollWrap" style="overflow-x:auto;">' +
       "<table>" +
         "<thead><tr><th>This Month Recap</th>" + categories.map((c) => "<th>" + c + "</th>").join("") + "<th>Total</th></tr></thead>" +
         "<tbody><tr>" +
@@ -105,7 +105,7 @@ function renderOpexSummary(wrap) {
         "</tr></tbody>" +
       "</table>" +
     "</div>";
-  enableDragScroll(document.getElementById("opexScrollWrap"));
+  enableDragScroll(document.getElementById("opexSummaryScrollWrap"));
 }
 
 // ---------- Log ----------
@@ -133,28 +133,6 @@ function sortOpexRows(rows, sortKey) {
     default: sorted.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)); break; // date-desc
   }
   return sorted;
-}
-
-function renderOpexLog(wrap) {
-  wrap.innerHTML =
-    '<div style="display:flex; justify-content:space-between; align-items:center;">' +
-      "<h3>OpEx Log</h3>" +
-      '<div style="display:flex; align-items:center; gap:10px;">' +
-        '<span id="opexSortBadge" style="color:#666; font-size:12px;">Sort: ' + OPEX_SORT_LABELS[_opexSort] + "</span>" +
-        '<button onclick="openOpexSortModal()">Sort</button>' +
-        '<span id="opexFilterBadge" style="color:#666; font-size:12px;">' + (_opexCategoryFilter.length ? _opexCategoryFilter.join(", ") : "All") + "</span>" +
-        '<button onclick="openOpexFilterModal()">Set Filter</button>' +
-      "</div>" +
-    "</div>" +
-    '<div id="opexPaginationNav" class="pagination-nav"></div>' +
-    '<div id="opexScrollWrap" style="overflow-x:auto;">' +
-      "<table>" +
-        "<thead><tr><th>Expense ID</th><th>Date</th><th>Category</th><th>Description</th><th>Gross Amount</th><th>Amort.</th><th>Period</th><th>Accrued Expense</th><th>Payment Method</th><th></th></tr></thead>" +
-        '<tbody id="opexTbody"></tbody>' +
-      "</table>" +
-    "</div>";
-  renderOpexLogRows();
-  enableDragScroll(document.getElementById("opexScrollWrap"));
 }
 
 function renderOpexLogRows() {
@@ -323,7 +301,7 @@ function saveOpexEntry(existingCode) {
     if (existingCode) await api("opex/" + encodeURIComponent(existingCode), { method: "PATCH", body: body });
     else await api("opex", { method: "POST", body: body });
     closeModal();
-    await loadOpexTab(_activeOpexTab);
+    await loadOpexData();
   });
 }
 
@@ -331,6 +309,6 @@ function deleteOpexEntry(code) {
   if (!confirm("Delete this expense entirely? This can't be undone.")) return;
 
   api("opex/" + encodeURIComponent(code), { method: "DELETE" })
-    .then(() => loadOpexTab(_activeOpexTab))
+    .then(() => loadOpexData())
     .catch((err) => alert(err.message));
 }

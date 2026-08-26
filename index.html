@@ -23,13 +23,7 @@
       <button onclick="toggleNavDropdown(this)">Finance &#9662;</button>
       <div class="navbar-dropdown">
         <button data-page="cashflow" onclick="navigateTo('cashflow'); closeNavDropdowns();">Cashflow</button>
-        <div class="navbar-subitem">
-          <button onclick="toggleNavSubmenu(this, event)">Opex</button>
-          <div class="navbar-subdropdown">
-            <button data-page="finance-opex" data-tab="summary" onclick="navigateTo('finance-opex?tab=summary'); closeNavDropdowns();">Summary</button>
-            <button data-page="finance-opex" data-tab="log" onclick="navigateTo('finance-opex?tab=log'); closeNavDropdowns();">Log</button>
-          </div>
-        </div>
+        <button data-page="finance-opex" onclick="navigateTo('finance-opex'); closeNavDropdowns();">Opex</button>
         <button data-page="finance-pnl" onclick="navigateTo('finance-pnl'); closeNavDropdowns();">P&amp;L</button>
       </div>
     </div>

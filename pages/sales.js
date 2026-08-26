@@ -407,15 +407,15 @@ function addSaleItemRow() {
   row.innerHTML =
     '<div><label>Product</label><br><div class="saleProductCombo" style="min-width:240px;"></div></div>' +
     '<div><label>Qty</label><br><input type="number" class="qty" min="1" style="width:80px;" oninput="updateSaleRowTotal(this.closest(\'.item-row\'))"></div>' +
-    '<div><label>Selling Price</label><br><input type="text" class="sellingPrice" inputmode="numeric" oninput="formatAmount(this); updateSaleRowTotal(this.closest(\'.item-row\'))"></div>' +
-    '<div><label>Total</label><br><input type="text" class="total" readonly style="background:#f5f5f5;"></div>' +
+    '<div><label>Selling Price</label><br><input type="text" class="sellingPrice" inputmode="numeric" style="width:130px;" oninput="formatAmount(this); updateSaleRowTotal(this.closest(\'.item-row\'))"></div>' +
+    '<div><label>Total</label><br><input type="text" class="total" readonly style="width:130px; background:#f5f5f5;"></div>' +
     '<button type="button" onclick="removeSaleItemRow(this)">Remove</button>';
   wrap.appendChild(row);
 
   const options = salesProductOptions();
   row._combo = createCombobox(
     row.querySelector(".saleProductCombo"),
-    options.map((s) => ({ value: s.id, label: s.name + " (" + s.sku + ")" })),
+    options.map((s) => ({ value: s.id, label: s.name, sub: s.sku })),
     {
       placeholder: "Select product...",
       onSelect: function (skuId) { onSaleRowProductChange(row, skuId); }
@@ -606,7 +606,7 @@ function addBatchEditItemRow(existingRow) {
   const options = salesProductOptions();
   row._combo = createCombobox(
     row.querySelector(".batchEditProductCombo"),
-    options.map((s) => ({ value: s.id, label: s.name + " (" + s.sku + ")" })),
+    options.map((s) => ({ value: s.id, label: s.name, sub: s.sku })),
     {
       placeholder: "Select product...",
       onSelect: function (skuId) { onBatchEditRowProductChange(row, skuId); }
@@ -615,7 +615,7 @@ function addBatchEditItemRow(existingRow) {
 
   if (existingRow) {
     const product = options.find((s) => s.sku === existingRow.sku);
-    if (product) row._combo.setSelection(product.id, product.name + " (" + product.sku + ")");
+    if (product) row._combo.setSelection(product.id, product.name);
   }
 
   updateBatchEditRowTotal(row);

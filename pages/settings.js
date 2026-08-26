@@ -15,11 +15,20 @@ registerPage("settings", renderSettingsPage);
 
 let _lastSettingsData = null;
 
-const SETTINGS_LIST_SPECS = ["Payment Method", "Sales Platform", "PnL Categories", "Staff Roles"];
+const SETTINGS_LIST_SPECS = ["Payment Method", "Sales Platform", "PnL Categories", "Staff Roles", "Cashflow Category"];
 
 const LIST_META_OPTIONS = {
   "Sales Platform": { label: "Pricing", options: ["Base Pricing", "Platform Pricing"], default: "Base Pricing" },
-  "PnL Categories": { label: "Type", options: ["Fixed", "Variable"], default: "Fixed" }
+  "PnL Categories": { label: "Type", options: ["Fixed", "Variable"], default: "Fixed" },
+  // Type and Flow folded into one tag (settings_lists only has one `meta`
+  // column per row) - drives both functions/api/cashflow.js's flow-direction
+  // logic (In/Out, parsed back out of this string) and pages/cashflow.js's
+  // Input Transaction form (Category -> auto-filled Type display).
+  "Cashflow Category": {
+    label: "Type / Flow",
+    options: ["Operating - IN", "Operating - OUT", "Financing - IN", "Financing - OUT", "Investing - IN", "Investing - OUT"],
+    default: "Operating - OUT"
+  }
 };
 
 async function renderSettingsPage(content) {

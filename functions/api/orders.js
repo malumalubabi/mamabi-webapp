@@ -1,6 +1,7 @@
 import { getSupabase, getBrandId, jsonResponse, errorResponse } from "./_lib/supabase.js";
 import { nextCode } from "./_lib/codes.js";
 import { buildCostResolver } from "./_lib/costing.js";
+import { resyncDriverPayoutOpexGroup } from "./_lib/opex.js";
 
 // Ported from the old app's isOrderDone_() (OrdersService.gs): an order is
 // "done" (History) once it's Cancelled, or once it's Paid AND fulfillment
@@ -66,6 +67,14 @@ export async function onRequestPost({ request, env }) {
     // driver_staff_id (internal), per the user's explicit instruction.
     const isGrabExpress = typeof body.driverNameRaw === "string" && body.driverNameRaw.trim().toLowerCase() === "grabexpress";
 
+    // order_status is derived, never a manual field (see isOrderDone above
+    // and functions/api/orders/[code].js's PATCH, which re-derives the same
+    // way on every update) - Cancelled is the only value ever set directly,
+    // and only later via the Cancel Order action, never at creation.
+    const paymentStatus = body.paymentStatus || "Unpaid";
+    const fulfillmentStatus = body.fulfillmentStatus || "Pending";
+    const orderStatus = paymentStatus === "Paid" && fulfillmentStatus !== "Pending" ? "Completed" : "Ongoing";
+
     const insertRow = {
       brand_id: brandId,
       order_code: orderCode,
@@ -73,9 +82,9 @@ export async function onRequestPost({ request, env }) {
       delivery_date: body.deliveryDate || null,
       customer_id: body.customerId,
       order_type: body.orderType,
-      order_status: body.orderStatus || "Ongoing",
-      fulfillment_status: body.fulfillmentStatus || "Pending",
-      payment_status: body.paymentStatus || "Unpaid",
+      order_status: orderStatus,
+      fulfillment_status: fulfillmentStatus,
+      payment_status: paymentStatus,
       payment_method: body.paymentMethod || null,
       delivery_fee: deliveryFee,
       driver_staff_id: body.driverStaffId || null,
@@ -124,29 +133,14 @@ export async function onRequestPost({ request, env }) {
       throw itemsErr;
     }
 
-    // Same OpEx-per-order rule as Driver Payout's Mark Paid (see
-    // pages/orders.js confirmMarkGroupPaid) - one "Logistic" entry, skipped
-    // for a zero fee (free delivery), since GrabExpress's fee is still a
-    // real MaMaBi expense, not a pass-through.
+    // Same Driver Payout OpEx group (per driver+month, see
+    // functions/api/_lib/opex.js's resyncDriverPayoutOpexGroup) as Mark Paid
+    // uses - GrabExpress's fee is still a real MaMaBi expense, not a
+    // pass-through, so it rolls up into the same monthly Logistic entry as
+    // every other driver instead of staying fragmented one-entry-per-order
+    // forever. Skipped for a zero fee (free delivery).
     if (isGrabExpress && deliveryFee > 0) {
-      const opexCode = await nextCode(supabase, "opex_entries", "opex_code", brandId, "OPX", 4);
-      const { error: opexErr } = await supabase.from("opex_entries").insert({
-        brand_id: brandId,
-        opex_code: opexCode,
-        entry_date: body.orderDate,
-        category: "Logistic",
-        description: "Driver Fee GrabExpress, " + order.order_code,
-        gross_amount: deliveryFee,
-        amort: "No",
-        period: 1
-      });
-      if (opexErr) throw opexErr;
-
-      const { error: linkErr } = await supabase
-        .from("orders")
-        .update({ driver_payout_opex_code: opexCode })
-        .eq("id", order.id);
-      if (linkErr) throw linkErr;
+      await resyncDriverPayoutOpexGroup(supabase, brandId, body.driverNameRaw, false, body.orderDate.slice(0, 7));
     }
 
     return jsonResponse({ orderCode: order.order_code }, 201);

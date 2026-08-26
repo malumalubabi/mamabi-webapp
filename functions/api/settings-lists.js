@@ -36,6 +36,9 @@ const CASCADE_RENAME_TARGETS = {
   ],
   "PnL Categories": [
     { kind: "text", table: "opex_entries", column: "category" }
+  ],
+  "Cashflow Category": [
+    { kind: "text", table: "cashflow_transactions", column: "category" }
   ]
 };
 

@@ -10,6 +10,11 @@
 // production_consumption), so tracking "stock" for them is structurally
 // meaningless; stock_ledger's Sale movement no longer touches them either
 // (see the sku_items_registry_order migration's sibling stock_ledger fix).
+// Also excludes any SKU marked Unavailable - it's the source both Stock
+// Overview and Stock Opname's checklist read from (pages/inventory.js's
+// loadOpnameChecklist calls this same endpoint), per explicit request that
+// an Unavailable SKU disappear from Inventory Stock entirely, not just get
+// greyed out.
 // Ordered by registry_order (the "01. SKU Registry" sheet's row order -
 // Item Type, then Category - not alphabetical by SKU) so this table reads
 // the same way the business's own master list does.
@@ -25,6 +30,7 @@ export async function onRequestGet({ env }) {
       .select("id, sku, name, category, unit, min_stock, item_type")
       .eq("brand_id", brandId)
       .neq("item_type", "Product")
+      .neq("status", "Unavailable")
       .order("registry_order");
     if (itemsErr) throw itemsErr;
 

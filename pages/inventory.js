@@ -15,8 +15,11 @@ async function ensureInvLookups() {
   return _invLookups;
 }
 
+// Excludes Unavailable SKUs too (per explicit request) - this feeds the
+// Purchase Log's Item picker, and buying more of something marked
+// Unavailable wouldn't make sense.
 function stockableSkus() {
-  return _invLookups.skus.filter((s) => STOCKABLE_TYPES.indexOf(s.item_type) !== -1);
+  return _invLookups.skus.filter((s) => STOCKABLE_TYPES.indexOf(s.item_type) !== -1 && s.status !== "Unavailable");
 }
 
 // ---------- Stock page (Overview / Purchase Log / Opname / Consumption Log) ----------

@@ -29,7 +29,7 @@ const GENERAL_KEYS = [
   "Platform Fee %"
 ];
 
-const LIST_NAMES = ["Payment Method", "Sales Platform", "PnL Categories", "Staff Roles"];
+const LIST_NAMES = ["Payment Method", "Sales Platform", "PnL Categories", "Staff Roles", "Cashflow Category"];
 
 export async function onRequestGet({ env }) {
   try {
