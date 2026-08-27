@@ -4,13 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MaluMaluBabi WebApp</title>
+  <!-- Quicksand - used only for the header title (see shared.css's
+       "header h2"), not applied app-wide. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/shared.css">
 </head>
 <body>
 
   <header>
     <h2>MaluMaluBabi WebApp</h2>
-    <hr>
   </header>
 
   <nav id="navbar">
@@ -23,37 +27,37 @@
       <button onclick="toggleNavDropdown(this)">Finance &#9662;</button>
       <div class="navbar-dropdown">
         <button data-page="cashflow" onclick="navigateTo('cashflow'); closeNavDropdowns();">Cashflow</button>
-        <button data-page="finance-opex" onclick="navigateTo('finance-opex'); closeNavDropdowns();">Opex</button>
+        <button data-page="finance-opex" onclick="navigateTo('finance-opex'); closeNavDropdowns();">OpEx</button>
         <button data-page="finance-pnl" onclick="navigateTo('finance-pnl'); closeNavDropdowns();">P&amp;L</button>
       </div>
     </div>
 
-    <div class="navbar-item">
-      <button onclick="toggleNavDropdown(this)">Sales &#9662;</button>
-      <div class="navbar-dropdown">
-        <button data-page="sales" data-tab="summary" onclick="navigateTo('sales?tab=summary'); closeNavDropdowns();">Summary</button>
-        <button data-page="sales" data-tab="log" onclick="navigateTo('sales?tab=log'); closeNavDropdowns();">Log</button>
-      </div>
-    </div>
+    <button data-page="sales" onclick="navigateTo('sales'); closeNavDropdowns();">
+      Sales
+    </button>
 
     <div class="navbar-item">
       <button onclick="toggleNavDropdown(this)">Inventory &#9662;</button>
       <div class="navbar-dropdown">
-        <button data-page="inventory-stock" onclick="navigateTo('inventory-stock'); closeNavDropdowns();">Stock</button>
-        <button data-page="inventory-cost" onclick="navigateTo('inventory-cost'); closeNavDropdowns();">Cost</button>
+        <button data-page="inventory-stock" onclick="navigateTo('inventory-stock'); closeNavDropdowns();">Inventory Stock</button>
+        <button data-page="inventory-cost" onclick="navigateTo('inventory-cost'); closeNavDropdowns();">Inventory Cost</button>
       </div>
     </div>
 
-    <button data-page="orders" onclick="navigateTo('orders'); closeNavDropdowns();">
-      Orders
-    </button>
-    
+    <div class="navbar-item">
+      <button onclick="toggleNavDropdown(this)">Orders &#9662;</button>
+      <div class="navbar-dropdown">
+        <button data-page="orders" onclick="navigateTo('orders'); closeNavDropdowns();">Manage Orders</button>
+        <button data-page="orders-payout" onclick="navigateTo('orders-payout'); closeNavDropdowns();">Driver Payout</button>
+      </div>
+    </div>
+
     <div class="navbar-item">
       <button onclick="toggleNavDropdown(this)">Menu &#9662;</button>
       <div class="navbar-dropdown">
         <button data-page="batch-production" onclick="navigateTo('batch-production'); closeNavDropdowns();">Batch Production</button>
         <div class="navbar-subitem">
-          <button onclick="toggleNavSubmenu(this, event)">Engineering</button>
+          <button onclick="toggleNavSubmenu(this, event)">Menu Engineering</button>
           <div class="navbar-subdropdown">
             <button data-page="menu-engineering" data-tab="pricing" onclick="navigateTo('menu-engineering?tab=pricing'); closeNavDropdowns();">Pricing</button>
             <button data-page="menu-engineering" data-tab="platform" onclick="navigateTo('menu-engineering?tab=platform'); closeNavDropdowns();">Platform Pricing</button>
@@ -114,6 +118,13 @@
     // todayISO already reflect Settings > General on every page, not just
     // after some later re-render (see shared.js's ensureGeneralSettings).
     ensureGeneralSettings().then(renderCurrentPage);
+
+    // #navbar is static markup (not re-rendered per page like #content),
+    // so this only needs to run once - shared.css's overflow-x:auto lets it
+    // scroll on a narrow/mobile viewport instead of spilling off-screen,
+    // this adds click-and-drag on top of that (same helper Stock Opname's
+    // wide table uses).
+    enableDragScroll(document.getElementById("navbar"));
   </script>
 
 </body>

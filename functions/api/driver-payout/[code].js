@@ -4,9 +4,11 @@
 // shared by several orders (grouped per driver+month), editing one order's
 // fee/driver/status can no longer just PATCH "its" opex entry directly (that
 // would clobber every other order sharing it). Instead: update the order,
-// then fully resync both the group it's leaving (old driver+month, if it was
-// Paid before) and the group it's joining (new driver+month, if it's Paid
-// now) - same resync helper Mark Paid uses, see functions/api/_lib/opex.js.
+// then fully resync both the group it's leaving (old driver+month) and the
+// group it's joining (new driver+month) - membership is accrual-based
+// (order_status = 'Completed', see functions/api/_lib/opex.js's
+// resyncDriverPayoutOpexGroup), so this still matters for a fee/driver
+// change even though driverPayoutStatus itself no longer affects membership.
 import { getSupabase, getBrandId, jsonResponse, errorResponse } from "../_lib/supabase.js";
 import { resyncDriverPayoutOpexGroup } from "../_lib/opex.js";
 import { normalizeDriverNameRaw } from "../_lib/orders.js";

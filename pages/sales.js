@@ -1,16 +1,20 @@
 // Sales - ported from the old app's 03 Sales module (Sales_Nav.html:
-// Summary/Log/Input Sales). Input Sales is a MODAL here (not a 3rd tab),
-// matching this app's established pattern (New Order, Input Purchase, Input
+// Summary/Log/Input Sales). Input Sales is a MODAL (not a 3rd tab), matching
+// this app's established pattern (New Order, Input Purchase, Input
 // Transaction are all modals) - deviates from the old app's page-per-tab
 // layout on purpose. One submission (Date+Platform+Platform Fee+Marketing
 // Fee, shared) can carry several products, matching the old app's
 // SalesEntry.html exactly - see functions/api/sales.js for how that maps
 // onto sales_batches (the shared bits + fee/OpEx) + sales_entries (one row
 // per product, its own sales_code).
+//
+// Summary and Log used to be separate tabs - now a single stacked page
+// (Log below Summary, no tab-switch) per explicit request, so the nav's
+// Sales entry is a plain button too (index.html), not a Summary/Log
+// dropdown.
 registerPage("sales", renderSalesPage);
 
 let _salesLookups = null;
-let _activeSalesTab = "summary";
 let _lastSalesRows = [];
 let _salesLogChannelFilter = []; // empty = show every Channel (default)
 let _salesLogSort = "date-desc";
@@ -24,54 +28,26 @@ async function ensureSalesLookups() {
 async function renderSalesPage(content) {
   await ensureSalesLookups();
 
+  content.innerHTML =
+    "<h2>Sales</h2>" +
+    '<div id="salesSummaryWrap"><p>Loading...</p></div>' +
+    '<div id="salesLogWrap" style="margin-top:28px;"></div>';
+  await loadSalesData();
+
   const query = location.hash.split("?")[1] || "";
   const params = new URLSearchParams(query);
-  const tabParam = params.get("tab");
-  _activeSalesTab = ["summary", "log"].indexOf(tabParam) !== -1 ? tabParam : "summary";
-
-  content.innerHTML = "<h2>Sales</h2>" + buildSalesTabsShellHtml();
-  wireSalesTabs();
-  await loadSalesTab(_activeSalesTab);
-
   if (params.get("action") === "input") openSalesEntryModal();
 }
 
-function buildSalesTabsShellHtml() {
-  return (
-    '<div style="display:flex; justify-content:space-between; align-items:center;">' +
-      '<div class="tabs" style="margin-bottom:0;">' +
-        '<button id="salesTab-summary" onclick="switchSalesTab(\'summary\')">Sales Summary</button>' +
-        '<button id="salesTab-log" onclick="switchSalesTab(\'log\')">Sales Log</button>' +
-      "</div>" +
-      '<button onclick="openSalesEntryModal()">+ Input Sales</button>' +
-    "</div>" +
-    '<div id="salesTableWrap"><p>Loading...</p></div>'
-  );
-}
-
-function wireSalesTabs() {
-  document.getElementById("salesTab-summary").classList.toggle("tab-active", _activeSalesTab === "summary");
-  document.getElementById("salesTab-log").classList.toggle("tab-active", _activeSalesTab === "log");
-}
-
-function switchSalesTab(tab) {
-  if (tab === _activeSalesTab) return;
-  _activeSalesTab = tab;
-  wireSalesTabs();
-  loadSalesTab(tab);
-}
-
 // GET /api/sales already merges manual + live-derived Online rows and
-// sorts newest first - both tabs just read/reshape _lastSalesRows client
-// side, no separate summary endpoint needed.
-async function loadSalesTab(tab) {
-  const wrap = document.getElementById("salesTableWrap");
-  wrap.innerHTML = "<p>Loading...</p>";
+// sorts newest first - Summary and Log both just read/reshape
+// _lastSalesRows client side, no separate summary endpoint needed.
+async function loadSalesData() {
   _lastSalesRows = await api("sales");
-  if (!document.getElementById("salesTableWrap")) return;
+  if (!document.getElementById("salesSummaryWrap")) return;
 
-  if (tab === "summary") renderSalesSummaryTab(wrap);
-  else renderSalesLogTab(wrap);
+  renderSalesSummaryTab(document.getElementById("salesSummaryWrap"));
+  renderSalesLogTab(document.getElementById("salesLogWrap"));
 }
 
 // ---------- Summary ----------
@@ -108,9 +84,9 @@ function renderSalesSummaryTab(wrap) {
     "<table>" +
       "<thead><tr><th>" + monthLabel + "</th>" + summary.map((p) => "<th>" + p.platform + "</th>").join("") + "<th>Total</th></tr></thead>" +
       "<tbody>" +
-        "<tr><td>Total Revenue</td>" + summary.map((p) => "<td>" + formatRupiah(p.revenue) + "</td>").join("") + "<td>" + formatRupiah(totals.revenue) + "</td></tr>" +
+        '<tr><td>Total Revenue</td>' + summary.map((p) => '<td><span class="font-number">' + formatRupiah(p.revenue) + "</span></td>").join("") + '<td><span class="font-number">' + formatRupiah(totals.revenue) + "</span></td></tr>" +
         "<tr><td>Total QTY Sold</td>" + summary.map((p) => "<td>" + p.qty + "</td>").join("") + "<td>" + totals.qty + "</td></tr>" +
-        "<tr><td>Total Gross Profit</td>" + summary.map((p) => "<td>" + formatRupiah(p.grossProfit) + "</td>").join("") + "<td>" + formatRupiah(totals.grossProfit) + "</td></tr>" +
+        '<tr><td>Total Gross Profit</td>' + summary.map((p) => '<td><span class="font-number">' + formatRupiah(p.grossProfit) + "</span></td>").join("") + '<td><span class="font-number">' + formatRupiah(totals.grossProfit) + "</span></td></tr>" +
         "<tr><td>Gross Margin</td>" +
           summary.map((p) => "<td>" + formatPercent(p.revenue ? p.grossProfit / p.revenue : 0) + "</td>").join("") +
           "<td>" + formatPercent(totals.revenue ? totals.grossProfit / totals.revenue : 0) + "</td></tr>" +
@@ -182,7 +158,7 @@ function openSalesLogFilterModal() {
 function applySalesLogChannelFilter() {
   _salesLogChannelFilter = Array.from(document.querySelectorAll(".salesLogChannelCheck:checked")).map((cb) => cb.value);
   closeModal();
-  renderSalesLogTab(document.getElementById("salesTableWrap"));
+  renderSalesLogTab(document.getElementById("salesLogWrap"));
 }
 
 function openSalesLogSortModal() {
@@ -201,7 +177,7 @@ function applySalesLogSort() {
   if (!selected) return;
   _salesLogSort = selected.value;
   closeModal();
-  renderSalesLogTab(document.getElementById("salesTableWrap"));
+  renderSalesLogTab(document.getElementById("salesLogWrap"));
 }
 
 // Groups by groupKey first (preserving first-seen order) and sorts the
@@ -249,6 +225,7 @@ function renderSalesLogTab(wrap) {
         '<button onclick="openSalesLogFilterModal()">Set Filter</button>' +
         '<span id="salesLogSortBadge" style="color:var(--color-text-muted); font-size:12px;">Sort: ' + SALES_LOG_SORT_LABELS[_salesLogSort] + "</span>" +
         '<button onclick="openSalesLogSortModal()">Sort</button>' +
+        '<button onclick="openSalesEntryModal()">+ Input Sales</button>' +
       "</div>" +
     "</div>" +
     '<div id="salesPaginationNav" class="pagination-nav"></div>' +
@@ -329,9 +306,9 @@ function salesRowHtml(r) {
       dateCell +
       "<td>" + r.productName + "</td>" +
       "<td>" + r.qty + "</td>" +
-      "<td>" + formatRupiah(r.sellingPrice) + "</td>" +
-      "<td>" + formatRupiah(r.revenue) + "</td>" +
-      "<td>" + formatRupiah(r.grossProfit) + "</td>" +
+      '<td><span class="font-number">' + formatRupiah(r.sellingPrice) + "</span></td>" +
+      '<td><span class="font-number">' + formatRupiah(r.revenue) + "</span></td>" +
+      '<td><span class="font-number">' + formatRupiah(r.grossProfit) + "</span></td>" +
       "<td>" + formatPercent(margin) + "</td>" +
       feesCell + totalRevenueCell + notesCell + actionsCell +
     "</tr>"
@@ -339,7 +316,7 @@ function salesRowHtml(r) {
 }
 
 function salesFeeLineHtml(label, amount) {
-  return '<span style="color:var(--color-text-muted); font-size:12px;">' + label + ":</span><br>" + formatRupiah(amount);
+  return '<span style="color:var(--color-text-muted); font-size:12px;">' + label + ':</span><br><span class="font-number">' + formatRupiah(amount) + "</span>";
 }
 
 function salesFeesCellHtml(r) {
@@ -388,7 +365,10 @@ function salePlatformOptionsHtml(current) {
 }
 
 function salesProductOptions() {
-  return _salesLookups.skus.filter((s) => s.item_type === "Product");
+  // Product uses "Active"/"Inactive" (not "Available"/"Unavailable" like
+  // every other item_type) - an Inactive product was still showing up here
+  // since this filter never checked status at all.
+  return _salesLookups.skus.filter((s) => s.item_type === "Product" && s.status !== "Inactive");
 }
 
 // Self-contained (loads its own lookups) rather than assuming
@@ -404,15 +384,18 @@ async function openSalesEntryModal() {
       '<input type="checkbox" id="saleToday" onchange="setSaleToday()">' +
       '<label for="saleToday">Today</label>' +
       '<input type="date" id="saleDate">' +
-    "</div><br><br>" +
+    "</div><br>" +
 
     "<label>Channel</label><br>" +
     '<select id="salePlatform" onchange="onSalePlatformChange()">' + salePlatformOptionsHtml("") + "</select>" +
     '<p style="font-size:12px; color:var(--color-text-muted);">Platforms themselves are managed on the Settings page.</p><br>' +
 
-    "<label>Products</label>" +
-    '<div id="saleItemRows"></div>' +
-    '<button type="button" onclick="addSaleItemRow()">+ Add Product</button><br><br>' +
+    '<table style="table-layout:fixed; margin-bottom:8px;">' +
+      '<colgroup><col style="width:220px;"><col style="width:60px;"><col style="width:110px;"><col style="width:110px;"><col style="width:74px;"></colgroup>' +
+      "<thead><tr><th>Item</th><th>Qty</th><th>Selling Price</th><th>Total</th><th></th></tr></thead>" +
+      '<tbody id="saleItemRows"></tbody>' +
+      '<tfoot><tr><td colspan="5"><button type="button" onclick="addSaleItemRow()">+ Add Item</button></td></tr></tfoot>' +
+    "</table><br>" +
 
     '<div id="saleFeeSection" style="display:none;">' +
       '<div style="display:flex; gap:20px;">' +
@@ -421,9 +404,9 @@ async function openSalesEntryModal() {
       "</div><br><br>" +
     "</div>" +
 
-    '<div style="display:flex; gap:16px; padding:8px 10px; border:1px solid #ddd; max-width:fit-content;">' +
-      '<div><label>Gross Revenue</label><br><strong id="saleGrossRevenue" style="font-size:13px;">Rp 0</strong></div>' +
-      '<div><label>Net Revenue</label><br><strong id="saleNetRevenue" style="font-size:13px;">Rp 0</strong></div>' +
+    '<div style="display:flex; gap:16px; padding:8px 12px; border:1px solid var(--color-border-on-card); max-width:fit-content;">' +
+      '<div><label>Gross Revenue</label><br><strong id="saleGrossRevenue" class="font-number" style="font-size:12px;">Rp 0</strong></div>' +
+      '<div><label>Net Revenue</label><br><strong id="saleNetRevenue" class="font-number" style="font-size:12px;">Rp 0</strong></div>' +
     "</div>" +
     '<p style="font-size:12px; color:var(--color-text-muted); max-width:480px;">Net Revenue = Gross Revenue - (Platform Fee + Marketing Fee). It\'s not Net Profit yet — Food/Packaging Cost and other Opex aren\'t subtracted here (look up to P&amp;L for that).</p><br>' +
 
@@ -450,16 +433,21 @@ function setSaleToday() {
   }
 }
 
+// Table row, not the shared flex ".item-row" (would break a <tr>'s column
+// layout, same reasoning as addBatchEditItemRow below) - fixed-width
+// columns via buildSalesEntryFormHtml's colgroup instead of each combo
+// setting its own inline min-width, so the Product column no longer
+// resizes per-row based on the selected name's length.
 function addSaleItemRow() {
   const wrap = document.getElementById("saleItemRows");
-  const row = document.createElement("div");
-  row.className = "item-row";
+  const row = document.createElement("tr");
+  row.className = "sale-item-row";
   row.innerHTML =
-    '<div><label>Product</label><br><div class="saleProductCombo" style="min-width:240px;"></div></div>' +
-    '<div><label>Qty</label><br><input type="number" class="qty" min="1" style="width:80px;" oninput="updateSaleRowTotal(this.closest(\'.item-row\'))"></div>' +
-    '<div><label>Selling Price</label><br><input type="text" class="sellingPrice" inputmode="numeric" style="width:130px;" oninput="formatAmount(this); updateSaleRowTotal(this.closest(\'.item-row\'))"></div>' +
-    '<div><label>Total</label><br><input type="text" class="total" readonly style="width:130px; background:var(--color-disabled-bg);"></div>' +
-    '<button type="button" onclick="removeSaleItemRow(this)">Remove</button>';
+    '<td><div class="saleProductCombo"></div></td>' +
+    '<td><input type="number" class="qty" min="1" style="width:100%; box-sizing:border-box;" oninput="updateSaleRowTotal(this.closest(\'.sale-item-row\'))"></td>' +
+    '<td><input type="text" class="sellingPrice" inputmode="numeric" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this); updateSaleRowTotal(this.closest(\'.sale-item-row\'))"></td>' +
+    '<td><input type="text" class="total" readonly style="width:100%; box-sizing:border-box; background:var(--color-disabled-bg);"></td>' +
+    '<td class="remove-cell"><button type="button" class="btn-remove" onclick="removeSaleItemRow(this)">Remove</button></td>';
   wrap.appendChild(row);
 
   const options = salesProductOptions();
@@ -467,16 +455,16 @@ function addSaleItemRow() {
     row.querySelector(".saleProductCombo"),
     options.map((s) => ({ value: s.id, label: s.name, sub: s.sku })),
     {
-      placeholder: "Select product...",
+      placeholder: "Select item...",
       onSelect: function (skuId) { onSaleRowProductChange(row, skuId); }
     }
   );
 }
 
 function removeSaleItemRow(btn) {
-  const rows = document.querySelectorAll("#saleItemRows .item-row");
+  const rows = document.querySelectorAll("#saleItemRows .sale-item-row");
   if (rows.length <= 1) return;
-  btn.closest(".item-row").remove();
+  btn.closest(".sale-item-row").remove();
   updateSaleRevenueSummary();
 }
 
@@ -497,7 +485,7 @@ function onSaleRowProductChange(row, skuId) {
 }
 
 function onSalePlatformChange() {
-  document.querySelectorAll("#saleItemRows .item-row").forEach((row) => {
+  document.querySelectorAll("#saleItemRows .sale-item-row").forEach((row) => {
     const skuId = row._combo ? row._combo.getValue() : "";
     if (skuId) onSaleRowProductChange(row, skuId);
   });
@@ -532,7 +520,7 @@ function updateSaleRowTotal(row) {
 
 function updateSaleRevenueSummary() {
   let gross = 0;
-  document.querySelectorAll("#saleItemRows .item-row").forEach((row) => {
+  document.querySelectorAll("#saleItemRows .sale-item-row").forEach((row) => {
     const qty = Number(row.querySelector(".qty").value) || 0;
     const price = parseAmount(row.querySelector(".sellingPrice").value);
     gross += qty * price;
@@ -548,7 +536,7 @@ function updateSaleRevenueSummary() {
 
 function collectSaleItems() {
   const items = [];
-  document.querySelectorAll("#saleItemRows .item-row").forEach((row) => {
+  document.querySelectorAll("#saleItemRows .sale-item-row").forEach((row) => {
     const skuId = row._combo ? row._combo.getValue() : "";
     const qty = Number(row.querySelector(".qty").value) || 0;
     const sellingPrice = parseAmount(row.querySelector(".sellingPrice").value);
@@ -576,7 +564,7 @@ function saveSalesBatch() {
   withSaveStatus(btn, statusEl, "Sales", async function () {
     await api("sales", { method: "POST", body: body });
     closeModal();
-    await loadSalesTab(_activeSalesTab);
+    await loadSalesData();
   });
 }
 
@@ -588,10 +576,10 @@ function openSalesBatchModal(batchCode) {
   if (!lines.length) return;
   const first = lines[0];
 
-  const box = openModal(
+  openModal(
     "<h2>Edit Batch - " + batchCode + "</h2>" +
     "<label>Date</label><br>" +
-    '<input type="date" id="batchEditDate" value="' + first.date + '"><br><br>' +
+    '<input type="date" id="batchEditDate" value="' + first.date + '"><br>' +
 
     "<label>Channel</label><br>" +
     '<select id="batchEditPlatform" onchange="onBatchEditPlatformChange()">' + salePlatformOptionsHtml(first.platform) + "</select><br><br>" +
@@ -603,17 +591,16 @@ function openSalesBatchModal(batchCode) {
       "</div><br>" +
     "</div>" +
 
-    "<label>Products</label>" +
     '<table style="table-layout:fixed; margin-bottom:8px;">' +
-      '<colgroup><col><col style="width:65px;"><col style="width:110px;"><col style="width:110px;"><col style="width:75px;"></colgroup>' +
-      "<thead><tr><th>Product</th><th>Qty</th><th>Selling Price</th><th>Total</th><th></th></tr></thead>" +
+      '<colgroup><col style="width:220px;"><col style="width:60px;"><col style="width:110px;"><col style="width:110px;"><col style="width:74px;"></colgroup>' +
+      "<thead><tr><th>Item</th><th>Qty</th><th>Selling Price</th><th>Total</th><th></th></tr></thead>" +
       '<tbody id="batchEditItemRows"></tbody>' +
-      '<tfoot><tr><td colspan="5"><button type="button" onclick="addBatchEditItemRow()">+ Add Product</button></td></tr></tfoot>' +
+      '<tfoot><tr><td colspan="5"><button type="button" onclick="addBatchEditItemRow()">+ Add Item</button></td></tr></tfoot>' +
     "</table><br>" +
 
-    '<div style="display:flex; gap:16px; padding:8px 10px; border:1px solid #ddd; max-width:fit-content;">' +
-      '<div><label>Gross Revenue</label><br><strong id="batchEditGrossRevenue" style="font-size:13px;">Rp 0</strong></div>' +
-      '<div><label>Net Revenue</label><br><strong id="batchEditNetRevenue" style="font-size:13px;">Rp 0</strong></div>' +
+    '<div style="display:flex; gap:16px; padding:8px 12px; border:1px solid var(--color-border-on-card); max-width:fit-content;">' +
+      '<div><label>Gross Revenue</label><br><strong id="batchEditGrossRevenue" class="font-number" style="font-size:12px;">Rp 0</strong></div>' +
+      '<div><label>Net Revenue</label><br><strong id="batchEditNetRevenue" class="font-number" style="font-size:12px;">Rp 0</strong></div>' +
     "</div><br>" +
 
     "<label>Notes</label><br>" +
@@ -627,11 +614,6 @@ function openSalesBatchModal(batchCode) {
       '<button type="button" style="color:#b00020;" onclick="deleteSalesBatchFromModal(\'' + batchCode + '\')">Delete Batch</button>' +
     "</div>"
   );
-  // Wider than the default modal (which is sized for simple forms) - this
-  // one holds a 5-column product table that needs the room to stay on one
-  // line per row instead of wrapping.
-  box.style.maxWidth = "760px";
-
   document.getElementById("batchEditItemRows").innerHTML = "";
   lines.forEach((r) => addBatchEditItemRow(r));
   onBatchEditPlatformChange();
@@ -650,7 +632,7 @@ function addBatchEditItemRow(existingRow) {
     '<td><input type="number" class="qty" min="1" value="' + (existingRow ? existingRow.qty : "") + '" style="width:100%; box-sizing:border-box;" oninput="updateBatchEditRowTotal(this.closest(\'.batch-edit-row\'))"></td>' +
     '<td><input type="text" class="sellingPrice" inputmode="numeric" value="' + (existingRow ? formatRupiah(existingRow.sellingPrice) : "") + '" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this); updateBatchEditRowTotal(this.closest(\'.batch-edit-row\'))"></td>' +
     '<td><input type="text" class="total" readonly style="width:100%; box-sizing:border-box; background:var(--color-disabled-bg);"></td>' +
-    '<td><button type="button" onclick="removeBatchEditItemRow(this)">Remove</button></td>';
+    '<td class="remove-cell"><button type="button" class="btn-remove" onclick="removeBatchEditItemRow(this)">Remove</button></td>';
   wrap.appendChild(row);
 
   const options = salesProductOptions();
@@ -658,7 +640,7 @@ function addBatchEditItemRow(existingRow) {
     row.querySelector(".batchEditProductCombo"),
     options.map((s) => ({ value: s.id, label: s.name, sub: s.sku })),
     {
-      placeholder: "Select product...",
+      placeholder: "Select item...",
       onSelect: function (skuId) { onBatchEditRowProductChange(row, skuId); }
     }
   );
@@ -784,7 +766,7 @@ async function saveSalesBatchEdit(batchCode) {
     }
 
     closeModal();
-    await loadSalesTab(_activeSalesTab);
+    await loadSalesData();
   });
 }
 
@@ -792,6 +774,6 @@ function deleteSalesBatchFromModal(batchCode) {
   if (!confirm("Delete this whole batch? Every product line, their stock consumption, and the linked Platform/Marketing Fee expenses will all be removed.")) return;
 
   api("sales-batches/" + encodeURIComponent(batchCode), { method: "DELETE" })
-    .then(function () { closeModal(); return loadSalesTab(_activeSalesTab); })
+    .then(function () { closeModal(); return loadSalesData(); })
     .catch((err) => alert(err.message));
 }

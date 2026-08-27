@@ -74,14 +74,21 @@ export async function getOpexLinkMap(supabase, brandId) {
 }
 
 // Recomputes ONE driver+month's Driver Payout OpEx group from scratch, from
-// whatever's currently Paid in the DB - never incrementally patched, same
-// "always live recompute" pattern as P&L's computeLiveMonthlyData. Called
-// after every mutation that could change a group's membership: Mark Paid
-// (pages/orders.js confirmMarkGroupPaid), a per-order edit in Payout History
-// (savePayoutEdit) - both the old group (if driver/month changed) and the
-// new one - and GrabExpress's instant-pay-at-creation path (functions/api/
-// orders.js POST), so every driver's payouts roll up the same way regardless
-// of which path paid them.
+// whatever's currently Completed in the DB - never incrementally patched,
+// same "always live recompute" pattern as P&L's computeLiveMonthlyData.
+// Membership is accrual-based (order_status = 'Completed'), NOT whether the
+// driver has actually been paid (driver_payout_status) - the expense is
+// incurred the moment the order is done, same accrual timing as stock
+// consumption (see _lib/orders.js's recordOrderConsumption), regardless of
+// when cash actually moves to the driver. Mark Paid (functions/api/
+// driver-payout/mark-paid.js) no longer calls this at all - it only flips
+// driver_payout_status, which this function doesn't even look at anymore.
+// Called after every mutation that could change a group's membership: an
+// order becoming Completed (functions/api/orders.js POST, functions/api/
+// orders/[code].js PATCH) and a per-order edit in Payout History
+// (functions/api/driver-payout/[code].js - both the old group, if driver/
+// month changed, and the new one), so every driver's accrued fees roll up
+// the same way regardless of which path completed the order.
 //
 // driverKey is either a staff id (driver_staff_id) or a raw external name
 // (driver_name_raw) - same dual scheme used everywhere else driver identity
@@ -90,13 +97,13 @@ export async function getOpexLinkMap(supabase, brandId) {
 export async function resyncDriverPayoutOpexGroup(supabase, brandId, driverKey, driverIsStaff, monthKey) {
   const driverColumn = driverIsStaff ? "driver_staff_id" : "driver_name_raw";
 
-  // Every order for this driver in this month, Paid or not - not just the
-  // currently-Paid ones - so a stray link left behind on an order that just
-  // flipped to Unpaid (or had its fee zeroed) is still found and cleared,
-  // even though it's no longer a real member of the group.
+  // Every order for this driver in this month, Completed or not - not just
+  // the currently-Completed ones - so a stray link left behind on an order
+  // that got un-Completed somehow (or had its fee zeroed) is still found
+  // and cleared, even though it's no longer a real member of the group.
   const { data: inMonth, error: selErr } = await supabase
     .from("orders")
-    .select("order_code, order_date, delivery_fee, driver_payout_status, driver_payout_opex_code")
+    .select("order_code, order_date, delivery_fee, order_status, driver_payout_opex_code")
     .eq("brand_id", brandId)
     .eq(driverColumn, driverKey)
     .gte("order_date", monthKey + "-01")
@@ -104,7 +111,7 @@ export async function resyncDriverPayoutOpexGroup(supabase, brandId, driverKey, 
   if (selErr) throw selErr;
 
   const staleCode = inMonth.map((o) => o.driver_payout_opex_code).find(Boolean) || null;
-  const members = inMonth.filter((o) => o.driver_payout_status === "Paid" && Number(o.delivery_fee) > 0);
+  const members = inMonth.filter((o) => o.order_status === "Completed" && Number(o.delivery_fee) > 0);
 
   if (!members.length) {
     if (staleCode) {

@@ -18,6 +18,8 @@ registerPage("finance-opex", renderOpexPage);
 
 let _lastOpexRows = [];
 let _opexCategoryOptions = null;
+let _opexDescriptionOptions = null;
+let _opexDescCombo = null;
 
 async function ensureOpexCategoryOptions() {
   if (_opexCategoryOptions) return _opexCategoryOptions;
@@ -26,13 +28,22 @@ async function ensureOpexCategoryOptions() {
   return _opexCategoryOptions;
 }
 
+// Every Description ever used, for the Add/Edit Expense form's Description
+// field (free-text combobox - pick an existing one for consistency, or type
+// a brand-new one), same pattern as pages/cashflow.js's Input Transaction.
+async function ensureOpexDescriptionOptions() {
+  if (_opexDescriptionOptions) return _opexDescriptionOptions;
+  _opexDescriptionOptions = await api("opex/descriptions");
+  return _opexDescriptionOptions;
+}
+
 async function renderOpexPage(content) {
   content.innerHTML =
     "<h2>Operational Expenses</h2>" +
     buildOpexSummaryShellHtml() +
     buildOpexLogShellHtml();
   enableDragScroll(document.getElementById("opexLogScrollWrap"));
-  await ensureOpexCategoryOptions();
+  await Promise.all([ensureOpexCategoryOptions(), ensureOpexDescriptionOptions()]);
   await loadOpexData();
 }
 
@@ -104,8 +115,8 @@ function renderOpexSummary(wrap) {
         "<thead><tr><th>This Month Recap</th>" + categories.map((c) => "<th>" + c + "</th>").join("") + "<th>Total</th></tr></thead>" +
         "<tbody><tr>" +
           "<td>Total Expense - " + monthLabel + "</td>" +
-          categories.map((c) => "<td>" + formatRupiah(expenseByCategory[c]) + "</td>").join("") +
-          "<td><strong>" + formatRupiah(total) + "</strong></td>" +
+          categories.map((c) => '<td><span class="font-number">' + formatRupiah(expenseByCategory[c]) + "</span></td>").join("") +
+          "<td><strong><span class=\"font-number\">" + formatRupiah(total) + "</span></strong></td>" +
         "</tr></tbody>" +
       "</table>" +
     "</div>";
@@ -164,10 +175,10 @@ function opexRowHtml(r) {
       "<td>" + r.date + "</td>" +
       "<td>" + r.category + "</td>" +
       "<td>" + (r.desc || "") + "</td>" +
-      "<td>" + formatRupiah(r.grossAmount) + "</td>" +
+      '<td><span class="font-number">' + formatRupiah(r.grossAmount) + "</span></td>" +
       "<td>" + r.amort + "</td>" +
       "<td>" + r.period + "</td>" +
-      "<td>" + formatRupiah(r.accruedExpense) + "</td>" +
+      '<td><span class="font-number">' + formatRupiah(r.accruedExpense) + "</span></td>" +
       "<td>" + (r.paymentMethod || "") + "</td>" +
       actionsCell +
     "</tr>"
@@ -237,12 +248,14 @@ function openOpexEntryModal(opexCode) {
     "<h2>" + (opexCode ? "Edit Expense - " + opexCode : "Add Expense") + "</h2>" +
     "<label>Date</label><br>" +
     (row
-      ? ('<input type="date" id="opexDate" value="' + row.date + '"><br><br>')
+      ? ('<input type="date" id="opexDate" value="' + row.date + '"><br>')
+      // Not checked by default - pick a date explicitly (Today included)
+      // rather than silently defaulting to today, per explicit request.
       : ('<div style="display:flex; align-items:center; gap:8px;">' +
-          '<input type="checkbox" id="opexToday" checked onchange="setOpexToday()">' +
+          '<input type="checkbox" id="opexToday" onchange="setOpexToday()">' +
           '<label for="opexToday">Today</label>' +
           '<input type="date" id="opexDate">' +
-        "</div><br><br>")
+        "</div><br>")
     ) +
     "<label>Category</label><br>" +
     '<select id="opexCategory">' +
@@ -250,7 +263,7 @@ function openOpexEntryModal(opexCode) {
     "</select>" +
     '<p style="font-size:12px; color:var(--color-text-muted); margin:4px 0 0;">New category? Add it on the Settings page (PnL Categories) first.</p><br>' +
     "<label>Description</label><br>" +
-    '<input type="text" id="opexDesc" value="' + (row ? (row.desc || "") : "") + '"><br><br>' +
+    '<div id="opexDescCombo" style="min-width:220px;"></div><br><br>' +
     "<label>Gross Amount</label><br>" +
     '<input type="text" id="opexGrossAmount" inputmode="numeric" value="' + (row ? formatRupiah(row.grossAmount) : "") + '" oninput="formatAmount(this)"><br><br>' +
     '<div style="display:flex; align-items:center; gap:8px;">' +
@@ -265,7 +278,15 @@ function openOpexEntryModal(opexCode) {
     '<span id="saveOpexStatus" class="save-status"></span>'
   );
 
-  if (!row) setOpexToday();
+  // Free-text combobox - pick a Description used before (for consistency
+  // across repeated entries) or type a brand-new one, same pattern as
+  // pages/cashflow.js's Input Transaction.
+  _opexDescCombo = createCombobox(
+    document.getElementById("opexDescCombo"),
+    (_opexDescriptionOptions || []).map((d) => ({ value: d, label: d })),
+    { placeholder: "Type or pick a description...", allowFreeText: true, commitValue: true }
+  );
+  if (row && row.desc) _opexDescCombo.setSelection(row.desc, row.desc);
 }
 
 function setOpexToday() {
@@ -285,7 +306,7 @@ function toggleOpexAmort() {
 function saveOpexEntry(existingCode) {
   const date = document.getElementById("opexDate").value;
   const category = document.getElementById("opexCategory").value;
-  const desc = document.getElementById("opexDesc").value.trim();
+  const desc = (_opexDescCombo ? _opexDescCombo.getValue() : "").trim();
   const grossAmount = parseAmount(document.getElementById("opexGrossAmount").value);
   const amort = document.getElementById("opexAmort").checked;
   const period = document.getElementById("opexPeriod").value;

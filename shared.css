@@ -1,6 +1,14 @@
 /* Ported from the old Apps Script app's 99 Shared/Layout/LayoutStyles.html.
    Same visual language on purpose - internal tool, function over form. */
 
+/* Plus Jakarta Sans = global default (body text/headings/labels). Inter =
+   numbers only (.font-number, and the input[type=number]/[inputmode=numeric]
+   selectors further down) - two different typefaces read as a mismatch if
+   used interchangeably, so keep them strictly to their own role. Header's
+   own title font (Quicksand) is separate, imported in index.html, and
+   untouched by this. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
 /* ---------- Color palette (global) ----------
    Two-layer model: the page chrome (body/header/footer/navbar) sits on the
    dark background with light text; #content itself IS "the card" every
@@ -27,17 +35,47 @@
   --color-accent-tint: rgba(247, 183, 188, 0.25);
   --color-muted-tint: rgba(166, 90, 95, 0.15); /* Soft Blush Rose Dark, faint - hover wash on in-page tab strips */
   --color-disabled-bg: rgba(5, 51, 74, 0.08);
+
+  /* Semantic status tokens - one canonical hex per meaning instead of the
+     several near-duplicate greens/reds that had drifted in independently
+     (save-status.success was #2e7d32, .status-Safe was #1a7f37, menu.js's
+     margin-trend-up was #16a34a - all "success", all slightly different). */
+  --color-success: #1a7f37;
+  --color-warning: #b08800;
+  --color-error: #cf222e;
+
+  /* ---------- Subtle gradients ----------
+     Small, deliberate variation instead of a flat single-color fill -
+     kept subtle (3-5% shade shift) so it reads as gentle depth, not an
+     obvious skeuomorphic effect. color-mix() computes each gradient's
+     lighter/darker stop live from the palette tokens above, so there's no
+     second hardcoded hex to keep in sync by hand if a base color changes. */
+  --gradient-page-bg: linear-gradient(to bottom, var(--color-bg-page), color-mix(in srgb, var(--color-bg-page) 50%, black 50%));
+  --gradient-panel-bg: linear-gradient(to bottom, var(--color-panel-bg), color-mix(in srgb, var(--color-panel-bg) 96%, black 4%));
+  --gradient-card-bg: linear-gradient(to bottom, var(--color-card-bg), color-mix(in srgb, var(--color-card-bg) 96%, black 4%));
+  /* Diagonal, dark (top-left) to light (bottom-right) - two close shades of
+     the same primary-button blue, not a second color. */
+  --gradient-btn-primary: linear-gradient(135deg, var(--color-bg-page), color-mix(in srgb, var(--color-bg-page) 92%, white 8%));
 }
 
 body {
   margin: 0;
-  font-family: Arial, sans-serif;
-  background: var(--color-bg-page);
+  font-family: "Plus Jakarta Sans", Arial, sans-serif;
+  background: var(--gradient-page-bg);
   color: var(--color-text-on-dark);
 }
 
+/* Numbers only - Rupiah amounts, qty, stats. Covers numeric inputs
+   app-wide automatically (attribute selectors, zero markup risk); other
+   number displays opt in via class="font-number" case by case. */
+.font-number,
+input[type="number"],
+input[inputmode="numeric"] {
+  font-family: "Inter", Arial, sans-serif;
+}
+
 header {
-  padding: 0 16px;
+  padding: 16px 16px 8px;
 }
 header h2 {
   /* --color-text-on-dark (#EBBF93) reads as a muted tan next to the nav's
@@ -45,23 +83,56 @@ header h2 {
      Soft Blush Rose Light, so the title is unmistakably pink rather than
      blending into the same warm-cream family as Papaya Whip. */
   color: var(--color-accent);
+  /* Quicksand (index.html's Google Fonts link) - scoped to just this
+     title, not applied app-wide; Arial stays the fallback/default
+     everywhere else including every other heading. */
+  font-family: "Quicksand", Arial, sans-serif;
+  letter-spacing: 0.06em;
 }
-header hr, footer hr {
+/* header's own <hr> was removed (index.html) - it doubled up with
+   #navbar's border-bottom directly below it. footer's <hr> is the only
+   divider there, so it stays. */
+footer hr {
   border-color: var(--color-border-on-dark);
 }
 
 footer {
   padding: 0 16px;
   color: var(--color-text-on-dark);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 #content {
   margin: 16px;
   padding: 16px;
-  background: var(--color-panel-bg);
+  background: var(--gradient-panel-bg);
   color: var(--color-text-primary);
   border-radius: 10px;
+}
+
+/* ---------- Heading hierarchy ----------
+   Every h2/h3/h4 across the app shares one size - "page title" (h2) vs
+   "section title" (h3) vs "card title" (h4) is differentiated by weight,
+   not another font-size, keeping the whole app to 3 sizes total (this,
+   plus 14px body and 12px caption/muted text set elsewhere). */
+h2, h3, h4 {
+  font-size: 18px;
+  margin: 0 0 8px;
+}
+h2 {
+  font-weight: bold;
+}
+h3, h4 {
+  font-weight: 600;
+}
+/* Every module page's own title (Dashboard, Orders, Inventory Stock, ...) -
+   the direct-child selector keeps this from touching a modal's <h2>
+   (modals mount to document.body, not #content, see shared.js's
+   openModal) or header's own <h2> (already explicitly colored). Same tone
+   as "Cash Balance"-style stat labels (--color-text-muted, Soft Blush
+   Rose Dark), per explicit request. */
+#content > h2 {
+  color: var(--color-text-muted);
 }
 
 /* ---------- Buttons ----------
@@ -76,7 +147,7 @@ button {
   padding: 8px 16px;
   border: none;
   border-radius: 10px;
-  background: var(--color-bg-page);
+  background: var(--gradient-btn-primary);
   color: var(--color-card-bg);
   font: inherit;
   font-size: 14px;
@@ -108,6 +179,24 @@ button.btn-secondary:hover {
   filter: none;
 }
 
+/* Per-row "Remove" button in item-row tables/lists (Input Sales, Edit Sales
+   Batch, Input Purchase, Input Transaction, New Order) - the default
+   button's padding/font-size made "Remove" wider than any reasonably-sized
+   last column, overflowing past the table edge under table-layout:fixed.
+   Same gradient/color as every other button, just compact. */
+button.btn-remove {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+/* The table/td rule below gives every cell 8px 12px padding - fine for text,
+   but it ate into the Remove column's already-tight fixed width and pushed
+   .btn-remove past the table edge anyway. Cut this one cell's padding down
+   instead of widening the column at the expense of the columns beside it. */
+td.remove-cell {
+  padding: 6px 4px;
+  text-align: center;
+}
+
 /* ---------- Text inputs / textarea ----------
    Every native text-ish field in the app (grep-verified: only type="text",
    type="number", type="date" are used, plus a future-proofed textarea) -
@@ -120,7 +209,7 @@ input[type="text"],
 input[type="number"],
 input[type="date"],
 textarea {
-  padding: 6px 10px;
+  padding: 8px 12px;
   border: 1px solid var(--color-text-muted);
   border-radius: 8px;
   background-color: var(--color-field-bg);
@@ -158,7 +247,7 @@ textarea[readonly] {
    background-image data URIs can't reference a CSS variable. */
 select {
   display: inline-block;
-  padding: 6px 28px 6px 10px;
+  padding: 8px 28px 8px 12px;
   border: 1px solid var(--color-text-muted);
   border-radius: 8px;
   background-color: var(--color-field-bg);
@@ -221,13 +310,17 @@ select option {
   height: 0;
 }
 
+/* Row-separator only (border-bottom), no vertical grid lines - a full cell
+   grid reads as busy; a bottom line per row is enough to track a row across
+   a wide table. */
 table {
   border-collapse: collapse;
   width: 100%;
 }
 th, td {
-  border: 1px solid var(--color-border-on-card);
-  padding: 6px 10px;
+  border: none;
+  border-bottom: 1px solid var(--color-border-on-card);
+  padding: 8px 12px;
   text-align: left;
   font-size: 14px;
 }
@@ -254,8 +347,18 @@ th {
   display: flex;
   gap: 8px;
   padding: 8px 12px;
-  background: var(--color-bg-page);
+  background: var(--gradient-page-bg);
   border-bottom: 1px solid var(--color-border-on-dark);
+  /* No flex-wrap - on a narrow/mobile viewport this scrolls horizontally
+     (native touch scroll, plus click-and-drag via enableDragScroll() wired
+     up once in index.html) instead of squeezing every item or spilling off
+     the right edge unscrollably. */
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+#navbar > button,
+#navbar > .navbar-item {
+  flex-shrink: 0;
 }
 /* --color-text-on-dark (#EBBF93) reads as tan/papaya-whip-ish, not pink -
    same reason the title uses --color-accent instead (see header h2). Nav
@@ -289,16 +392,19 @@ th {
 .navbar-item > button:hover {
   text-decoration: underline;
 }
+/* position:fixed (not absolute) with top/left set inline by
+   positionNavDropdown() in shared.js on open - #navbar now scrolls
+   horizontally on mobile (overflow-x:auto above), and an absolutely-
+   positioned dropdown would get clipped by that scroll container along
+   with it; fixed positioning escapes that since it's relative to the
+   viewport, not the nearest scrolling ancestor. */
 .navbar-dropdown {
   display: none;
-  position: absolute;
-  top: 100%;
-  left: 0;
+  position: fixed;
   flex-direction: column;
   min-width: 170px;
-  background: var(--color-card-bg);
+  background: var(--gradient-card-bg);
   color: var(--color-text-primary);
-  border: 1px solid var(--color-border-on-card);
   box-shadow: 0 2px 6px rgba(0,0,0,0.25);
   z-index: 100;
 }
@@ -336,9 +442,8 @@ th {
   left: 100%;
   flex-direction: column;
   min-width: 170px;
-  background: var(--color-card-bg);
+  background: var(--gradient-card-bg);
   color: var(--color-text-primary);
-  border: 1px solid var(--color-border-on-card);
   box-shadow: 0 2px 6px rgba(0,0,0,0.25);
   z-index: 101;
 }
@@ -412,7 +517,7 @@ th {
   margin-bottom: 16px;
 }
 .tabs button {
-  padding: 8px 14px;
+  padding: 8px 16px;
   border: 1px solid transparent;
   border-bottom: none;
   border-radius: 4px 4px 0 0;
@@ -433,7 +538,7 @@ th {
 .tabs button.tab-active {
   border-color: var(--color-border-on-card);
   border-radius: 4px 4px 0 0;
-  background: var(--color-card-bg);
+  background: var(--gradient-card-bg);
   font-weight: bold;
   margin-bottom: -1px;
 }
@@ -491,7 +596,7 @@ th {
   border-radius: 8px;
   background: var(--color-field-bg);
   color: var(--color-text-primary);
-  padding: 5px 8px;
+  padding: 8px 12px;
   cursor: pointer;
   box-sizing: border-box;
 }
@@ -499,11 +604,21 @@ th {
   outline: 2px solid var(--color-accent);
   outline-offset: 1px;
 }
+/* Truncates instead of wrapping/overflowing when the trigger sits in a
+   fixed-width column (e.g. a table's colgroup) - min-width:0 is needed on a
+   flex child (.combo-trigger is display:flex) for ellipsis to ever kick in,
+   otherwise it just refuses to shrink below its content's natural width. */
+.combo-trigger-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
 .combo-trigger-text.combo-placeholder {
   color: var(--color-text-muted);
 }
 .combo-arrow {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--color-text-muted);
 }
 .combo-panel {
@@ -523,7 +638,7 @@ th {
   box-sizing: border-box;
   border: none;
   border-bottom: 1px solid var(--color-border-on-card);
-  padding: 6px 8px;
+  padding: 8px 12px;
 }
 .combo-search:focus {
   outline: none;
@@ -534,7 +649,7 @@ th {
   overflow-y: auto;
 }
 .combo-option {
-  padding: 6px 10px;
+  padding: 8px 12px;
   cursor: pointer;
   white-space: nowrap;
 }
@@ -542,49 +657,49 @@ th {
   background: var(--color-accent-tint);
 }
 .combo-empty {
-  padding: 6px 10px;
+  padding: 8px 12px;
   color: var(--color-text-muted);
-  font-size: 13px;
+  font-size: 12px;
 }
 .combo-label {
   font-size: 14px;
 }
 .combo-sub {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--color-text-muted);
   margin-left: 6px;
 }
 
 /* "Saving X..." / "X saved." next to Save buttons */
 .save-status {
-  margin-left: 10px;
-  font-size: 13px;
+  margin-left: 8px;
+  font-size: 12px;
   color: var(--color-text-muted);
 }
 .save-status.success {
-  color: #2e7d32;
+  color: var(--color-success);
 }
 .save-status.error {
-  color: #d32f2f;
+  color: var(--color-error);
 }
 
 /* Prev/Next nav under log/ledger tables */
 .pagination-nav {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-top: 10px;
+  gap: 8px;
+  margin-top: 8px;
 }
 .pagination-info {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--color-text-muted);
 }
 
 /* Stock Overview status colors - ported from the old app's
    04 Inventory/StockOverviewTable.html */
-.status-Aman { color: #1a7f37; font-weight: bold; }
-.status-Mepet { color: #b08800; font-weight: bold; }
-.status-Habis { color: #cf222e; font-weight: bold; }
+.status-Safe { color: var(--color-success); font-weight: bold; }
+.status-Low { color: var(--color-warning); font-weight: bold; }
+.status-Out { color: var(--color-error); font-weight: bold; }
 
 /* Stock Opname checklist row lock state - ported from StockOpnameEntry.html */
 #opnameChecklistBody tr.done { background: #f0f7f0; }
@@ -607,7 +722,7 @@ th {
   box-sizing: border-box;
 }
 .modal-box {
-  background: var(--color-card-bg);
+  background: var(--gradient-card-bg);
   color: var(--color-text-primary);
   border-radius: 8px;
   padding: 24px;

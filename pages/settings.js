@@ -15,7 +15,7 @@ registerPage("settings", renderSettingsPage);
 
 let _lastSettingsData = null;
 
-const SETTINGS_LIST_SPECS = ["Payment Method", "Sales Platform", "PnL Categories", "Staff Roles", "Cashflow Category"];
+const SETTINGS_LIST_SPECS = ["Payment Method", "Sales Platform", "PnL Categories", "Cashflow Category", "Staff Roles"];
 
 const LIST_META_OPTIONS = {
   "Sales Platform": { label: "Pricing", options: ["Base Pricing", "Platform Pricing"], default: "Base Pricing" },
@@ -132,11 +132,11 @@ function renderSettingsListBody(listName) {
   const metaSpec = LIST_META_OPTIONS[listName];
 
   if (!items.length) {
-    tbody.innerHTML = '<tr><td colspan="' + (metaSpec ? 2 : 1) + '" style="color:var(--color-text-muted); font-size:13px;">None configured yet.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="' + (metaSpec ? 2 : 1) + '" style="color:var(--color-text-muted); font-size:12px;">None configured yet.</td></tr>';
     return;
   }
   tbody.innerHTML = items.map((value) =>
-    "<tr><td>" + value + "</td>" + (metaSpec ? ('<td style="color:var(--color-text-muted); font-size:13px;">' + (metaMap[value] || "") + "</td>") : "") + "</tr>"
+    "<tr><td>" + value + "</td>" + (metaSpec ? ('<td style="color:var(--color-text-muted); font-size:12px;">' + (metaMap[value] || "") + "</td>") : "") + "</tr>"
   ).join("");
 }
 
@@ -178,7 +178,7 @@ function renderManageSettingsListModal() {
 
   const rowsHtml = rows.length
     ? rows.map((value, i) => manageListRowHtml(value, i, arranging, rows.length, metaMap, metaSpec)).join("")
-    : '<tr><td colspan="4" style="color:var(--color-text-muted); font-size:13px;">None configured yet.</td></tr>';
+    : '<tr><td colspan="4" style="color:var(--color-text-muted); font-size:12px;">None configured yet.</td></tr>';
 
   openModal(
     "<h2>Manage " + listName + "</h2>" +
@@ -206,12 +206,12 @@ function manageListRowHtml(value, index, arranging, total, metaMap, metaSpec) {
 
   const moveCell = arranging
     ? ("<td>" +
-        '<button style="font-size:11px;" onclick="moveSettingsListOrder(' + index + ', \'up\')"' + (index === 0 ? " disabled" : "") + '>&#9650;</button> ' +
-        '<button style="font-size:11px;" onclick="moveSettingsListOrder(' + index + ', \'down\')"' + (index === total - 1 ? " disabled" : "") + '>&#9660;</button>' +
+        '<button style="font-size:12px;" onclick="moveSettingsListOrder(' + index + ', \'up\')"' + (index === 0 ? " disabled" : "") + '>&#9650;</button> ' +
+        '<button style="font-size:12px;" onclick="moveSettingsListOrder(' + index + ', \'down\')"' + (index === total - 1 ? " disabled" : "") + '>&#9660;</button>' +
       "</td>")
     : "";
 
-  const metaCell = metaSpec ? ('<td style="color:var(--color-text-muted); font-size:13px;">' + (metaMap[value] || "") + "</td>") : "";
+  const metaCell = metaSpec ? ('<td style="color:var(--color-text-muted); font-size:12px;">' + (metaMap[value] || "") + "</td>") : "";
 
   const actionsCell = arranging
     ? ""

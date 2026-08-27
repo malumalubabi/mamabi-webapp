@@ -64,23 +64,29 @@ function monthHeaderHtml(m) {
 // compared server-side (functions/api/pnl.js's bucketTotalsDiffer) so this
 // shows up instead of the numbers just quietly going stale with no hint
 // that Recalculate is needed.
+// Small colored dot instead of a lock/unlock emoji - same status-at-a-glance
+// purpose, without a decorative icon glyph.
+function pnlStatusDot(color) {
+  return '<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:' + color + '; margin-right:4px; vertical-align:middle;"></span>';
+}
+
 function monthActionHtml(m) {
   if (m.closed) {
     const driftBadge = m.drifted
-      ? '<span style="font-size:11px; color:#b00020; white-space:nowrap;" title="Live data no longer matches this closed snapshot - click Recalculate to update it.">&#9888; Data changed since close</span>'
+      ? '<span style="font-size:12px; color:#b00020; white-space:nowrap;" title="Live data no longer matches this closed snapshot - click Recalculate to update it.">&#9888; Data changed since close</span>'
       : "";
     return (
       driftBadge +
-      '<span style="font-size:11px; color:var(--color-text-muted); white-space:nowrap;">&#128274; Closed ' + formatPnlClosedDate(m.closedAt) + "</span>" +
-      '<button style="font-size:11px;" onclick="closeOrRecalculatePnlMonth(\'' + m.key + '\', true)">Recalculate</button>'
+      '<span style="font-size:12px; color:var(--color-text-muted); white-space:nowrap;">' + pnlStatusDot("var(--color-text-muted)") + "Closed " + formatPnlClosedDate(m.closedAt) + "</span>" +
+      '<button style="font-size:12px;" onclick="closeOrRecalculatePnlMonth(\'' + m.key + '\', true)">Recalculate</button>'
     );
   }
   if (!m.closeable) {
-    return '<span style="font-size:11px; color:var(--color-text-muted);">&#128275; Live</span>';
+    return '<span style="font-size:12px; color:var(--color-text-muted);">' + pnlStatusDot("var(--color-success)") + "Live</span>";
   }
   return (
-    '<span style="font-size:11px; color:var(--color-text-muted); white-space:nowrap;">&#128275; Live</span>' +
-    '<button style="font-size:11px;" onclick="closeOrRecalculatePnlMonth(\'' + m.key + '\', false)">Close Month</button>'
+    '<span style="font-size:12px; color:var(--color-text-muted); white-space:nowrap;">' + pnlStatusDot("var(--color-success)") + "Live</span>" +
+    '<button style="font-size:12px;" onclick="closeOrRecalculatePnlMonth(\'' + m.key + '\', false)">Close Month</button>'
   );
 }
 
@@ -101,7 +107,7 @@ function pnlRowHtml(r) {
 
 function formatPnlValue(label, value) {
   if (typeof value !== "number") return value === null || value === undefined ? "" : value;
-  return String(label).trim().slice(-1) === "%" ? formatPercent(value) : formatRupiah(value);
+  return String(label).trim().slice(-1) === "%" ? formatPercent(value) : '<span class="font-number">' + formatRupiah(value) + "</span>";
 }
 
 function closeOrRecalculatePnlMonth(monthKey, isRecalculate) {

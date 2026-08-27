@@ -138,22 +138,25 @@ export async function onRequestPost({ request, env }) {
       throw itemsErr;
     }
 
-    // Deduct stock for direct-recipe Ingredient/Packaging/Operating lines
-    // when an order arrives already Completed (Paid + fulfilled in one
-    // shot) - see _lib/orders.js. Reuses the same resolver as the cost
-    // snapshots above.
+    // Deduct stock for direct-recipe Ingredient/Packaging/Operating lines,
+    // and (below) resync the Driver Payout OpEx group - both when an order
+    // arrives already Completed (Paid + fulfilled in one shot). Reuses the
+    // same resolver as the cost snapshots above.
     if (orderStatus === "Completed") {
       await recordOrderConsumption(supabase, resolver, order.order_code, body.orderDate, body.items);
-    }
 
-    // Same Driver Payout OpEx group (per driver+month, see
-    // functions/api/_lib/opex.js's resyncDriverPayoutOpexGroup) as Mark Paid
-    // uses - GrabExpress's fee is still a real MaMaBi expense, not a
-    // pass-through, so it rolls up into the same monthly Logistic entry as
-    // every other driver instead of staying fragmented one-entry-per-order
-    // forever. Skipped for a zero fee (free delivery).
-    if (isGrabExpress && deliveryFee > 0) {
-      await resyncDriverPayoutOpexGroup(supabase, brandId, driverNameRaw, false, body.orderDate.slice(0, 7));
+      // Driver Payout OpEx is accrual-based (functions/api/_lib/opex.js's
+      // resyncDriverPayoutOpexGroup) - the fee is a real expense the moment
+      // the order is Completed, regardless of whether the driver has
+      // actually been paid yet (that's driver_payout_status, tracked
+      // separately). Every driver type, not just GrabExpress - any order
+      // that arrives already-Completed with a fee accrues it immediately.
+      // Skipped when there's no driver or a zero fee (free delivery/Takeaway).
+      const driverIsStaff = !!body.driverStaffId;
+      const driverKey = driverIsStaff ? body.driverStaffId : driverNameRaw;
+      if (driverKey && deliveryFee > 0) {
+        await resyncDriverPayoutOpexGroup(supabase, brandId, driverKey, driverIsStaff, body.orderDate.slice(0, 7));
+      }
     }
 
     return jsonResponse({ orderCode: order.order_code }, 201);

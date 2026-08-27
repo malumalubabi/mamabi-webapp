@@ -1,26 +1,28 @@
 registerPage("batch-production", renderBatchProductionPage);
 registerPage("menu-engineering", renderMenuEngineeringPage);
 
-// Simplified stand-in for the old app's recipe/BOM-driven Batch Production
-// (06 Menu/MenuBatchProduction.html - startBatch/markBatchDone, scaled off
-// recipe_lines). recipe_lines is now populated (see the Menu Engineering
-// section below), but consumption entry here is still manual (approved
-// substitute) - only Base Yield reads from it so far: pick the output SKU,
-// batch size, yield, and manually list what was consumed. See
-// functions/api/batches.js for the backend.
-const BATCH_STOCKABLE_TYPES = ["Ingredient", "Packaging", "Operating", "Semi-Finished", "Component"];
+// Recipe/BOM-driven Batch Production (06 Menu/MenuBatchProduction.html -
+// startBatch/markBatchDone, scaled off recipe_lines). Pick the output SKU
+// and batch size; Yield and Consumption are both auto-filled from that
+// SKU's recipe (Menu Engineering > Costing) scaled by Batch Size, and
+// Consumption is read-only here on purpose - it can only be changed by
+// editing the recipe itself, not per-batch, so there's one source of truth
+// for what a batch of X consumes. See functions/api/batches.js for the
+// backend.
 const BATCH_OUTPUT_TYPES = ["Semi-Finished", "Component"];
 
 let _batchLookups = null;
 let _batchOutputCombo = null;
-let _activeBatchScope = "ongoing";
-let _lastBatchesData = [];
+let _lastBatchesData = []; // Ongoing + History combined, for by-batchCode lookups (Change Component, Open Recipe, etc.)
+let _lastHistoryBatches = []; // History only, for toggleShowCancelledBatches' re-render
 
 async function renderBatchProductionPage(content) {
-  content.innerHTML = "<h2>Batch Production</h2>" + buildBatchTabsShellHtml();
+  content.innerHTML =
+    "<h2>Batch Production</h2>" +
+    '<div id="batchOngoingWrap"><p>Loading...</p></div>' +
+    '<div id="batchHistoryWrap" style="margin-top:28px;"></div>';
   await ensureBatchLookups();
-  wireBatchTabs();
-  await loadBatchTable(_activeBatchScope);
+  await loadBatchData();
 }
 
 async function ensureBatchLookups() {
@@ -28,61 +30,55 @@ async function ensureBatchLookups() {
   return _batchLookups;
 }
 
-function batchStockableSkus() {
-  return _batchLookups.skus.filter((s) => BATCH_STOCKABLE_TYPES.indexOf(s.item_type) !== -1);
-}
-
 // ================================================================
-// Ongoing Batches / Batch History - tab pattern ported from
-// pages/orders.js (Ongoing Orders / Order History): one shared table
-// wrap + pagination nav, swapped per active tab. "Ongoing Batches"
-// concept (live list + Mark Done) is from MenuBatchProduction.html;
-// the recipe-detail/change-component/edit-scaled-qty actions there are
-// tied to the BOM system we don't have, so not ported. "Batch History"
-// (full log, all statuses) is from 06 Menu/BatchHistoryTable.html.
+// Ongoing Batches / Batch History - stacked on one page (History below
+// Ongoing, no tab-switch), same pattern as pages/sales.js's Summary/Log.
+// "Ongoing Batches" concept (live list + Mark Done) is from
+// MenuBatchProduction.html; the recipe-detail/change-component/edit-scaled-
+// qty actions there are tied to the BOM system we don't have, so not
+// ported. "Batch History" (full log, all statuses) is from 06 Menu/
+// BatchHistoryTable.html.
 // ================================================================
 
-function buildBatchTabsShellHtml() {
-  return (
-    '<div style="display:flex; justify-content:space-between; align-items:center;">' +
-      '<div class="tabs" style="margin-bottom:0;">' +
-        '<button id="batchTab-ongoing" class="tab-active" onclick="switchBatchTab(\'ongoing\')">Ongoing Batches</button>' +
-        '<button id="batchTab-history" onclick="switchBatchTab(\'history\')">Batch History</button>' +
-      "</div>" +
-      '<button onclick="openBatchModal()">+ Start New Batch</button>' +
-    "</div>" +
-    '<div id="batchTableWrap"><p>Loading...</p></div>'
-  );
+async function loadBatchData() {
+  const [ongoing, history] = await Promise.all([api("batches?scope=ongoing"), api("batches?scope=history")]);
+  if (!document.getElementById("batchOngoingWrap")) return;
+
+  _lastHistoryBatches = history;
+  _lastBatchesData = ongoing.concat(history);
+
+  renderBatchTable(document.getElementById("batchOngoingWrap"), ongoing, "ongoing");
+  renderBatchTable(document.getElementById("batchHistoryWrap"), history, "history");
 }
 
-function wireBatchTabs() {
-  _activeBatchScope = "ongoing";
-}
+// Batch History gets both Done and Cancelled from the backend (scope=
+// history, see functions/api/batches.js) - Cancelled is hidden by default
+// via this client-side filter (re-rendered from the same already-fetched
+// _lastHistoryBatches, no extra request) so a cluttered cancel history
+// doesn't bury the real production log; the checkbox at the bottom-right
+// reveals it.
+let _showCancelledBatches = false;
 
-function switchBatchTab(scope) {
-  if (scope === _activeBatchScope) return;
-  _activeBatchScope = scope;
-  document.getElementById("batchTab-ongoing").classList.toggle("tab-active", scope === "ongoing");
-  document.getElementById("batchTab-history").classList.toggle("tab-active", scope === "history");
-  loadBatchTable(scope);
-}
-
-async function loadBatchTable(scope) {
-  const wrap = document.getElementById("batchTableWrap");
-  wrap.innerHTML = "<p>Loading...</p>";
-
-  const rows = await api("batches?scope=" + scope);
-  if (!document.getElementById("batchTableWrap")) return;
-
-  _lastBatchesData = rows;
-  renderBatchTable(wrap, rows, scope);
+function toggleShowCancelledBatches() {
+  _showCancelledBatches = document.getElementById("showCancelledBatches").checked;
+  renderBatchTable(document.getElementById("batchHistoryWrap"), _lastHistoryBatches, "history");
 }
 
 function renderBatchTable(wrap, rows, scope) {
   const title = scope === "ongoing" ? "Ongoing Batches" : "Batch History";
+  const visibleRows = scope === "history" && !_showCancelledBatches ? rows.filter((b) => b.status !== "Cancelled") : rows;
+
+  // Start New Batch always creates an Ongoing batch, so the button lives
+  // next to that subsection's own title, not a page-level header - same
+  // reasoning as Orders' "+ New Order" and Sales' "+ Input Sales".
+  const titleRow =
+    '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+      "<h3>" + title + "</h3>" +
+      (scope === "ongoing" ? '<button onclick="openBatchModal()">+ Start New Batch</button>' : "") +
+    "</div>";
 
   if (!rows.length) {
-    wrap.innerHTML = "<h3>" + title + "</h3>" + (scope === "ongoing" ? "<p>No ongoing batches.</p>" : "<p>No batches yet.</p>");
+    wrap.innerHTML = titleRow + (scope === "ongoing" ? "<p>No ongoing batches.</p>" : "<p>No batches yet.</p>");
     return;
   }
 
@@ -95,18 +91,32 @@ function renderBatchTable(wrap, rows, scope) {
     ? "<tr><th>Batch ID</th><th>Date</th><th>Category</th><th>Recipe</th><th>Batch Size</th><th>Base Yield (g)</th><th>Scaled Yield (g)</th><th></th></tr>"
     : "<tr><th>Batch ID</th><th>Date</th><th>Category</th><th>Item Name</th><th>Batch Size</th><th>Yield</th><th>Status</th><th>Notes</th></tr>";
 
-  const bodyRows = scope === "ongoing" ? rows.map(ongoingBatchRowHtml).join("") : rows.map(batchHistoryRowHtml).join("");
+  const bodyRows = scope === "ongoing" ? visibleRows.map(ongoingBatchRowHtml).join("") : visibleRows.map(batchHistoryRowHtml).join("");
+  const cancelledCount = scope === "history" ? rows.filter((b) => b.status === "Cancelled").length : 0;
+
+  // IDs suffixed by scope - Ongoing and History now render into separate
+  // containers on the same page at once (not tab-swapped), so they can't
+  // share element ids without one section's pagination/scroll silently
+  // grabbing the other's DOM nodes.
+  const paginationId = "batchPaginationNav-" + scope;
+  const scrollWrapId = "batchScrollWrap-" + scope;
+  const tbodyId = "batchTbody-" + scope;
 
   wrap.innerHTML =
-    "<h3>" + title + "</h3>" +
-    '<div id="batchPaginationNav" class="pagination-nav"></div>' +
-    '<div id="batchScrollWrap" style="overflow-x:auto;">' +
+    titleRow +
+    '<div id="' + paginationId + '" class="pagination-nav"></div>' +
+    '<div id="' + scrollWrapId + '" style="overflow-x:auto;">' +
       "<table><thead>" + head + "</thead>" +
-      '<tbody id="batchTbody">' + bodyRows + "</tbody></table>" +
-    "</div>";
+      '<tbody id="' + tbodyId + '">' + (bodyRows || '<tr><td colspan="8">No batches match the current filter.</td></tr>') + "</tbody></table>" +
+    "</div>" +
+    (scope === "history" && cancelledCount > 0
+      ? '<div style="text-align:right; margin-top:8px;"><label><input type="checkbox" id="showCancelledBatches" onchange="toggleShowCancelledBatches()"' +
+        (_showCancelledBatches ? " checked" : "") +
+        "> Show Cancelled Batches (" + cancelledCount + ")</label></div>"
+      : "");
 
-  paginateTable("batchTbody", "batchPaginationNav", 20);
-  enableDragScroll(document.getElementById("batchScrollWrap"));
+  paginateTable(tbodyId, paginationId, 20);
+  enableDragScroll(document.getElementById(scrollWrapId));
 }
 
 // Item Name + SKU (small, gray, underneath) + Open Recipe - used by Batch
@@ -153,7 +163,7 @@ function enterChangeComponentMode(btn, batchCode) {
     '<button onclick="saveChangeComponent(\'' + batchCode + '\', this)">Update</button> ' +
     '<button onclick="cancelChangeComponent(\'' + batchCode + '\')">Cancel</button>';
 
-  const options = _batchLookups.skus.filter((s) => s.item_type === type && s.sku !== batch.sku);
+  const options = _batchLookups.skus.filter((s) => s.item_type === type && s.sku !== batch.sku && s.status !== "Unavailable");
   cell._combo = createCombobox(
     cell.querySelector(".changeComponentCombo"),
     options.map((s) => ({ value: s.id, label: s.name, sub: s.sku })),
@@ -175,7 +185,7 @@ async function saveChangeComponent(batchCode, btn) {
   btn.disabled = true;
   try {
     await api("batches/" + encodeURIComponent(batchCode), { method: "PATCH", body: { outputSkuId: newSkuId } });
-    await loadBatchTable(_activeBatchScope);
+    await loadBatchData();
   } catch (err) {
     alert(err.message);
     btn.disabled = false;
@@ -187,7 +197,12 @@ async function saveChangeComponent(batchCode, btn) {
 // from - but backed by the same PATCH as - the Open Recipe modal's own Edit
 // Batch Size).
 function scaledQtyViewHtml(raw) {
-  return (raw === "" ? "" : raw) + ' <button onclick="startEditScaledQty(this)">Edit</button>';
+  return (
+    '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">' +
+      "<span>" + (raw === "" ? "" : raw) + "</span>" +
+      '<button onclick="startEditScaledQty(this)">Edit</button>' +
+    "</div>"
+  );
 }
 
 function startEditScaledQty(btn) {
@@ -211,7 +226,7 @@ function saveScaledQty(btn) {
 
   withInlineSaveStatus(btn, "Batch Size", async function () {
     await api("batches/" + encodeURIComponent(batchCode), { method: "PATCH", body: { batchSize: Number(newQty) } });
-    await loadBatchTable(_activeBatchScope);
+    await loadBatchData();
   });
 }
 
@@ -262,7 +277,7 @@ function markBatchDone(btn, batchCode) {
 
   withInlineSaveStatus(btn, "Batch", async function () {
     await api("batches/" + encodeURIComponent(batchCode), { method: "PATCH", body: { status: "Done" } });
-    await loadBatchTable(_activeBatchScope);
+    await loadBatchData();
   });
 }
 
@@ -273,7 +288,7 @@ function cancelBatch(batchCode) {
   if (!confirm("Cancel batch " + batchCode + "? This will remove it from Ongoing Batches and move it to Batch History with status Cancelled.")) return;
 
   api("batches/" + encodeURIComponent(batchCode), { method: "PATCH", body: { status: "Cancelled" } })
-    .then(() => loadBatchTable(_activeBatchScope))
+    .then(() => loadBatchData())
     .catch((err) => alert(err.message));
 }
 
@@ -362,15 +377,24 @@ function saveBatchQty(btn) {
   withSaveStatus(btn, statusEl, "Batch Size", async function () {
     await api("batches/" + encodeURIComponent(batchCode), { method: "PATCH", body: { batchSize: Number(newQty) } });
     closeModal();
-    await loadBatchTable(_activeBatchScope);
+    await loadBatchData();
   });
 }
 
 // ================================================================
-// Start New Batch modal - form itself unchanged from before.
+// Start New Batch modal - Consumption (and now Yield) are read-only,
+// entirely derived from the output SKU's recipe (Menu Engineering >
+// Costing) scaled by Batch Size - there's no manual entry path here at
+// all, on purpose: the recipe is the one source of truth for what a batch
+// consumes/yields, changed only via Costing, never per-batch.
 // ================================================================
 
-function openBatchModal() {
+// Self-contained (loads its own lookups) rather than assuming
+// renderBatchProductionPage already ran - callable from anywhere, e.g.
+// Dashboard's "+ Start New Batch" shortcut, which may open this before the
+// Batch Production page itself has ever been visited this session.
+async function openBatchModal() {
+  await ensureBatchLookups();
   openModal(buildBatchFormHtml());
   initBatchForm();
 }
@@ -383,7 +407,7 @@ function buildBatchFormHtml() {
       '<input type="checkbox" id="batchToday" onchange="setBatchToday()">' +
       '<label for="batchToday">Today</label>' +
       '<input type="date" id="batchDate">' +
-    "</div><br><br>" +
+    "</div><br>" +
 
     "<label>Output SKU</label><br>" +
     '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">' +
@@ -394,140 +418,116 @@ function buildBatchFormHtml() {
 
     '<div style="display:flex; gap:20px;">' +
       "<div><label>Batch Size</label><br><input type=\"number\" id=\"batchSize\" min=\"0\" step=\"any\" onchange=\"onBatchSizeChange()\"></div>" +
-      "<div><label>Yield</label><br><input type=\"number\" id=\"batchYield\" min=\"0\" step=\"any\"></div>" +
+      "<div><label>Yield</label><br><input type=\"number\" id=\"batchYield\" min=\"0\" step=\"any\" readonly style=\"background:var(--color-disabled-bg);\"></div>" +
       "<div><label>Status</label><br><select id=\"batchStatus\"><option>Ongoing</option><option>Done</option></select></div>" +
     "</div><br><br>" +
 
+    '<button id="saveBatchBtn" onclick="saveBatch()">Start Batch</button>' +
+    '<span id="saveBatchStatus" class="save-status"></span><br><br>' +
+
     "<label>Consumption</label>" +
-    '<div id="batchConsumptionRows"></div>' +
-    '<button type="button" onclick="addBatchConsumptionRow()">+ Add Consumed Item</button><br><br>' +
+    '<div id="batchConsumptionRows"></div><br>' +
 
     "<label>Notes</label><br>" +
-    '<input type="text" id="batchNotes"><br><br>' +
-
-    '<button id="saveBatchBtn" onclick="saveBatch()">Save Batch</button>' +
-    '<span id="saveBatchStatus" class="save-status"></span>'
+    '<input type="text" id="batchNotes"><br><br>'
   );
 }
 
 // Recipe breakdown (base 1x qty per line, unscaled) for whichever output
 // SKU is currently selected - null if none selected yet, or if that SKU has
 // no recipe_lines set up (Menu Engineering > Costing), in which case
-// consumption falls back to fully manual entry same as before.
+// Consumption/Yield just show an empty state until one is.
 let _batchRecipeItems = null;
+let _batchBaseYieldQty = null;
+let _batchConsumptionComputed = [];
 
 function initBatchForm() {
-  document.getElementById("batchDate").value = todayISO();
-
   _batchRecipeItems = null;
+  _batchBaseYieldQty = null;
   _batchOutputCombo = createCombobox(
     document.getElementById("batchOutputCombo"),
-    _batchLookups.skus.filter((s) => BATCH_OUTPUT_TYPES.indexOf(s.item_type) !== -1).map((s) => ({ value: s.id, label: s.name, sub: s.sku })),
+    _batchLookups.skus.filter((s) => BATCH_OUTPUT_TYPES.indexOf(s.item_type) !== -1 && s.status !== "Unavailable").map((s) => ({ value: s.id, label: s.name, sub: s.sku })),
     {
       placeholder: "Select output SKU...",
       onSelect: onBatchOutputSelect
     }
   );
 
-  document.getElementById("batchConsumptionRows").innerHTML = "";
-  addBatchConsumptionRow();
+  renderBatchConsumptionReadonly();
 }
 
-// Auto-populates Consumption from the output SKU's recipe (functions/api/
-// costing.js's live breakdown, same one the "Open Recipe" modal on an
-// already-started batch reads), scaled by whatever's currently in Batch
-// Size (defaults to 1x, the recipe's own reference batch, if empty) - per
-// explicit request. Still fully editable afterward: adding/removing rows or
-// changing a qty by hand isn't reverted by anything except deliberately
-// changing Batch Size or Output SKU again (see onBatchSizeChange below).
+// Fetches the output SKU's recipe (functions/api/costing.js's live
+// breakdown, same one the "Open Recipe" modal on an already-started batch
+// reads) - Yield and Consumption both derive from it, scaled by Batch Size.
 async function onBatchOutputSelect(skuId) {
   const item = _batchLookups.skus.find((s) => s.id === skuId);
   document.getElementById("batchOutputCategory").value = item ? item.category || "" : "";
   document.getElementById("batchOutputUnit").value = item ? item.unit : "";
 
   _batchRecipeItems = null;
+  _batchBaseYieldQty = null;
   if (item) {
     try {
       const recipe = await api("costing?sku=" + encodeURIComponent(item.sku));
       if (recipe.items && recipe.items.length) _batchRecipeItems = recipe.items;
+      _batchBaseYieldQty = recipe.baseYieldQty;
     } catch (err) {
-      _batchRecipeItems = null; // no recipe set up yet - fall back to manual entry, same as before
+      _batchRecipeItems = null; // no recipe set up yet
+      _batchBaseYieldQty = null;
     }
   }
-  populateBatchConsumptionFromRecipe();
+  refreshBatchFromRecipe();
 }
 
 function onBatchSizeChange() {
-  if (_batchRecipeItems) populateBatchConsumptionFromRecipe();
+  refreshBatchFromRecipe();
 }
 
-function populateBatchConsumptionFromRecipe() {
-  if (!_batchRecipeItems) return; // no recipe found for this SKU - leave whatever's there (manual) alone
-
+function refreshBatchFromRecipe() {
   const batchSize = Number(document.getElementById("batchSize").value) || 1;
-  const wrap = document.getElementById("batchConsumptionRows");
-  wrap.innerHTML = "";
 
-  _batchRecipeItems.forEach((it) => {
-    addBatchConsumptionRow({ skuId: it.componentSkuId, qty: Math.round(it.qty * batchSize * 100) / 100 });
-  });
-  if (!wrap.children.length) addBatchConsumptionRow(); // recipe resolved to zero usable lines - don't leave the form with no row at all
+  const yieldEl = document.getElementById("batchYield");
+  yieldEl.value = _batchBaseYieldQty != null ? Math.round(_batchBaseYieldQty * batchSize * 100) / 100 : "";
+
+  renderBatchConsumptionReadonly(batchSize);
+}
+
+function renderBatchConsumptionReadonly(batchSize) {
+  batchSize = batchSize || Number(document.getElementById("batchSize").value) || 1;
+  const wrap = document.getElementById("batchConsumptionRows");
+
+  if (!_batchRecipeItems || !_batchRecipeItems.length) {
+    _batchConsumptionComputed = [];
+    wrap.innerHTML =
+      '<p style="color:var(--color-text-muted); font-size:12px;">' +
+      (_batchOutputCombo && _batchOutputCombo.getValue()
+        ? "No recipe configured for this SKU - set one up in Menu &gt; Engineering &gt; Costing first."
+        : "Select an output SKU to see its recipe.") +
+      "</p>";
+    return;
+  }
+
+  _batchConsumptionComputed = _batchRecipeItems.map((it) => ({
+    skuId: it.componentSkuId,
+    qty: Math.round(it.qty * batchSize * 100) / 100
+  }));
+
+  const rows = _batchConsumptionComputed
+    .map((c) => {
+      const item = _batchLookups.skus.find((s) => s.id === c.skuId);
+      return "<tr><td>" + (item ? item.name : c.skuId) + "</td><td>" + c.qty + "</td><td>" + (item ? item.unit : "") + "</td></tr>";
+    })
+    .join("");
+
+  wrap.innerHTML = "<table><thead><tr><th>Item</th><th>Qty</th><th>Unit</th></tr></thead><tbody>" + rows + "</tbody></table>";
 }
 
 function setBatchToday() {
   if (document.getElementById("batchToday").checked) document.getElementById("batchDate").value = todayISO();
 }
 
-function addBatchConsumptionRow(prefill) {
-  const wrap = document.getElementById("batchConsumptionRows");
-  const row = document.createElement("div");
-  row.className = "item-row";
-  row.innerHTML =
-    '<div><label>Item</label><br><div class="sku-combo" style="min-width:220px;"></div></div>' +
-    '<div><label>Unit</label><br><input type="text" class="unit" disabled style="background:var(--color-disabled-bg); width:55px;"></div>' +
-    '<div><label>Qty</label><br><input type="number" class="qty" min="0" step="any"></div>' +
-    '<div><label>Notes</label><br><input type="text" class="lineNotes" style="width:140px;"></div>' +
-    '<button type="button" onclick="removeBatchConsumptionRow(this)">Remove</button>';
-  wrap.appendChild(row);
-
-  const combo = createCombobox(
-    row.querySelector(".sku-combo"),
-    batchStockableSkus().map((s) => ({ value: s.id, label: s.name, sub: s.sku })),
-    {
-      placeholder: "Select item...",
-      allowFreeText: false,
-      onSelect: function (skuId) {
-        const item = _batchLookups.skus.find((s) => s.id === skuId);
-        row.querySelector(".unit").value = item ? item.unit : "";
-      }
-    }
-  );
-  row._combo = combo;
-
-  if (prefill) {
-    const item = _batchLookups.skus.find((s) => s.id === prefill.skuId);
-    if (item) {
-      combo.setSelection(item.id, item.name);
-      row.querySelector(".unit").value = item.unit;
-    }
-    row.querySelector(".qty").value = prefill.qty;
-  }
-}
-
-function removeBatchConsumptionRow(btn) {
-  const rows = document.querySelectorAll("#batchConsumptionRows .item-row");
-  if (rows.length <= 1) return;
-  btn.closest(".item-row").remove();
-}
-
 function collectBatchConsumption() {
-  const items = [];
-  document.querySelectorAll("#batchConsumptionRows .item-row").forEach((row) => {
-    const skuId = row._combo.getValue();
-    const qty = Number(row.querySelector(".qty").value) || 0;
-    if (skuId && qty > 0) items.push({ skuId: skuId, qty: qty, notes: row.querySelector(".lineNotes").value.trim() || null });
-  });
-  return items;
+  return _batchConsumptionComputed.filter((c) => c.skuId && c.qty > 0).map((c) => ({ skuId: c.skuId, qty: c.qty, notes: null }));
 }
 
 async function saveBatch() {
@@ -553,7 +553,7 @@ async function saveBatch() {
 
     const created = await api("batches", { method: "POST", body: payload });
     closeModal();
-    await loadBatchTable(_activeBatchScope);
+    await loadBatchData();
     return created;
   });
 }
@@ -663,8 +663,8 @@ function renderPricingTable(wrap) {
 function pricingRowHtml(r, isFirst, isLast) {
   const moveCell = _pricingArrangeMode
     ? "<td>" +
-        '<button style="font-size:11px;" onclick="moveProductOrder(\'' + r.sku + '\', \'up\')"' + (isFirst ? " disabled" : "") + '>&#9650;</button> ' +
-        '<button style="font-size:11px;" onclick="moveProductOrder(\'' + r.sku + '\', \'down\')"' + (isLast ? " disabled" : "") + '>&#9660;</button>' +
+        '<button style="font-size:12px;" onclick="moveProductOrder(\'' + r.sku + '\', \'up\')"' + (isFirst ? " disabled" : "") + '>&#9650;</button> ' +
+        '<button style="font-size:12px;" onclick="moveProductOrder(\'' + r.sku + '\', \'down\')"' + (isLast ? " disabled" : "") + '>&#9660;</button>' +
       "</td>"
     : "";
 
@@ -673,14 +673,14 @@ function pricingRowHtml(r, isFirst, isLast) {
       moveCell +
       "<td>" + r.sku + "</td>" +
       "<td>" + r.name + "</td>" +
-      "<td>" + formatRupiah(r.sellingPrice) + "</td>" +
+      '<td><span class="font-number">' + formatRupiah(r.sellingPrice) + "</span></td>" +
       '<td><button onclick="openSellingPriceModal(\'' + r.sku + '\')">Edit</button></td>' +
-      "<td>" + formatRupiah(r.foodCost) + "</td>" +
-      "<td>" + formatRupiah(r.packagingCost) + "</td>" +
-      "<td>" + formatRupiah(r.totalCogs) + "</td>" +
+      '<td><span class="font-number">' + formatRupiah(r.foodCost) + "</span></td>" +
+      '<td><span class="font-number">' + formatRupiah(r.packagingCost) + "</span></td>" +
+      '<td><span class="font-number">' + formatRupiah(r.totalCogs) + "</span></td>" +
       "<td>" + formatPercent(r.foodCostPct) + "</td>" +
       "<td>" + formatPercent(r.cogsPct) + "</td>" +
-      "<td>" + formatRupiah(r.grossProfit) + "</td>" +
+      '<td><span class="font-number">' + formatRupiah(r.grossProfit) + "</span></td>" +
       "<td>" + formatPercent(r.grossMarginPct) + "</td>" +
     "</tr>"
   );
@@ -770,19 +770,19 @@ async function renderPlatformPricingTab(wrap) {
 
 function platformPricingRowHtml(r, fee) {
   const trendHtml = r.marginTrend === "up"
-    ? '<span style="color:#16a34a;">&#9650;</span>'
+    ? '<span style="color:var(--color-success);">&#9650;</span>'
     : r.marginTrend === "down"
-      ? '<span style="color:#dc2626;">&#9660;</span>'
+      ? '<span style="color:var(--color-error);">&#9660;</span>'
       : '<span style="color:var(--color-text-muted);">-</span>';
 
   return (
     "<tr>" +
       "<td>" + r.sku + "</td>" +
       "<td>" + r.name + "</td>" +
-      "<td>" + formatRupiah(r.sellingPrice) + "</td>" +
+      '<td><span class="font-number">' + formatRupiah(r.sellingPrice) + "</span></td>" +
       "<td>" + formatPercent(fee) + "</td>" +
-      "<td>" + formatRupiah(r.markupPrice) + "</td>" +
-      "<td>" + formatRupiah(r.platformSellingPrice) + "</td>" +
+      '<td><span class="font-number">' + formatRupiah(r.markupPrice) + "</span></td>" +
+      '<td><span class="font-number">' + formatRupiah(r.platformSellingPrice) + "</span></td>" +
       '<td><button onclick="openPlatformPriceModal(\'' + r.sku + '\')">Edit</button></td>' +
       "<td>" + formatPercent(r.baseGrossMarginPct) + "</td>" +
       "<td>" + formatPercent(r.platformGrossMarginPct) + " " + trendHtml + "</td>" +
@@ -846,7 +846,10 @@ function savePlatformFee() {
 
 function costingSkuOptions() {
   const types = _costingMode === "component" ? ["Component", "Semi-Finished"] : ["Product"];
-  return _menuEngLookups.skus.filter((s) => types.indexOf(s.item_type) !== -1);
+  // Product uses "Active"/"Inactive", everything else uses "Available"/
+  // "Unavailable" - checking both is harmless since a given row only ever
+  // has one or the other, never both.
+  return _menuEngLookups.skus.filter((s) => types.indexOf(s.item_type) !== -1 && s.status !== "Unavailable" && s.status !== "Inactive");
 }
 
 async function renderCostingTab(wrap) {
@@ -890,14 +893,14 @@ async function loadCostingDetail(sku) {
   const summary = isComponentMode
     ? (
         "<p>Total Qty: " + data.totals.totalQty + " g &nbsp;|&nbsp; " +
-        "Total Cost: " + formatRupiah(data.totals.totalCost) + " &nbsp;|&nbsp; " +
+        'Total Cost: <span class="font-number">' + formatRupiah(data.totals.totalCost) + "</span> &nbsp;|&nbsp; " +
         "Yield: " + (data.baseYieldQty === null ? "-" : data.baseYieldQty) + " g &nbsp;|&nbsp; " +
-        "Cost/gram: " + formatRupiah(data.totals.costPerGram) + "</p>"
+        'Cost/gram: <span class="font-number">' + formatRupiah(data.totals.costPerGram) + "</span></p>"
       )
     : (
-        "<p>Food Cost: " + formatRupiah(data.totals.foodCost) + " &nbsp;|&nbsp; " +
-        "Packaging Cost: " + formatRupiah(data.totals.packagingCost) + " &nbsp;|&nbsp; " +
-        "Total COGS: " + formatRupiah(data.totals.totalCogs) + "</p>"
+        '<p>Food Cost: <span class="font-number">' + formatRupiah(data.totals.foodCost) + "</span> &nbsp;|&nbsp; " +
+        'Packaging Cost: <span class="font-number">' + formatRupiah(data.totals.packagingCost) + "</span> &nbsp;|&nbsp; " +
+        'Total COGS: <span class="font-number">' + formatRupiah(data.totals.totalCogs) + "</span></p>"
       );
 
   detailEl.innerHTML =
@@ -1000,8 +1003,8 @@ function renderManageCostingModal() {
 function manageCostingRowHtml(it, isFirst, isLast) {
   const moveCell = _manageCostingArrangeMode
     ? "<td>" +
-        '<button style="font-size:11px;" onclick="moveRecipeLineOrder(\'' + it.lineId + '\', \'up\')"' + (isFirst ? " disabled" : "") + '>&#9650;</button> ' +
-        '<button style="font-size:11px;" onclick="moveRecipeLineOrder(\'' + it.lineId + '\', \'down\')"' + (isLast ? " disabled" : "") + '>&#9660;</button>' +
+        '<button style="font-size:12px;" onclick="moveRecipeLineOrder(\'' + it.lineId + '\', \'up\')"' + (isFirst ? " disabled" : "") + '>&#9650;</button> ' +
+        '<button style="font-size:12px;" onclick="moveRecipeLineOrder(\'' + it.lineId + '\', \'down\')"' + (isLast ? " disabled" : "") + '>&#9660;</button>' +
       "</td>"
     : "";
 
@@ -1115,8 +1118,8 @@ function costingItemRowHtml(it) {
       "<td>" + it.name + '<br><span style="color:var(--color-text-muted); font-size:12px;">' + it.sku + "</span></td>" +
       "<td>" + it.qty + "</td>" +
       "<td>" + it.unit + "</td>" +
-      "<td>" + formatRupiah(it.unitCost) + "</td>" +
-      "<td>" + formatRupiah(it.lineCost) + "</td>" +
+      '<td><span class="font-number">' + formatRupiah(it.unitCost) + "</span></td>" +
+      '<td><span class="font-number">' + formatRupiah(it.lineCost) + "</span></td>" +
     "</tr>"
   );
 }

@@ -1,16 +1,16 @@
-// Replaces the old per-order sequence in pages/orders.js's
-// confirmMarkGroupPaid() (one POST /api/opex per order). Marks every given
-// order Paid, then re-derives the Driver Payout OpEx entry for every
-// driver+month touched from scratch (resyncDriverPayoutOpexGroup) instead of
-// creating one opex entry per order - see functions/api/_lib/opex.js for why
-// this has to be a full resync rather than an incremental append.
+// Marks every given order's driver_payout_status Paid. Used to just also
+// re-derive the Driver Payout OpEx entry (resyncDriverPayoutOpexGroup) here,
+// but that's now accrual-based - the OpEx entry is created/updated the
+// moment an order becomes Completed (functions/api/orders.js POST,
+// functions/api/orders/[code].js PATCH), not when the driver is actually
+// paid. Mark Paid is now purely a cash-tracking action: it doesn't touch
+// opex_entries at all, so the P&L/OpEx side stays on accrual timing
+// regardless of when this gets clicked.
 //
-// No payment date input anymore - the OpEx entry's date is now the group's
-// latest order_date (per explicit request), not when Mark Paid was clicked,
-// so there's nothing left for a payment date field to drive. The Mark Paid
-// modal dropped that field accordingly (see pages/orders.js).
+// No payment date input - the OpEx entry's date (set at the accrual point
+// above) is the group's latest order_date, not when Mark Paid was clicked,
+// so there's nothing left for a payment date field to drive here either.
 import { getSupabase, getBrandId, jsonResponse, errorResponse } from "../_lib/supabase.js";
-import { resyncDriverPayoutOpexGroup } from "../_lib/opex.js";
 
 export async function onRequestPost({ request, env }) {
   try {
@@ -24,7 +24,7 @@ export async function onRequestPost({ request, env }) {
 
     const { data: orders, error: selErr } = await supabase
       .from("orders")
-      .select("order_code, order_date, delivery_fee, driver_staff_id, driver_name_raw")
+      .select("order_code, delivery_fee")
       .eq("brand_id", brandId)
       .in("order_code", body.orderCodes);
     if (selErr) throw selErr;
@@ -41,21 +41,6 @@ export async function onRequestPost({ request, env }) {
         .eq("brand_id", brandId)
         .eq("order_code", o.order_code)
     ));
-
-    // Distinct (driver, month) pairs touched by this batch - a driver paid
-    // for orders spanning several months gets one resync call per month.
-    const groups = new Map();
-    orders.forEach((o) => {
-      const driverIsStaff = !!o.driver_staff_id;
-      const driverKey = driverIsStaff ? o.driver_staff_id : o.driver_name_raw;
-      if (!driverKey) return; // Unassigned - shouldn't happen (Mark Paid is disabled for it client-side), but skip defensively
-      const monthKey = String(o.order_date).slice(0, 7);
-      groups.set(driverKey + "|" + driverIsStaff + "|" + monthKey, { driverKey, driverIsStaff, monthKey });
-    });
-
-    for (const g of groups.values()) {
-      await resyncDriverPayoutOpexGroup(supabase, brandId, g.driverKey, g.driverIsStaff, g.monthKey);
-    }
 
     return jsonResponse({ count: orders.length });
   } catch (err) {

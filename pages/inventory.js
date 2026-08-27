@@ -6,7 +6,10 @@
 registerPage("inventory-stock", renderInventoryStockPage);
 registerPage("inventory-cost", renderInventoryCostPage);
 
-const STOCKABLE_TYPES = ["Ingredient", "Packaging", "Operating", "Semi-Finished", "Component"];
+// Ingredient/Packaging/Operating only - Semi-Finished and Component are
+// produced via Batch Production, never bought from a supplier, so they
+// don't belong in the Purchase Log's Item picker (per explicit request).
+const STOCKABLE_TYPES = ["Ingredient", "Packaging", "Operating"];
 
 let _invLookups = null;
 
@@ -15,9 +18,9 @@ async function ensureInvLookups() {
   return _invLookups;
 }
 
-// Excludes Unavailable SKUs too (per explicit request) - this feeds the
-// Purchase Log's Item picker, and buying more of something marked
-// Unavailable wouldn't make sense.
+// Excludes Unavailable SKUs too - buying more of something marked
+// Unavailable wouldn't make sense. This feeds the Purchase Log's Item
+// picker (its only caller).
 function stockableSkus() {
   return _invLookups.skus.filter((s) => STOCKABLE_TYPES.indexOf(s.item_type) !== -1 && s.status !== "Unavailable");
 }
@@ -27,7 +30,7 @@ function stockableSkus() {
 let _activeInvStockTab = "overview";
 
 // ?tab=overview&filter=low deep-links straight to Stock Overview
-// pre-filtered to Habis/Mepet (e.g. Dashboard's Stock Alert tile) - same
+// pre-filtered to Out/Low (e.g. Dashboard's Stock Alert tile) - same
 // "?tab=" convention as pages/sales.js/database.js. filter=low sets
 // _overviewStatusFilter (see below) before that tab renders.
 async function renderInventoryStockPage(content) {
@@ -38,7 +41,7 @@ async function renderInventoryStockPage(content) {
   const params = new URLSearchParams(query);
   const tabParam = params.get("tab");
   _activeInvStockTab = INV_STOCK_TABS.indexOf(tabParam) !== -1 ? tabParam : "overview";
-  _overviewStatusFilter = params.get("filter") === "low" ? ["Habis", "Mepet"] : [];
+  _overviewStatusFilter = params.get("filter") === "low" ? ["Out", "Low"] : [];
 
   await switchInventoryStockTab(_activeInvStockTab, true);
 }
@@ -123,10 +126,11 @@ async function switchInventoryCostTab(tab, force) {
 // ================================================================
 
 const OVERVIEW_ITEM_TYPES = ["Ingredient", "Semi-Finished", "Component", "Packaging", "Operating", "Other"];
+const OVERVIEW_STATUSES = ["Safe", "Low", "Out"]; // matches shared.css's .status-Safe/Low/Out
 
 let _overviewRows = [];
 let _overviewTypeFilter = []; // empty = show every Item Type (default)
-let _overviewStatusFilter = []; // empty = show every Status - set to ["Habis","Mepet"] via ?filter=low deep-link (see renderInventoryStockPage)
+let _overviewStatusFilter = []; // empty = show every Status - set to ["Out","Low"] via ?filter=low deep-link (see renderInventoryStockPage)
 
 async function renderOverviewTab(wrap) {
   const lowStockBanner = _overviewStatusFilter.length
@@ -179,7 +183,12 @@ function renderStockOverviewTable() {
   paginateTable("stockOverviewTbody", "stockOverviewPaginationNav", 20);
 
   const badge = document.getElementById("overviewFilterBadge");
-  if (badge) badge.textContent = _overviewTypeFilter.length ? _overviewTypeFilter.join(", ") : "All";
+  if (badge) {
+    const parts = [];
+    if (_overviewTypeFilter.length) parts.push(_overviewTypeFilter.join(", "));
+    if (_overviewStatusFilter.length) parts.push(_overviewStatusFilter.join(", "));
+    badge.textContent = parts.length ? parts.join(" | ") : "All";
+  }
 }
 
 function clearOverviewStatusFilter() {
@@ -188,15 +197,23 @@ function clearOverviewStatusFilter() {
 }
 
 function openOverviewFilterModal() {
-  const checkboxes = OVERVIEW_ITEM_TYPES.map((t) =>
+  const typeCheckboxes = OVERVIEW_ITEM_TYPES.map((t) =>
     '<label style="display:block; margin:4px 0;">' +
       '<input type="checkbox" class="overviewTypeCheck" value="' + t + '"' + (_overviewTypeFilter.indexOf(t) !== -1 ? " checked" : "") + "> " + t +
     "</label>"
   ).join("");
+  const statusCheckboxes = OVERVIEW_STATUSES.map((s) =>
+    '<label style="display:block; margin:4px 0;">' +
+      '<input type="checkbox" class="overviewStatusCheck" value="' + s + '"' + (_overviewStatusFilter.indexOf(s) !== -1 ? " checked" : "") + "> " + s +
+    "</label>"
+  ).join("");
 
   openModal(
-    "<h2>Set Filter - Item Type</h2>" +
-    "<div>" + checkboxes + "</div>" +
+    "<h2>Set Filter - Stock Overview</h2>" +
+    "<label>Item Type</label>" +
+    "<div>" + typeCheckboxes + "</div><br>" +
+    "<label>Status</label>" +
+    "<div>" + statusCheckboxes + "</div>" +
     '<div style="margin-top:16px;">' +
       '<button onclick="closeModal()">Cancel</button> ' +
       '<button onclick="applyOverviewFilter()">Apply Filter</button>' +
@@ -206,6 +223,7 @@ function openOverviewFilterModal() {
 
 function applyOverviewFilter() {
   _overviewTypeFilter = Array.from(document.querySelectorAll(".overviewTypeCheck:checked")).map((cb) => cb.value);
+  _overviewStatusFilter = Array.from(document.querySelectorAll(".overviewStatusCheck:checked")).map((cb) => cb.value);
   closeModal();
   renderStockOverviewTable();
 }
@@ -226,7 +244,7 @@ function overviewRowHtml(r) {
         "</div>" +
       "</td>" +
       '<td class="status-' + r.status + '">' + r.status + "</td>" +
-      "<td>" + (r.lastOpnameDate || "") + "</td>" +
+      '<td style="font-size:12px; white-space:nowrap;">' + (r.lastOpnameDate || "") + "</td>" +
     "</tr>"
   );
 }
@@ -281,7 +299,13 @@ async function renderPurchasesTab(wrap) {
 }
 
 async function openPurchaseModal() {
-  await ensureInvLookups(); // may have been nulled by a prior new-supplier save, to force a refetch
+  // Always refetch (not ensureInvLookups()'s cache-once) - _invLookups is a
+  // page-session-lifetime cache shared by every Inventory modal, so a
+  // supplier added anywhere else (Database > Supplier, most commonly)
+  // never invalidates it on its own. This is the one lookup users edit
+  // often enough mid-session that serving a stale list actually bites.
+  _invLookups = null;
+  await ensureInvLookups();
   openModal(buildPurchaseFormHtml());
   initPurchaseForm();
 }
@@ -294,7 +318,7 @@ function buildPurchaseFormHtml() {
       '<input type="checkbox" id="purchaseToday" onchange="setPurchaseToday()">' +
       '<label for="purchaseToday">Today</label>' +
       '<input type="date" id="purchaseDate">' +
-    "</div><br><br>" +
+    "</div><br>" +
 
     "<label>Supplier</label><br>" +
     '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">' +
@@ -306,10 +330,17 @@ function buildPurchaseFormHtml() {
       '<input type="text" id="newSupplierName" placeholder="New supplier name" style="display:none;">' +
     "</div><br><br>" +
 
-    "<label>Items</label>" +
-    '<div id="purchaseItemRows"></div>' +
+    // One header row for the whole list (not per-item field labels) - Item
+    // Type/Category ride to the right of the item name instead of their own
+    // columns, Unit rides next to Qty instead of its own column, per
+    // explicit request to fit one item per row without excess width.
+    '<table style="table-layout:fixed;">' +
+      '<colgroup><col style="width:230px;"><col style="width:90px;"><col style="width:110px;"><col style="width:100px;"><col style="width:74px;"></colgroup>' +
+      "<thead><tr><th>Item</th><th>Qty</th><th>Cost</th><th>Notes</th><th></th></tr></thead>" +
+      '<tbody id="purchaseItemRows"></tbody>' +
+    "</table>" +
     '<button type="button" onclick="addPurchaseItemRow()">+ Add Item</button>' +
-    '<div style="margin-top:8px; font-weight:bold;">Total Cost: <span id="purchaseGrandTotal">Rp 0</span></div><br><br>' +
+    '<div style="margin-top:8px; font-weight:bold;">Total Cost: <span id="purchaseGrandTotal" class="font-number">Rp 0</span></div><br><br>' +
 
     '<div style="display:flex; gap:20px;">' +
       "<div>" +
@@ -331,8 +362,8 @@ function buildPurchaseFormHtml() {
 }
 
 function initPurchaseForm() {
-  document.getElementById("purchaseDate").value = todayISO();
-
+  // Date starts empty - pick a date explicitly (Today included) rather than
+  // silently defaulting to today, per explicit request.
   const methodSelect = document.getElementById("purchaseMethod");
   methodSelect.innerHTML = _invLookups.paymentMethods.map((m) => "<option>" + m + "</option>").join("");
 
@@ -360,22 +391,30 @@ function toggleNewSupplier() {
   if (!isNew) document.getElementById("newSupplierName").value = "";
 }
 
-// Ported from StockInEntry_JS.html's addStockInRow() - Item -> Item Type
-// (auto, read-only) -> Category (auto) -> Unit (auto) -> Qty -> Cost, in
-// that field order, sized the same.
+// One row per item, one shared header (see buildPurchaseFormHtml) instead
+// of a label above every field - Item Type/Category show as small muted
+// text under the item name rather than their own columns, Unit rides next
+// to Qty instead of its own column.
 function addPurchaseItemRow() {
   const wrap = document.getElementById("purchaseItemRows");
-  const row = document.createElement("div");
-  row.className = "item-row";
+  const row = document.createElement("tr");
+  row.className = "purchase-item-row";
   row.innerHTML =
-    '<div><label>Item</label><br><div class="sku-combo" style="min-width:220px;"></div></div>' +
-    '<div><label>Item Type</label><br><input type="text" class="itemType" disabled style="background:var(--color-disabled-bg); width:100px;"></div>' +
-    '<div><label>Category</label><br><input type="text" class="category" disabled style="background:var(--color-disabled-bg); width:100px;"></div>' +
-    '<div><label>Unit</label><br><input type="text" class="unit" disabled style="background:var(--color-disabled-bg); width:55px;"></div>' +
-    '<div><label>Qty</label><br><input type="number" class="qty" min="0" step="any"></div>' +
-    '<div><label>Cost</label><br><input type="text" class="totalCost" inputmode="numeric" oninput="formatAmount(this); recalcPurchaseGrandTotal()"></div>' +
-    '<div><label>Notes</label><br><input type="text" class="lineNotes" style="width:140px;"></div>' +
-    '<button type="button" onclick="removePurchaseItemRow(this)">Remove</button>';
+    "<td>" +
+      '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">' +
+        '<div class="sku-combo" style="flex:1; min-width:0;"></div>' +
+        '<div class="itemMeta" style="font-size:12px; color:var(--color-text-muted); text-align:left; flex-shrink:0; line-height:1.4;"></div>' +
+      "</div>" +
+    "</td>" +
+    "<td>" +
+      '<div style="display:flex; align-items:center; gap:8px;">' +
+        '<input type="number" class="qty" min="0" step="any" style="width:60px; flex-shrink:0;">' +
+        '<span class="unitLabel" style="font-size:12px; color:var(--color-text-muted); white-space:nowrap;"></span>' +
+      "</div>" +
+    "</td>" +
+    '<td><input type="text" class="totalCost" inputmode="numeric" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this); recalcPurchaseGrandTotal()"></td>' +
+    '<td><input type="text" class="lineNotes" style="width:100%; box-sizing:border-box;"></td>' +
+    '<td class="remove-cell"><button type="button" class="btn-remove" onclick="removePurchaseItemRow(this)">Remove</button></td>';
   wrap.appendChild(row);
 
   const combo = createCombobox(
@@ -392,15 +431,18 @@ function addPurchaseItemRow() {
 
 function onPurchaseItemChange(row, skuId) {
   const item = _invLookups.skus.find((s) => s.id === skuId);
-  row.querySelector(".itemType").value = item ? item.item_type : "";
-  row.querySelector(".category").value = item ? item.category || "" : "";
-  row.querySelector(".unit").value = item ? item.unit : "";
+  // Type on top, Category below - two lines, not a single "Type · Category"
+  // string, per explicit request.
+  row.querySelector(".itemMeta").innerHTML = item
+    ? item.item_type + (item.category ? "<br>" + item.category : "")
+    : "";
+  row.querySelector(".unitLabel").textContent = item ? item.unit : "";
 }
 
 function removePurchaseItemRow(btn) {
-  const rows = document.querySelectorAll("#purchaseItemRows .item-row");
+  const rows = document.querySelectorAll("#purchaseItemRows .purchase-item-row");
   if (rows.length <= 1) return;
-  btn.closest(".item-row").remove();
+  btn.closest(".purchase-item-row").remove();
   recalcPurchaseGrandTotal();
 }
 
@@ -412,7 +454,7 @@ function recalcPurchaseGrandTotal() {
 
 function collectPurchaseItems() {
   const items = [];
-  document.querySelectorAll("#purchaseItemRows .item-row").forEach((row) => {
+  document.querySelectorAll("#purchaseItemRows .purchase-item-row").forEach((row) => {
     const skuId = row._combo.getValue();
     const item = _invLookups.skus.find((s) => s.id === skuId);
     const qty = row.querySelector(".qty").value;
@@ -463,7 +505,9 @@ async function savePurchase() {
     };
 
     const created = await api("purchases", { method: "POST", body: payload });
-    if (isNewSupplier) _invLookups = null; // force a refetch so the new supplier shows up next time
+    // No need to null _invLookups here anymore - openPurchaseModal() always
+    // refetches on open now, covering this and every other source of a new
+    // supplier (e.g. Database > Supplier) the same way.
 
     closeModal();
     await loadPurchaseTable();
@@ -639,12 +683,12 @@ function purchaseRowHtml(r) {
       groupCells +
       '<td title="' + (r.category || "") + '">' + (r.category || "") + "</td>" +
       '<td title="' + r.itemName + (r.lineNotes ? " - " + r.lineNotes : "") + '">' + r.itemName +
-        (r.lineNotes ? '<br><span style="color:var(--color-text-muted); font-size:11px;">' + r.lineNotes + "</span>" : "") +
+        (r.lineNotes ? '<br><span style="color:var(--color-text-muted); font-size:12px;">' + r.lineNotes + "</span>" : "") +
       "</td>" +
       "<td>" + r.qty + "</td>" +
       "<td>" + r.unit + "</td>" +
-      "<td>" + formatRupiah(r.totalCost) + "</td>" +
-      "<td>" + formatRupiah(r.unitCost) + "</td>" +
+      '<td><span class="font-number">' + formatRupiah(r.totalCost) + "</span></td>" +
+      '<td><span class="font-number">' + formatRupiah(r.unitCost) + "</span></td>" +
       trailingCells +
     "</tr>"
   );
@@ -679,10 +723,10 @@ function buildOpnameFormHtml() {
     "<h2>Input Stock Opname</h2>" +
     "<label>Date</label><br>" +
     '<div style="display:flex; align-items:center; gap:8px;">' +
-      '<input type="checkbox" id="opnameToday" checked onchange="setOpnameToday()">' +
+      '<input type="checkbox" id="opnameToday" onchange="setOpnameToday()">' +
       '<label for="opnameToday">Today</label>' +
       '<input type="date" id="opnameDate">' +
-    "</div><br><br>" +
+    "</div><br>" +
 
     '<div style="display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:10px;">' +
       "<div>" +
@@ -861,7 +905,7 @@ function opnameRowHtml(r) {
       "<td>" + r.bookBalance + "</td>" +
       "<td>" + r.physicalCount + "</td>" +
       "<td>" + r.variance + "</td>" +
-      "<td>" + (r.varianceValue === null ? "" : formatRupiah(r.varianceValue)) + "</td>" +
+      "<td>" + (r.varianceValue === null ? "" : '<span class="font-number">' + formatRupiah(r.varianceValue) + "</span>") + "</td>" +
       "<td>" + (r.notes || "") + "</td>" +
     "</tr>"
   );
@@ -1100,8 +1144,8 @@ function currentCostRowHtml(r) {
       "<td>" + r.name + "</td>" +
       "<td>" + r.unit + "</td>" +
       "<td>" + r.purchaseQty + "</td>" +
-      "<td>" + formatRupiah(r.purchasePrice) + "</td>" +
-      "<td>" + formatRupiah(r.unitCost) + "</td>" +
+      '<td><span class="font-number">' + formatRupiah(r.purchasePrice) + "</span></td>" +
+      '<td><span class="font-number">' + formatRupiah(r.unitCost) + "</span></td>" +
       "<td>" + r.lastUpdated + "</td>" +
       "<td>" + (r.supplier || "") + "</td>" +
     "</tr>"
@@ -1222,10 +1266,10 @@ function costUpdateRowHtml(r) {
       "<td>" + (r.supplier || "") + "</td>" +
       "<td>" + (r.qty === null ? "" : r.qty) + "</td>" +
       "<td>" + (r.unit || "") + "</td>" +
-      "<td>" + formatRupiah(r.purchasePrice) + "</td>" +
-      "<td>" + (r.previousUnitCost === null ? "-" : formatRupiah(r.previousUnitCost)) + "</td>" +
-      "<td>" + formatRupiah(r.updatedUnitCost) + "</td>" +
-      "<td>" + (r.variance === null ? "-" : formatRupiah(r.variance)) + "</td>" +
+      '<td><span class="font-number">' + formatRupiah(r.purchasePrice) + "</span></td>" +
+      "<td>" + (r.previousUnitCost === null ? "-" : '<span class="font-number">' + formatRupiah(r.previousUnitCost) + "</span>") + "</td>" +
+      '<td><span class="font-number">' + formatRupiah(r.updatedUnitCost) + "</span></td>" +
+      "<td>" + (r.variance === null ? "-" : '<span class="font-number">' + formatRupiah(r.variance) + "</span>") + "</td>" +
       "<td>" + (r.variancePct === null ? "-" : formatPercent(r.variancePct / 100)) + "</td>" +
       "<td>" + (r.remarks || "") + "</td>" +
     "</tr>"

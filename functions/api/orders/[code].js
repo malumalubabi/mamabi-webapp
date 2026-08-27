@@ -4,6 +4,7 @@
 import { getSupabase, getBrandId, jsonResponse, errorResponse } from "../_lib/supabase.js";
 import { buildCostResolver } from "../_lib/costing.js";
 import { recordOrderConsumption, normalizeDriverNameRaw } from "../_lib/orders.js";
+import { resyncDriverPayoutOpexGroup } from "../_lib/opex.js";
 
 const PATCHABLE_FIELDS = {
   orderStatus: "order_status",
@@ -36,7 +37,7 @@ export async function onRequestPatch({ request, env, params }) {
 
     const { data: current, error: curErr } = await supabase
       .from("orders")
-      .select("order_status, payment_status, fulfillment_status")
+      .select("order_status, payment_status, fulfillment_status, delivery_fee, driver_staff_id, driver_name_raw")
       .eq("brand_id", brandId)
       .eq("order_code", params.code)
       .maybeSingle();
@@ -70,9 +71,10 @@ export async function onRequestPatch({ request, env, params }) {
     if (error) throw error;
     if (!data) return jsonResponse({ error: "Order not found: " + params.code }, 404);
 
-    // Deduct stock for direct-recipe Ingredient/Packaging/Operating lines
-    // at the exact moment this order becomes Completed (see _lib/orders.js)
-    // - the far more common path than POST's already-Completed case, since
+    // Deduct stock for direct-recipe Ingredient/Packaging/Operating lines,
+    // and resync the Driver Payout OpEx group, both at the exact moment
+    // this order becomes Completed (see _lib/orders.js and _lib/opex.js) -
+    // the far more common path than POST's already-Completed case, since
     // most orders are created Ongoing and reach Completed later via Mark
     // Paid/Mark Delivered.
     if (becomingCompleted) {
@@ -84,6 +86,20 @@ export async function onRequestPatch({ request, env, params }) {
 
       const resolver = await buildCostResolver(supabase, brandId);
       await recordOrderConsumption(supabase, resolver, data.order_code, data.order_date, items.map((it) => ({ skuId: it.sku_id, qty: it.qty })));
+
+      // Effective driver/fee AFTER this PATCH - from the body if this same
+      // call changed them, else whatever was already stored. Accrual-based
+      // (functions/api/_lib/opex.js's resyncDriverPayoutOpexGroup): the fee
+      // becomes a real expense right here, regardless of driver_payout_status.
+      const effectiveDeliveryFee = "deliveryFee" in body ? body.deliveryFee : current.delivery_fee;
+      const effectiveDriverIsStaff = "driverStaffId" in body || "driverNameRaw" in body ? !!body.driverStaffId : !!current.driver_staff_id;
+      const effectiveDriverKey = effectiveDriverIsStaff
+        ? ("driverStaffId" in body ? body.driverStaffId : current.driver_staff_id)
+        : ("driverNameRaw" in body ? normalizeDriverNameRaw(body.driverNameRaw) : current.driver_name_raw);
+
+      if (effectiveDriverKey && Number(effectiveDeliveryFee) > 0) {
+        await resyncDriverPayoutOpexGroup(supabase, brandId, effectiveDriverKey, effectiveDriverIsStaff, String(data.order_date).slice(0, 7));
+      }
     }
 
     return jsonResponse({ orderCode: data.order_code });

@@ -185,8 +185,8 @@ function applySkuFilter() {
 function skuRowHtml(r, isFirst, isLast) {
   const moveCell = _skuArrangeMode
     ? "<td>" +
-        '<button style="font-size:11px;" onclick="moveSkuOrder(\'' + r.sku + '\', \'up\')"' + (isFirst ? " disabled" : "") + '>&#9650;</button> ' +
-        '<button style="font-size:11px;" onclick="moveSkuOrder(\'' + r.sku + '\', \'down\')"' + (isLast ? " disabled" : "") + '>&#9660;</button>' +
+        '<button style="font-size:12px;" onclick="moveSkuOrder(\'' + r.sku + '\', \'up\')"' + (isFirst ? " disabled" : "") + '>&#9650;</button> ' +
+        '<button style="font-size:12px;" onclick="moveSkuOrder(\'' + r.sku + '\', \'down\')"' + (isLast ? " disabled" : "") + '>&#9660;</button>' +
       "</td>"
     : "";
 

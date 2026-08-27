@@ -71,7 +71,7 @@ async function loadCashflowSummary() {
   const rows = data.groups
     .map((g) => {
       const cells = g.months
-        .map((m) => "<td>" + formatRupiah(m.in) + "</td><td>" + formatRupiah(m.out) + "</td><td>" + formatRupiah(m.net) + "</td>")
+        .map((m) => '<td><span class="font-number">' + formatRupiah(m.in) + '</span></td><td><span class="font-number">' + formatRupiah(m.out) + '</span></td><td><span class="font-number">' + formatRupiah(m.net) + "</span></td>")
         .join("");
       return "<tr><td>" + g.type + "</td>" + cells + "</tr>";
     })
@@ -214,9 +214,9 @@ function cashflowRowHtml(r) {
       "<td>" + r.type + "</td>" +
       "<td>" + r.category + "</td>" +
       "<td>" + (r.description || "") + "</td>" +
-      "<td>" + (r.cashIn ? formatRupiah(r.cashIn) : "") + "</td>" +
-      "<td>" + (r.cashOut ? formatRupiah(r.cashOut) : "") + "</td>" +
-      "<td>" + formatRupiah(r.balance) + "</td>" +
+      '<td><span class="font-number">' + (r.cashIn ? formatRupiah(r.cashIn) : "") + "</span></td>" +
+      '<td><span class="font-number">' + (r.cashOut ? formatRupiah(r.cashOut) : "") + "</span></td>" +
+      '<td><span class="font-number">' + formatRupiah(r.balance) + "</span></td>" +
       "<td>" + (r.notes || "") + "</td>" +
     "</tr>"
   );
@@ -244,14 +244,20 @@ function buildCashflowFormHtml() {
       '<input type="checkbox" id="cfToday" onchange="setCfToday()">' +
       '<label for="cfToday">Today</label>' +
       '<input type="date" id="cfDate">' +
-    "</div><br><br>" +
+    "</div><br>" +
 
     "<label>Account</label><br>" +
     '<select id="cfAccount"><option>Bank</option><option>Cash</option></select>' +
     "<br><br>" +
 
-    "<label>Entries</label>" +
-    '<div id="cashflowRows"></div>' +
+    // One header row for the whole list (not per-item field labels), same
+    // table/colgroup pattern as Input Sales - Notes now rides in its own
+    // column aligned with every other field instead of trailing below.
+    '<table style="table-layout:fixed;">' +
+      '<colgroup><col style="width:190px;"><col style="width:100px;"><col style="width:160px;"><col style="width:100px;"><col style="width:120px;"><col style="width:74px;"></colgroup>' +
+      "<thead><tr><th>Description</th><th>Amount</th><th>Category</th><th>Type</th><th>Notes</th><th></th></tr></thead>" +
+      '<tbody id="cashflowRows"></tbody>' +
+    "</table>" +
     '<button type="button" onclick="addCashflowRow()">+ Add Entry</button>' +
     "<br><br>" +
 
@@ -261,7 +267,9 @@ function buildCashflowFormHtml() {
 }
 
 function initCashflowForm() {
-  document.getElementById("cfDate").value = todayISO();
+  // Date starts empty - pick a date explicitly (Today included) rather
+  // than silently defaulting to today, per explicit request (same pattern
+  // applied across every other modal - Orders, Purchase, OpEx, ...).
   document.getElementById("cashflowRows").innerHTML = "";
   addCashflowRow();
 }
@@ -272,15 +280,15 @@ function setCfToday() {
 
 function addCashflowRow() {
   const wrap = document.getElementById("cashflowRows");
-  const row = document.createElement("div");
-  row.className = "item-row";
+  const row = document.createElement("tr");
+  row.className = "cashflow-item-row";
   row.innerHTML =
-    '<div><label>Description</label><br><div class="cfDescCombo" style="min-width:200px;"></div></div>' +
-    '<div><label>Amount</label><br><input type="text" class="cfAmount" inputmode="numeric" oninput="formatAmount(this)"></div>' +
-    '<div><label>Category</label><br><select class="cfCategory" style="min-width:180px;" onchange="onCashflowCategoryChange(this)"></select></div>' +
-    '<div><label>Type</label><br><input type="text" class="cfType" readonly style="background:var(--color-disabled-bg);"></div>' +
-    '<div><label>Notes</label><br><input type="text" class="cfNotes"></div>' +
-    '<button type="button" onclick="removeCashflowRow(this)">Remove</button>';
+    '<td><div class="cfDescCombo"></div></td>' +
+    '<td><input type="text" class="cfAmount" inputmode="numeric" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this)"></td>' +
+    '<td><select class="cfCategory" style="width:100%; box-sizing:border-box;" onchange="onCashflowCategoryChange(this)"></select></td>' +
+    '<td><input type="text" class="cfType" readonly style="width:100%; box-sizing:border-box; background:var(--color-disabled-bg);"></td>' +
+    '<td><input type="text" class="cfNotes" style="width:100%; box-sizing:border-box;"></td>' +
+    '<td class="remove-cell"><button type="button" class="btn-remove" onclick="removeCashflowRow(this)">Remove</button></td>';
   wrap.appendChild(row);
 
   // Free-text combobox - pick a Description used before (for consistency
@@ -297,23 +305,23 @@ function addCashflowRow() {
 }
 
 function removeCashflowRow(btn) {
-  const rows = document.querySelectorAll("#cashflowRows .item-row");
+  const rows = document.querySelectorAll("#cashflowRows .cashflow-item-row");
   if (rows.length <= 1) return;
-  btn.closest(".item-row").remove();
+  btn.closest(".cashflow-item-row").remove();
 }
 
 // Category drives Type now (not the other way around) - Type is a readonly
 // display auto-filled from the category's settings_lists meta
 // (_cashflowCategoryDefs), never a separate user choice.
 function onCashflowCategoryChange(categorySelect) {
-  const row = categorySelect.closest(".item-row");
+  const row = categorySelect.closest(".cashflow-item-row");
   const def = _cashflowCategoryDefs[categorySelect.value];
   row.querySelector(".cfType").value = def ? def.type : "";
 }
 
 function collectCashflowItems() {
   const items = [];
-  document.querySelectorAll("#cashflowRows .item-row").forEach((row) => {
+  document.querySelectorAll("#cashflowRows .cashflow-item-row").forEach((row) => {
     const category = row.querySelector(".cfCategory").value;
     const type = row.querySelector(".cfType").value;
     const desc = row._descCombo ? row._descCombo.getValue() : "";

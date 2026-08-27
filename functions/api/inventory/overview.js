@@ -1,5 +1,6 @@
 // Ported from InventoryService.gs getStockOverview()/renderStockOverviewTable().
-// Status thresholds (Habis/Mepet/Aman) match the old app exactly. Unlike the
+// Status thresholds (Out/Low/Safe) match the old app's Habis/Mepet/Aman
+// exactly, just relabeled to English. Unlike the
 // old app, currentStock here comes from the stock_ledger view (which now
 // folds in Stock Opname corrections - see the stock_ledger_include_opname
 // migration) instead of a "baseline since last opname + net moves" JS
@@ -52,9 +53,9 @@ export async function onRequestGet({ env }) {
       const currentStock = stockBySku.has(it.id) ? stockBySku.get(it.id) : 0;
       const minStock = it.min_stock === null ? null : Number(it.min_stock);
       let status;
-      if (currentStock <= 0) status = "Habis";
-      else if (minStock !== null && currentStock <= minStock) status = "Mepet";
-      else status = "Aman";
+      if (currentStock <= 0) status = "Out";
+      else if (minStock !== null && currentStock <= minStock) status = "Low";
+      else status = "Safe";
 
       return {
         id: it.id,

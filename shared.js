@@ -671,7 +671,23 @@ function toggleNavDropdown(btn) {
   const item = btn.closest(".navbar-item");
   const wasOpen = item.classList.contains("open");
   closeNavDropdowns();
-  if (!wasOpen) item.classList.add("open");
+  if (!wasOpen) {
+    item.classList.add("open");
+    positionNavDropdown(item.querySelector(":scope > .navbar-dropdown"), btn);
+  }
+}
+
+// .navbar-dropdown is position:fixed (see shared.css) so it isn't clipped
+// by #navbar's own overflow-x:auto (mobile horizontal scroll) - computed
+// here instead of via CSS top/left since "fixed" positions relative to the
+// viewport, not the trigger button. Closes on any scroll (below) rather
+// than tracking position live, since the trigger itself moves out from
+// under it the moment the page or the navbar scrolls.
+function positionNavDropdown(dropdown, anchorBtn) {
+  if (!dropdown) return;
+  const rect = anchorBtn.getBoundingClientRect();
+  dropdown.style.top = rect.bottom + "px";
+  dropdown.style.left = rect.left + "px";
 }
 
 // Level-2 submenu (e.g. "Engineering" inside the Menu dropdown) toggles
@@ -722,5 +738,11 @@ function setActiveNavButton(page, tab) {
 document.addEventListener("mousedown", function (e) {
   if (!e.target.closest(".navbar-item")) closeNavDropdowns();
 });
+
+// A fixed-position dropdown doesn't move with whatever scrolled (the page,
+// or #navbar's own horizontal drag-scroll) - closing on scroll avoids it
+// drifting away from its trigger button instead of trying to track it live.
+// capture:true catches scrolling inside #navbar itself, which doesn't bubble.
+window.addEventListener("scroll", closeNavDropdowns, true);
 
 window.addEventListener("hashchange", renderCurrentPage);
