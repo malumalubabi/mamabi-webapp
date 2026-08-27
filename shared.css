@@ -262,7 +262,7 @@ th {
   border: none;
   border-bottom: 3px solid transparent;
   background: none;
-  color: var(--color-text-muted);
+  color: var(--color-text-on-dark);
   cursor: pointer;
   font: inherit;
 }
@@ -278,7 +278,7 @@ th {
   border: none;
   border-bottom: 3px solid transparent;
   background: none;
-  color: var(--color-text-muted);
+  color: var(--color-text-on-dark);
   cursor: pointer;
   font: inherit;
 }
@@ -370,8 +370,10 @@ th {
    stacked vertical list the same way). */
 #navbar > [data-page].navbar-active,
 .navbar-item > button.navbar-active {
+  /* Text color intentionally NOT changed here - inactive items stay at
+     full-brightness --color-text-on-dark for readability; only the wash +
+     stripe below mark the active one, per explicit correction. */
   font-weight: bold;
-  color: var(--color-accent);
   background: var(--color-accent-tint);
   border-radius: 8px 8px 0 0;
   border-bottom-color: var(--color-text-muted);
