@@ -87,7 +87,20 @@ header h2 {
      title, not applied app-wide; Arial stays the fallback/default
      everywhere else including every other heading. */
   font-family: "Quicksand", Arial, sans-serif;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
+}
+header h2 .brand-suffix {
+  opacity: 0.6;
+}
+header h2 .brand-name {
+  /* Quicksand's heaviest cut is 700 (Bold) - there's no 800/900 weight to
+     ask for, so font-weight alone is already maxed out. A thin text-stroke
+     in the same color pushes it visually bolder still, past what the font
+     file itself can do. */
+  font-weight: 700;
+  font-size: 1.725em;
+  letter-spacing: 0.12em;
+  -webkit-text-stroke: 0.6px currentColor;
 }
 /* header's own <hr> was removed (index.html) - it doubled up with
    #navbar's border-bottom directly below it. footer's <hr> is the only
