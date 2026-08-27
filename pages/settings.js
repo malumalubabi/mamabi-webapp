@@ -132,11 +132,11 @@ function renderSettingsListBody(listName) {
   const metaSpec = LIST_META_OPTIONS[listName];
 
   if (!items.length) {
-    tbody.innerHTML = '<tr><td colspan="' + (metaSpec ? 2 : 1) + '" style="color:#999; font-size:13px;">None configured yet.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="' + (metaSpec ? 2 : 1) + '" style="color:var(--color-text-muted); font-size:13px;">None configured yet.</td></tr>';
     return;
   }
   tbody.innerHTML = items.map((value) =>
-    "<tr><td>" + value + "</td>" + (metaSpec ? ('<td style="color:#666; font-size:13px;">' + (metaMap[value] || "") + "</td>") : "") + "</tr>"
+    "<tr><td>" + value + "</td>" + (metaSpec ? ('<td style="color:var(--color-text-muted); font-size:13px;">' + (metaMap[value] || "") + "</td>") : "") + "</tr>"
   ).join("");
 }
 
@@ -178,7 +178,7 @@ function renderManageSettingsListModal() {
 
   const rowsHtml = rows.length
     ? rows.map((value, i) => manageListRowHtml(value, i, arranging, rows.length, metaMap, metaSpec)).join("")
-    : '<tr><td colspan="4" style="color:#999; font-size:13px;">None configured yet.</td></tr>';
+    : '<tr><td colspan="4" style="color:var(--color-text-muted); font-size:13px;">None configured yet.</td></tr>';
 
   openModal(
     "<h2>Manage " + listName + "</h2>" +
@@ -211,7 +211,7 @@ function manageListRowHtml(value, index, arranging, total, metaMap, metaSpec) {
       "</td>")
     : "";
 
-  const metaCell = metaSpec ? ('<td style="color:#666; font-size:13px;">' + (metaMap[value] || "") + "</td>") : "";
+  const metaCell = metaSpec ? ('<td style="color:var(--color-text-muted); font-size:13px;">' + (metaMap[value] || "") + "</td>") : "";
 
   const actionsCell = arranging
     ? ""

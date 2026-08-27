@@ -1,23 +1,224 @@
 /* Ported from the old Apps Script app's 99 Shared/Layout/LayoutStyles.html.
    Same visual language on purpose - internal tool, function over form. */
 
+/* ---------- Color palette (global) ----------
+   Two-layer model: the page chrome (body/header/footer/navbar) sits on the
+   dark background with light text; #content itself IS "the card" every
+   page's table/form/etc. renders inside, on the light background with dark
+   text - so every page gets this automatically, no per-page markup needed.
+   Do not use --color-text-on-dark for text INSIDE a card (or vice versa) -
+   swapping the pair drops contrast to ~1.5:1, close to unreadable. */
+:root {
+  --color-bg-page: #05334A;       /* Deep Space Blue - page background */
+  --color-panel-bg: #F0E4CC;      /* Papaya Whip, ~5% darker - each page's main panel (#content), sits between page bg and cards */
+  --color-card-bg: #FCF0D6;       /* Papaya Whip - cards/controls INSIDE a panel (.tile, .dv2-card, .modal-box, dropdowns, select) - kept brighter than the panel for depth */
+  --color-field-bg: #FEF8EB;      /* Papaya Whip pushed toward white - editable fields (input/textarea/select/combobox), the lightest of the three so a form control never disappears into its card */
+  --color-text-on-dark: #EBBF93;  /* Soft Blush Rose - text on the dark page bg, outside cards */
+  --color-text-primary: #05334A;  /* Deep Space Blue - main text INSIDE a card */
+  --color-text-muted: #A65A5F;    /* Soft Blush Rose Dark - secondary/muted text inside a card (~4.4:1 - keep >=12-13px) */
+  --color-accent: #F7B7BC;        /* Soft Blush Rose Light - accents/highlights */
+
+  /* Derived alpha variants of the three colors above (not new hues) - for
+     subtle borders/dividers/disabled-field washes that need to sit quietly
+     on top of a page-bg or card-bg without introducing another color. */
+  --color-border-on-card: rgba(5, 51, 74, 0.15);
+  --color-border-strong: rgba(5, 51, 74, 0.35); /* form-control outlines (combobox) - needs more visible affordance than a card divider */
+  --color-border-on-dark: rgba(235, 191, 147, 0.35);
+  --color-accent-tint: rgba(247, 183, 188, 0.25);
+  --color-muted-tint: rgba(166, 90, 95, 0.15); /* Soft Blush Rose Dark, faint - hover wash on in-page tab strips */
+  --color-disabled-bg: rgba(5, 51, 74, 0.08);
+}
+
 body {
   margin: 0;
   font-family: Arial, sans-serif;
+  background: var(--color-bg-page);
+  color: var(--color-text-on-dark);
 }
 
 header {
   padding: 0 16px;
 }
+header h2 {
+  /* --color-text-on-dark (#EBBF93) reads as a muted tan next to the nav's
+     rose-dark labels - switched to --color-accent (#F7B7BC), the brighter
+     Soft Blush Rose Light, so the title is unmistakably pink rather than
+     blending into the same warm-cream family as Papaya Whip. */
+  color: var(--color-accent);
+}
+header hr, footer hr {
+  border-color: var(--color-border-on-dark);
+}
 
 footer {
   padding: 0 16px;
-  color: #888;
+  color: var(--color-text-on-dark);
   font-size: 13px;
 }
 
 #content {
+  margin: 16px;
   padding: 16px;
+  background: var(--color-panel-bg);
+  color: var(--color-text-primary);
+  border-radius: 10px;
+}
+
+/* ---------- Buttons ----------
+   Plain-type selector on purpose (specificity 0-0-1) - every more specific
+   button rule elsewhere (navbar/tabs/.modal-close/.dv2-quick-actions/...)
+   already has a class or ID and wins over this automatically, so this only
+   reaches ordinary unclassed <button>s - the vast majority across every
+   module (Save, Add Item, Remove, filter triggers, ...). Filter-based hover/
+   active feedback (not a second hardcoded color) keeps it to the palette. */
+button {
+  display: inline-block;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 10px;
+  background: var(--color-bg-page);
+  color: var(--color-card-bg);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: filter 0.15s ease, opacity 0.15s ease;
+}
+button:hover {
+  filter: brightness(1.2);
+}
+button:active {
+  filter: brightness(0.88);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: none;
+}
+
+/* Opt-in secondary/outline look (e.g. a "Cancel" next to a primary "Save") -
+   not applied automatically since no page currently marks a button as
+   secondary; available for pages to adopt via class="btn-secondary". */
+button.btn-secondary {
+  background: transparent;
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-strong);
+}
+button.btn-secondary:hover {
+  background: var(--color-accent-tint);
+  filter: none;
+}
+
+/* ---------- Text inputs / textarea ----------
+   Every native text-ish field in the app (grep-verified: only type="text",
+   type="number", type="date" are used, plus a future-proofed textarea) -
+   checkbox/radio/type="button" are deliberately untouched, native look is
+   correct there. Lightest of the three surface tiers (--color-field-bg) so
+   a field never blends into the card/panel behind it; readonly/disabled
+   reuses --color-disabled-bg, the same token already used inline wherever
+   pages mark a field readonly (e.g. computed totals). */
+input[type="text"],
+input[type="number"],
+input[type="date"],
+textarea {
+  padding: 6px 10px;
+  border: 1px solid var(--color-text-muted);
+  border-radius: 8px;
+  background-color: var(--color-field-bg);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="date"]:focus,
+textarea:focus {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  border-color: var(--color-text-primary);
+}
+input[type="text"]:disabled,
+input[type="text"][readonly],
+input[type="number"]:disabled,
+input[type="number"][readonly],
+input[type="date"]:disabled,
+input[type="date"][readonly],
+textarea:disabled,
+textarea[readonly] {
+  background-color: var(--color-disabled-bg);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+/* ---------- Select / dropdown ----------
+   appearance:none strips the browser's boxy default chrome; native <option>
+   list and click/keyboard behavior are untouched - just re-skinning the
+   closed-state control, not a custom dropdown widget. Chevron is a small
+   inlined SVG (color baked in to match --color-text-muted) since
+   background-image data URIs can't reference a CSS variable. */
+select {
+  display: inline-block;
+  padding: 6px 28px 6px 10px;
+  border: 1px solid var(--color-text-muted);
+  border-radius: 8px;
+  background-color: var(--color-field-bg);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23A65A5F' fill='none' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+select:hover {
+  border-color: var(--color-text-primary);
+}
+select:focus {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+select option {
+  background: var(--color-field-bg);
+  color: var(--color-text-primary);
+}
+
+/* ---------- Scrollbar ----------
+   Minimal thumb-only scrollbar: no visible track, no boxy arrow buttons.
+   WebKit (Chrome/Edge/Safari) via ::-webkit-scrollbar* (unprefixed by
+   element, so it applies to every scrollable box on the page, not just the
+   window - .combo-options, .dv2-chart-scroll, any overflow-x:auto wrapper).
+   Firefox via scrollbar-width/scrollbar-color, set once on :root since both
+   are inherited properties and cascade to every scrollable descendant. */
+:root {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-text-muted) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-text-muted);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-text-primary);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 table {
@@ -25,13 +226,13 @@ table {
   width: 100%;
 }
 th, td {
-  border: 1px solid #ddd;
+  border: 1px solid var(--color-border-on-card);
   padding: 6px 10px;
   text-align: left;
   font-size: 14px;
 }
 th {
-  background: #f0f0f0;
+  background: var(--color-disabled-bg);
 }
 
 /* Drag-to-scroll wrapper - see enableDragScroll() in shared.js */
@@ -45,17 +246,23 @@ th {
 
 /* Navbar - ported verbatim from the old app's
    99 Shared/Layout/LayoutNavbar.html (same dropdown/flyout-submenu
-   structure and highlighting rules). */
+   structure and highlighting rules). Bar itself stays Deep Space Blue
+   (matching the page it sits on) - the pink accent is reserved for marking
+   which page is currently open (see .navbar-active below), not the whole
+   bar. */
 #navbar {
   display: flex;
   gap: 8px;
   padding: 8px 12px;
-  border-bottom: 1px solid #ccc;
+  background: var(--color-bg-page);
+  border-bottom: 1px solid var(--color-border-on-dark);
 }
 #navbar > button {
-  padding: 8px 12px;
+  padding: 8px 12px 5px;
   border: none;
+  border-bottom: 3px solid transparent;
   background: none;
+  color: var(--color-text-muted);
   cursor: pointer;
   font: inherit;
 }
@@ -67,9 +274,11 @@ th {
   position: relative;
 }
 .navbar-item > button {
-  padding: 8px 12px;
+  padding: 8px 12px 5px;
   border: none;
+  border-bottom: 3px solid transparent;
   background: none;
+  color: var(--color-text-muted);
   cursor: pointer;
   font: inherit;
 }
@@ -83,9 +292,10 @@ th {
   left: 0;
   flex-direction: column;
   min-width: 170px;
-  background: #fff;
-  border: 1px solid #ccc;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  background: var(--color-card-bg);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-on-card);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
   z-index: 100;
 }
 .navbar-item.open .navbar-dropdown {
@@ -98,11 +308,12 @@ th {
   padding: 8px 12px;
   border: none;
   background: none;
+  color: inherit;
   cursor: pointer;
   font: inherit;
 }
 .navbar-dropdown button:hover {
-  background: #f0f0f0;
+  background: var(--color-accent-tint);
 }
 
 /* Level-2 submenu (e.g. Menu > Engineering > Pricing) - flyout to the right
@@ -121,9 +332,10 @@ th {
   left: 100%;
   flex-direction: column;
   min-width: 170px;
-  background: #fff;
-  border: 1px solid #ccc;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  background: var(--color-card-bg);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-on-card);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
   z-index: 101;
 }
 .navbar-subitem.open .navbar-subdropdown {
@@ -136,59 +348,108 @@ th {
   padding: 8px 12px;
   border: none;
   background: none;
+  color: inherit;
   cursor: pointer;
   font: inherit;
 }
 .navbar-subdropdown button:hover {
-  background: #f0f0f0;
+  background: var(--color-accent-tint);
 }
 
-/* Active-page marker - leaf button (in a dropdown, or a standalone item
-   like Dashboard) gets highlighted; parent toggles (e.g. "Finance", or
-   "Engineering" at level 2) get highlighted too when a descendant is
-   active, so it stays visible even while the dropdown/submenu is closed. */
-#navbar [data-page].navbar-active,
-.navbar-item > button.navbar-active,
+/* Active-page marker - "open tab" look, not a solid highlighted button:
+   the currently-open page gets a soft rose wash, rounded top corners, and a
+   thick rose-dark bottom stripe that reads like a tab poking up out of the
+   bar (border-bottom is reserved as transparent on every nav button above,
+   so turning it rose here doesn't shift layout). Parent toggles (e.g.
+   "Finance", or "Engineering" at level 2) get the same treatment when a
+   descendant is active, so it stays visible even while the dropdown/
+   submenu is closed. Split by what's actually behind it: items sitting
+   directly on the Deep Space Blue bar use a bottom stripe (reads as a tab
+   in a horizontal strip); items inside a Papaya Whip dropdown/submenu card
+   use a left stripe instead (a bottom border doesn't read as "active" in a
+   stacked vertical list the same way). */
+#navbar > [data-page].navbar-active,
+.navbar-item > button.navbar-active {
+  font-weight: bold;
+  color: var(--color-accent);
+  background: var(--color-accent-tint);
+  border-radius: 8px 8px 0 0;
+  border-bottom-color: var(--color-text-muted);
+}
+/* :hover on an already-active item still matches the generic button:hover
+   filter (a different property than background, so it applies regardless
+   of specificity) - without filter:none it brightens the pink wash 20%
+   toward white on hover. */
+#navbar > [data-page].navbar-active:hover,
+.navbar-item > button.navbar-active:hover {
+  filter: none;
+}
+.navbar-dropdown [data-page].navbar-active,
 .navbar-subitem > button.navbar-active {
   font-weight: bold;
-  background: #e8f0fe;
-  border-radius: 4px;
+  background: var(--color-accent-tint);
+  border-left: 3px solid var(--color-text-muted);
+  padding-left: 9px; /* 12px minus the 3px stripe, keeps text aligned with inactive rows */
+}
+.navbar-dropdown [data-page].navbar-active:hover,
+.navbar-subitem > button.navbar-active:hover {
+  filter: none;
 }
 
 /* Simple tab strip used inside a module page (e.g. Inventory's
-   Overview/Purchase/Batch/Opname sections), separate from the top navbar. */
+   Overview/Purchase/Batch/Opname sections), separate from the top navbar -
+   lives inside #content, so it's on the card, not the dark page bg. */
 .tabs {
   display: flex;
   gap: 4px;
-  border-bottom: 1px solid #ccc;
+  border-bottom: 1px solid var(--color-border-on-card);
   margin-bottom: 16px;
 }
 .tabs button {
   padding: 8px 14px;
   border: 1px solid transparent;
   border-bottom: none;
+  border-radius: 4px 4px 0 0;
   background: none;
+  color: inherit;
   cursor: pointer;
   font: inherit;
 }
+/* filter:none cancels the generic button:hover{filter:brightness(1.2)}
+   (shared.css's plain-type button rule still matches these, since filter
+   is a separate property from the background set here - without this it
+   washes the tint 20% brighter, toward white, on top of whatever's set
+   below). */
+.tabs button:hover {
+  background: var(--color-muted-tint);
+  filter: none;
+}
 .tabs button.tab-active {
-  border-color: #ccc;
+  border-color: var(--color-border-on-card);
   border-radius: 4px 4px 0 0;
-  background: #fff;
+  background: var(--color-card-bg);
   font-weight: bold;
   margin-bottom: -1px;
+}
+.tabs button.tab-active:hover {
+  /* Solid blend of --color-card-bg + --color-accent (not the alpha
+     --color-accent-tint) - the active tab's background is already opaque,
+     so a translucent tint would just reveal the panel color behind it
+     instead of shifting warmer/pinker. */
+  background: #FAD9CC;
+  filter: none;
 }
 
 /* Stat tiles (Dashboard) */
 .tile {
-  border: 1px solid #ccc;
+  border: 1px solid var(--color-border-on-card);
   padding: 20px;
   width: 200px;
 }
 .tile h4 {
   margin: 0 0 8px 0;
   font-weight: normal;
-  color: #555;
+  color: var(--color-text-muted);
 }
 .tile h2 {
   margin: 0;
@@ -220,22 +481,24 @@ th {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  border: 1px solid #999;
-  background: #fff;
+  border: 1px solid var(--color-text-muted);
+  border-radius: 8px;
+  background: var(--color-field-bg);
+  color: var(--color-text-primary);
   padding: 5px 8px;
   cursor: pointer;
   box-sizing: border-box;
 }
 .combo-trigger:focus {
-  outline: 2px solid #4a90d9;
-  outline-offset: -1px;
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
 }
 .combo-trigger-text.combo-placeholder {
-  color: #999;
+  color: var(--color-text-muted);
 }
 .combo-arrow {
   font-size: 10px;
-  color: #666;
+  color: var(--color-text-muted);
 }
 .combo-panel {
   display: none;
@@ -243,20 +506,22 @@ th {
   left: 0;
   right: 0;
   z-index: 1000;
-  background: #fff;
-  border: 1px solid #ccc;
+  background: var(--color-field-bg);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-text-muted);
+  border-radius: 0 0 8px 8px;
 }
 .combo-search {
   display: block;
   width: 100%;
   box-sizing: border-box;
   border: none;
-  border-bottom: 1px solid #ccc;
+  border-bottom: 1px solid var(--color-border-on-card);
   padding: 6px 8px;
 }
 .combo-search:focus {
   outline: none;
-  background: #f7f7f7;
+  background: var(--color-disabled-bg);
 }
 .combo-options {
   max-height: 220px;
@@ -268,11 +533,11 @@ th {
   white-space: nowrap;
 }
 .combo-option:hover {
-  background: #f0f0f0;
+  background: var(--color-accent-tint);
 }
 .combo-empty {
   padding: 6px 10px;
-  color: #999;
+  color: var(--color-text-muted);
   font-size: 13px;
 }
 .combo-label {
@@ -280,7 +545,7 @@ th {
 }
 .combo-sub {
   font-size: 11px;
-  color: #999;
+  color: var(--color-text-muted);
   margin-left: 6px;
 }
 
@@ -288,7 +553,7 @@ th {
 .save-status {
   margin-left: 10px;
   font-size: 13px;
-  color: #666;
+  color: var(--color-text-muted);
 }
 .save-status.success {
   color: #2e7d32;
@@ -306,7 +571,7 @@ th {
 }
 .pagination-info {
   font-size: 13px;
-  color: #555;
+  color: var(--color-text-muted);
 }
 
 /* Stock Overview status colors - ported from the old app's
@@ -317,7 +582,7 @@ th {
 
 /* Stock Opname checklist row lock state - ported from StockOpnameEntry.html */
 #opnameChecklistBody tr.done { background: #f0f7f0; }
-#opnameChecklistBody input[disabled] { background: #eee; }
+#opnameChecklistBody input[disabled] { background: var(--color-disabled-bg); }
 
 /* Modal overlay - used by the Cashflow "Input Transaction" popup (and
    reusable for future ones). Backdrop blur is purely cosmetic; the
@@ -336,7 +601,8 @@ th {
   box-sizing: border-box;
 }
 .modal-box {
-  background: #fff;
+  background: var(--color-card-bg);
+  color: var(--color-text-primary);
   border-radius: 8px;
   padding: 24px;
   max-width: 900px;
@@ -355,11 +621,11 @@ th {
   font-size: 20px;
   line-height: 1;
   cursor: pointer;
-  color: #666;
+  color: var(--color-text-muted);
   padding: 4px 8px;
 }
 .modal-close:hover {
-  color: #000;
+  color: var(--color-text-primary);
 }
 
 /* Repeating item-row pattern (Order items, Purchase items, Cashflow entries) */

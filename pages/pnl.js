@@ -71,15 +71,15 @@ function monthActionHtml(m) {
       : "";
     return (
       driftBadge +
-      '<span style="font-size:11px; color:#666; white-space:nowrap;">&#128274; Closed ' + formatPnlClosedDate(m.closedAt) + "</span>" +
+      '<span style="font-size:11px; color:var(--color-text-muted); white-space:nowrap;">&#128274; Closed ' + formatPnlClosedDate(m.closedAt) + "</span>" +
       '<button style="font-size:11px;" onclick="closeOrRecalculatePnlMonth(\'' + m.key + '\', true)">Recalculate</button>'
     );
   }
   if (!m.closeable) {
-    return '<span style="font-size:11px; color:#666;">&#128275; Live</span>';
+    return '<span style="font-size:11px; color:var(--color-text-muted);">&#128275; Live</span>';
   }
   return (
-    '<span style="font-size:11px; color:#666; white-space:nowrap;">&#128275; Live</span>' +
+    '<span style="font-size:11px; color:var(--color-text-muted); white-space:nowrap;">&#128275; Live</span>' +
     '<button style="font-size:11px;" onclick="closeOrRecalculatePnlMonth(\'' + m.key + '\', false)">Close Month</button>'
   );
 }

@@ -133,7 +133,7 @@ function renderSkuTable(wrap) {
       "<h3>SKU Registry - " + _activeSkuType + "</h3>" +
       '<div style="display:flex; align-items:center; gap:10px;">' +
         (_skuArrangeMode ? "" :
-          '<span id="skuFilterBadge" style="color:#666; font-size:12px;">' + (_skuCategoryFilter.length ? _skuCategoryFilter.join(", ") : "All Categories") + "</span>" +
+          '<span id="skuFilterBadge" style="color:var(--color-text-muted); font-size:12px;">' + (_skuCategoryFilter.length ? _skuCategoryFilter.join(", ") : "All Categories") + "</span>" +
           '<button onclick="openSkuFilterModal()">Set Filter</button>'
         ) +
         '<button onclick="openSkuModal(null)">+ Add SKU</button>' +
@@ -370,9 +370,9 @@ async function renderSupplierSection(wrap) {
     '<div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0;">' +
       "<h3>Supplier List</h3>" +
       '<div style="display:flex; align-items:center; gap:10px;">' +
-        '<span id="supplierFilterBadge" style="color:#666; font-size:12px;">' + (_supplierStatusFilter.length ? _supplierStatusFilter.join(", ") : "All Statuses") + "</span>" +
+        '<span id="supplierFilterBadge" style="color:var(--color-text-muted); font-size:12px;">' + (_supplierStatusFilter.length ? _supplierStatusFilter.join(", ") : "All Statuses") + "</span>" +
         '<button onclick="openSupplierFilterModal()">Set Filter</button>' +
-        '<span id="supplierSortBadge" style="color:#666; font-size:12px;">Sort: ' + ENTITY_SORT_LABELS[_supplierSort] + "</span>" +
+        '<span id="supplierSortBadge" style="color:var(--color-text-muted); font-size:12px;">Sort: ' + ENTITY_SORT_LABELS[_supplierSort] + "</span>" +
         '<button onclick="openSupplierSortModal()">Sort</button>' +
         '<button onclick="openSupplierModal(null)">+ Add Supplier</button>' +
       "</div>" +
@@ -530,9 +530,9 @@ async function renderCustomerSection(wrap) {
     '<div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0;">' +
       "<h3>Customer List</h3>" +
       '<div style="display:flex; align-items:center; gap:10px;">' +
-        '<span id="customerFilterBadge" style="color:#666; font-size:12px;">' + (_customerStatusFilter.length ? _customerStatusFilter.join(", ") : "All Statuses") + "</span>" +
+        '<span id="customerFilterBadge" style="color:var(--color-text-muted); font-size:12px;">' + (_customerStatusFilter.length ? _customerStatusFilter.join(", ") : "All Statuses") + "</span>" +
         '<button onclick="openCustomerFilterModal()">Set Filter</button>' +
-        '<span id="customerSortBadge" style="color:#666; font-size:12px;">Sort: ' + ENTITY_SORT_LABELS[_customerSort] + "</span>" +
+        '<span id="customerSortBadge" style="color:var(--color-text-muted); font-size:12px;">Sort: ' + ENTITY_SORT_LABELS[_customerSort] + "</span>" +
         '<button onclick="openCustomerSortModal()">Sort</button>' +
         '<button onclick="openCustomerModal(null)">+ Add Customer</button>' +
       "</div>" +
@@ -698,9 +698,9 @@ async function renderStaffSection(wrap) {
     '<div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0; flex-wrap:wrap; gap:8px;">' +
       "<h3>Staff List</h3>" +
       '<div style="display:flex; align-items:center; gap:10px;">' +
-        '<span id="staffFilterBadge" style="color:#666; font-size:12px;">All</span>' +
+        '<span id="staffFilterBadge" style="color:var(--color-text-muted); font-size:12px;">All</span>' +
         '<button onclick="openStaffFilterModal()">Set Filter</button>' +
-        '<span id="staffSortBadge" style="color:#666; font-size:12px;">Sort: ' + STAFF_SORT_LABELS[_staffSort] + "</span>" +
+        '<span id="staffSortBadge" style="color:var(--color-text-muted); font-size:12px;">Sort: ' + STAFF_SORT_LABELS[_staffSort] + "</span>" +
         '<button onclick="openStaffSortModal()">Sort</button>' +
         '<button onclick="openStaffModal(null)">+ Add Staff</button>' +
       "</div>" +
@@ -849,7 +849,7 @@ function openStaffModal(code) {
     "<label>Name</label><br>" +
     '<input type="text" id="staffName" value="' + (row ? row.name : "") + '"><br><br>' +
     "<label>Role(s)</label><br>" +
-    '<p style="font-size:12px; color:#666;">Roles themselves are managed on the Settings page.</p>' +
+    '<p style="font-size:12px; color:var(--color-text-muted);">Roles themselves are managed on the Settings page.</p>' +
     '<div id="staffRoleChecks">' + staffRoleCheckboxesHtml(row ? row.roles : []) + "</div><br>" +
     "<label>Contact</label><br>" +
     '<input type="text" id="staffContact" value="' + (row ? (row.contact || "") : "") + '"><br><br>' +

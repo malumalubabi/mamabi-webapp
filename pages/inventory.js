@@ -139,7 +139,7 @@ async function renderOverviewTab(wrap) {
     '<div style="display:flex; justify-content:space-between; align-items:center;">' +
       "<h3>Stock Overview</h3>" +
       '<div style="display:flex; align-items:center; gap:10px;">' +
-        '<span id="overviewFilterBadge" style="color:#666; font-size:12px;">All</span>' +
+        '<span id="overviewFilterBadge" style="color:var(--color-text-muted); font-size:12px;">All</span>' +
         '<button onclick="openOverviewFilterModal()">Set Filter</button>' +
       "</div>" +
     "</div>" +
@@ -216,7 +216,7 @@ function overviewRowHtml(r) {
     "<tr>" +
       "<td>" + r.itemType + "</td>" +
       "<td>" + (r.category || "") + "</td>" +
-      "<td>" + r.name + '<br><span style="color:#666; font-size:12px;">' + r.sku + "</span></td>" +
+      "<td>" + r.name + '<br><span style="color:var(--color-text-muted); font-size:12px;">' + r.sku + "</span></td>" +
       "<td>" + r.unit + "</td>" +
       "<td>" + r.currentStock + "</td>" +
       '<td class="minStock" data-sku="' + r.sku + '" data-raw="' + minStockDisplay + '">' +
@@ -369,9 +369,9 @@ function addPurchaseItemRow() {
   row.className = "item-row";
   row.innerHTML =
     '<div><label>Item</label><br><div class="sku-combo" style="min-width:220px;"></div></div>' +
-    '<div><label>Item Type</label><br><input type="text" class="itemType" disabled style="background:#f5f5f5; width:100px;"></div>' +
-    '<div><label>Category</label><br><input type="text" class="category" disabled style="background:#f5f5f5; width:100px;"></div>' +
-    '<div><label>Unit</label><br><input type="text" class="unit" disabled style="background:#f5f5f5; width:55px;"></div>' +
+    '<div><label>Item Type</label><br><input type="text" class="itemType" disabled style="background:var(--color-disabled-bg); width:100px;"></div>' +
+    '<div><label>Category</label><br><input type="text" class="category" disabled style="background:var(--color-disabled-bg); width:100px;"></div>' +
+    '<div><label>Unit</label><br><input type="text" class="unit" disabled style="background:var(--color-disabled-bg); width:55px;"></div>' +
     '<div><label>Qty</label><br><input type="number" class="qty" min="0" step="any"></div>' +
     '<div><label>Cost</label><br><input type="text" class="totalCost" inputmode="numeric" oninput="formatAmount(this); recalcPurchaseGrandTotal()"></div>' +
     '<div><label>Notes</label><br><input type="text" class="lineNotes" style="width:140px;"></div>' +
@@ -478,9 +478,9 @@ function buildPurchaseTableShellHtml() {
     '<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">' +
       "<h3>Purchase Log</h3>" +
       '<div style="display:flex; align-items:center; gap:10px;">' +
-        '<span id="purchaseFilterBadge" style="color:#666; font-size:12px;">All</span>' +
+        '<span id="purchaseFilterBadge" style="color:var(--color-text-muted); font-size:12px;">All</span>' +
         '<button onclick="openPurchaseFilterModal()">Set Filter</button>' +
-        '<span id="purchaseSortBadge" style="color:#666; font-size:12px;">Sort: ' + PURCHASE_SORT_LABELS[_purchaseSort] + "</span>" +
+        '<span id="purchaseSortBadge" style="color:var(--color-text-muted); font-size:12px;">Sort: ' + PURCHASE_SORT_LABELS[_purchaseSort] + "</span>" +
         '<button onclick="openPurchaseSortModal()">Sort</button>' +
         '<button onclick="openPurchaseModal()">+ Input Purchase</button>' +
       "</div>" +
@@ -625,12 +625,12 @@ function applyPurchaseSort() {
 function purchaseRowHtml(r) {
   const groupCells = r.groupStart
     ? '<td rowspan="' + r.groupSize + '">' + r.date +
-        '<br><span style="color:#666; font-size:12px;">' + r.purchaseCode + "</span>" +
+        '<br><span style="color:var(--color-text-muted); font-size:12px;">' + r.purchaseCode + "</span>" +
         '<br><span title="' + r.supplier + '">' + r.supplier + "</span>" +
       "</td>"
     : "";
   const trailingCells = r.groupStart
-    ? '<td rowspan="' + r.groupSize + '">' + r.status + '<br><span style="color:#666; font-size:12px;">' + r.method + "</span></td>" +
+    ? '<td rowspan="' + r.groupSize + '">' + r.status + '<br><span style="color:var(--color-text-muted); font-size:12px;">' + r.method + "</span></td>" +
       '<td rowspan="' + r.groupSize + '" title="' + (r.notes || "") + '">' + (r.notes || "") + "</td>"
     : "";
 
@@ -639,7 +639,7 @@ function purchaseRowHtml(r) {
       groupCells +
       '<td title="' + (r.category || "") + '">' + (r.category || "") + "</td>" +
       '<td title="' + r.itemName + (r.lineNotes ? " - " + r.lineNotes : "") + '">' + r.itemName +
-        (r.lineNotes ? '<br><span style="color:#666; font-size:11px;">' + r.lineNotes + "</span>" : "") +
+        (r.lineNotes ? '<br><span style="color:var(--color-text-muted); font-size:11px;">' + r.lineNotes + "</span>" : "") +
       "</td>" +
       "<td>" + r.qty + "</td>" +
       "<td>" + r.unit + "</td>" +
@@ -737,7 +737,7 @@ async function loadOpnameChecklist() {
     tr.dataset.itemType = item.itemType || "";
     tr.dataset.category = item.category || "";
     tr.innerHTML =
-      "<td>" + item.name + '<br><span style="color:#666; font-size:12px;">' + item.sku + "</span></td>" +
+      "<td>" + item.name + '<br><span style="color:var(--color-text-muted); font-size:12px;">' + item.sku + "</span></td>" +
       "<td>" + item.unit + "</td>" +
       "<td>" + item.currentStock + "</td>" +
       '<td><input type="number" class="physicalCount" min="0" step="any" style="width:100%; box-sizing:border-box;"></td>' +
@@ -857,7 +857,7 @@ function opnameRowHtml(r) {
     "<tr>" +
       "<td>" + r.opnameCode + "</td>" +
       "<td>" + r.date + "</td>" +
-      "<td>" + r.itemName + '<br><span style="color:#666; font-size:12px;">' + r.sku + "</span></td>" +
+      "<td>" + r.itemName + '<br><span style="color:var(--color-text-muted); font-size:12px;">' + r.sku + "</span></td>" +
       "<td>" + r.bookBalance + "</td>" +
       "<td>" + r.physicalCount + "</td>" +
       "<td>" + r.variance + "</td>" +
@@ -891,9 +891,9 @@ async function renderConsumptionLogTab(wrap) {
     '<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">' +
       "<h3>Consumption Log</h3>" +
       '<div style="display:flex; align-items:center; gap:10px;">' +
-        '<span id="consumptionFilterBadge" style="color:#666; font-size:12px;">All</span>' +
+        '<span id="consumptionFilterBadge" style="color:var(--color-text-muted); font-size:12px;">All</span>' +
         '<button onclick="openConsumptionFilterModal()">Set Filter</button>' +
-        '<span id="consumptionSortBadge" style="color:#666; font-size:12px;">Sort: ' + CONSUMPTION_SORT_LABELS[_consumptionSort] + "</span>" +
+        '<span id="consumptionSortBadge" style="color:var(--color-text-muted); font-size:12px;">Sort: ' + CONSUMPTION_SORT_LABELS[_consumptionSort] + "</span>" +
         '<button onclick="openConsumptionSortModal()">Sort</button>' +
       "</div>" +
     "</div>" +
@@ -974,7 +974,7 @@ function consumptionRowHtml(r) {
     "<tr>" +
       "<td>" + r.refId + "</td>" +
       "<td>" + r.date + "</td>" +
-      "<td>" + r.itemName + '<br><span style="color:#666; font-size:12px;">' + r.sku + "</span></td>" +
+      "<td>" + r.itemName + '<br><span style="color:var(--color-text-muted); font-size:12px;">' + r.sku + "</span></td>" +
       "<td>" + r.qty + "</td>" +
       "<td>" + (r.source || "") + "</td>" +
       "<td>" + (r.notes || "") + "</td>" +
@@ -1007,9 +1007,9 @@ async function renderCurrentCostTab(wrap) {
     '<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">' +
       "<h3>Current Cost</h3>" +
       '<div style="display:flex; align-items:center; gap:10px;">' +
-        '<span id="currentCostFilterBadge" style="color:#666; font-size:12px;">All Categories</span>' +
+        '<span id="currentCostFilterBadge" style="color:var(--color-text-muted); font-size:12px;">All Categories</span>' +
         '<button onclick="openCurrentCostFilterModal()">Set Filter</button>' +
-        '<span id="currentCostSortBadge" style="color:#666; font-size:12px;">Sort: ' + CURRENT_COST_SORT_LABELS[_currentCostSort] + "</span>" +
+        '<span id="currentCostSortBadge" style="color:var(--color-text-muted); font-size:12px;">Sort: ' + CURRENT_COST_SORT_LABELS[_currentCostSort] + "</span>" +
         '<button onclick="openCurrentCostSortModal()">Sort</button>' +
       "</div>" +
     "</div>" +
@@ -1131,9 +1131,9 @@ async function renderCostUpdateLogTab(wrap) {
     '<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">' +
       "<h3>Cost Update Log</h3>" +
       '<div style="display:flex; align-items:center; gap:10px;">' +
-        '<span id="costUpdateFilterBadge" style="color:#666; font-size:12px;">All Suppliers</span>' +
+        '<span id="costUpdateFilterBadge" style="color:var(--color-text-muted); font-size:12px;">All Suppliers</span>' +
         '<button onclick="openCostUpdateFilterModal()">Set Filter</button>' +
-        '<span id="costUpdateSortBadge" style="color:#666; font-size:12px;">Sort: ' + COST_UPDATE_SORT_LABELS[_costUpdateSort] + "</span>" +
+        '<span id="costUpdateSortBadge" style="color:var(--color-text-muted); font-size:12px;">Sort: ' + COST_UPDATE_SORT_LABELS[_costUpdateSort] + "</span>" +
         '<button onclick="openCostUpdateSortModal()">Sort</button>' +
       "</div>" +
     "</div>" +

@@ -68,7 +68,7 @@ function buildOrderFormHtml() {
         '<input type="text" id="newCustomerName" placeholder="New customer name" style="display:none;">' +
       "</div>" +
       '<label style="display:block; margin-top:8px;">Contact</label>' +
-      '<input type="text" id="orderContact" readonly style="background:#f5f5f5; margin-top:2px;">' +
+      '<input type="text" id="orderContact" readonly style="background:var(--color-disabled-bg); margin-top:2px;">' +
     "</div><br>" +
 
     "<label>Items</label>" +
@@ -207,7 +207,7 @@ function addOrderItemRow() {
     '<div><label>Product</label><br><div class="sku-combo" style="min-width:200px;"></div></div>' +
     '<div><label>Qty</label><br><input type="number" class="qty" min="1" style="width:80px;" oninput="updateOrderRowTotal(this.closest(\'.item-row\'))"></div>' +
     '<div><label>Price</label><br><input type="text" class="unitPrice" inputmode="numeric" oninput="formatAmount(this); updateOrderRowTotal(this.closest(\'.item-row\'))"></div>' +
-    '<div><label>Total</label><br><input type="text" class="lineTotal" readonly style="background:#f5f5f5;"></div>' +
+    '<div><label>Total</label><br><input type="text" class="lineTotal" readonly style="background:var(--color-disabled-bg);"></div>' +
     '<button type="button" onclick="removeOrderItemRow(this)">Remove</button>';
   wrap.appendChild(row);
 
@@ -380,16 +380,16 @@ function orderTotal(o) {
 
 function dateCell(o) {
   return (
-    '<div><span style="font-size:11px; color:#666;">Order</span><br>' + o.orderDate + "</div>" +
-    '<div style="margin-top:4px;"><span style="font-size:11px; color:#666;">Fulfillment</span><br>' + (o.deliveryDate || "") + "</div>"
+    '<div><span style="font-size:11px; color:var(--color-text-muted);">Order</span><br>' + o.orderDate + "</div>" +
+    '<div style="margin-top:4px;"><span style="font-size:11px; color:var(--color-text-muted);">Fulfillment</span><br>' + (o.deliveryDate || "") + "</div>"
   );
 }
 
 function customerCell(o) {
   return (
     o.customerName +
-    '<br><span style="color:#666; font-size:12px;">' + (o.customerContact ? formatPhoneDisplay(o.customerContact) : "") + "</span>" +
-    '<br><span style="color:#999; font-size:11px;">' + o.orderCode + "</span>"
+    '<br><span style="color:var(--color-text-muted); font-size:12px;">' + (o.customerContact ? formatPhoneDisplay(o.customerContact) : "") + "</span>" +
+    '<br><span style="color:var(--color-text-muted); font-size:11px;">' + o.orderCode + "</span>"
   );
 }
 
@@ -398,8 +398,8 @@ function itemsCell(o) {
     .map(function (it) {
       return (
         '<div style="padding:1px 0;">' +
-          it.name + ' <span style="color:#666; white-space:nowrap;">x' + it.qty + "</span><br>" +
-          '<span style="color:#666; font-size:12px;">' + formatRupiah(it.unitPrice) + "</span>" +
+          it.name + ' <span style="color:var(--color-text-muted); white-space:nowrap;">x' + it.qty + "</span><br>" +
+          '<span style="color:var(--color-text-muted); font-size:12px;">' + formatRupiah(it.unitPrice) + "</span>" +
         "</div>"
       );
     })
@@ -409,7 +409,7 @@ function itemsCell(o) {
 function typeCell(o) {
   let html = o.orderType;
   if (o.orderType === "Delivery") {
-    html += '<br><span style="font-size:11px; color:#666;">Fee<br>' + formatRupiah(o.deliveryFee) + "</span>";
+    html += '<br><span style="font-size:11px; color:var(--color-text-muted);">Fee<br>' + formatRupiah(o.deliveryFee) + "</span>";
   }
   return html;
 }
@@ -564,12 +564,12 @@ function unpaidDriverGroupRowsHtml(group) {
   const total = group.orders.reduce((sum, o) => sum + o.deliveryFee, 0);
   const isUnassigned = group.key === UNASSIGNED_DRIVER_KEY;
   const markPaidBtn = isUnassigned
-    ? '<span style="color:#666; font-size:13px;">Assign a driver (Edit) to enable Mark Paid</span>'
+    ? '<span style="color:var(--color-text-muted); font-size:13px;">Assign a driver (Edit) to enable Mark Paid</span>'
     : '<button onclick="openMarkGroupPaidModal(\'' + group.key + '\')">Mark Paid</button>';
 
   const header =
     '<tr class="group-start driver-group-row">' +
-      '<td colspan="5" style="background:#f4f4f4;">' +
+      '<td colspan="5" style="background:var(--color-disabled-bg);">' +
         '<div style="display:flex; justify-content:space-between; align-items:center;">' +
           "<strong>" + group.label + "</strong>" +
           '<div style="display:flex; align-items:center; gap:12px;">' +
@@ -790,10 +790,10 @@ function savePayoutEdit(btn) {
 function ongoingRowHtml(o) {
   const fulfillmentDone = o.fulfillmentStatus !== "Pending";
   const statusHtml = fulfillmentDone
-    ? o.fulfillmentStatus + (o.driverName ? "<br><span style=\"font-size:11px; color:#666;\">by " + o.driverName + "</span>" : "")
+    ? o.fulfillmentStatus + (o.driverName ? "<br><span style=\"font-size:11px; color:var(--color-text-muted);\">by " + o.driverName + "</span>" : "")
     : "";
 
-  const paymentHtml = o.paymentStatus + (o.paymentStatus === "Paid" && o.paymentMethod ? '<br><span style="font-size:11px; color:#666;">' + o.paymentMethod + "</span>" : "");
+  const paymentHtml = o.paymentStatus + (o.paymentStatus === "Paid" && o.paymentMethod ? '<br><span style="font-size:11px; color:var(--color-text-muted);">' + o.paymentMethod + "</span>" : "");
 
   const actions =
     (o.paymentStatus !== "Paid" ? '<button style="font-size:11px;" onclick="startMarkOrderPaid(\'' + o.orderCode + '\')">Mark Paid</button><br>' : "") +
@@ -820,10 +820,10 @@ function ongoingRowHtml(o) {
 }
 
 function historyRowHtml(o) {
-  const totalHtml = formatRupiah(orderTotal(o)) + (o.paymentMethod ? '<br><span style="font-size:11px; color:#666;">' + o.paymentMethod + "</span>" : "");
+  const totalHtml = formatRupiah(orderTotal(o)) + (o.paymentMethod ? '<br><span style="font-size:11px; color:var(--color-text-muted);">' + o.paymentMethod + "</span>" : "");
   const statusLabel = o.orderStatus === "Cancelled" ? "Cancelled" : "Completed";
   const statusSub = o.orderStatus !== "Cancelled" && o.fulfillmentStatus !== "Pending"
-    ? '<br><span style="font-size:11px; color:#666;">' + o.fulfillmentStatus + (o.driverName ? " by " + o.driverName : "") + "</span>"
+    ? '<br><span style="font-size:11px; color:var(--color-text-muted);">' + o.fulfillmentStatus + (o.driverName ? " by " + o.driverName : "") + "</span>"
     : "";
 
   return (

@@ -245,9 +245,9 @@ function renderSalesLogTab(wrap) {
     '<div style="display:flex; justify-content:space-between; align-items:center;">' +
       "<h3>Sales Log</h3>" +
       '<div style="display:flex; align-items:center; gap:10px;">' +
-        '<span id="salesLogFilterBadge" style="color:#666; font-size:12px;">All</span>' +
+        '<span id="salesLogFilterBadge" style="color:var(--color-text-muted); font-size:12px;">All</span>' +
         '<button onclick="openSalesLogFilterModal()">Set Filter</button>' +
-        '<span id="salesLogSortBadge" style="color:#666; font-size:12px;">Sort: ' + SALES_LOG_SORT_LABELS[_salesLogSort] + "</span>" +
+        '<span id="salesLogSortBadge" style="color:var(--color-text-muted); font-size:12px;">Sort: ' + SALES_LOG_SORT_LABELS[_salesLogSort] + "</span>" +
         '<button onclick="openSalesLogSortModal()">Sort</button>' +
       "</div>" +
     "</div>" +
@@ -302,7 +302,7 @@ function salesRowHtml(r) {
   // shared by every product line in a batch/order.
   const orderIdSuffix = r.source === "online" ? "<br>" + r.refId : "";
   const dateCell = groupStart
-    ? "<td" + rowspanAttr + ">" + r.date + '<br><span style="color:#666; font-size:12px;">' + r.platform + orderIdSuffix + "</span></td>"
+    ? "<td" + rowspanAttr + ">" + r.date + '<br><span style="color:var(--color-text-muted); font-size:12px;">' + r.platform + orderIdSuffix + "</span></td>"
     : "";
 
   // Single entry point per batch (not per product line) - one "Edit" button,
@@ -339,7 +339,7 @@ function salesRowHtml(r) {
 }
 
 function salesFeeLineHtml(label, amount) {
-  return '<span style="color:#666; font-size:12px;">' + label + ":</span><br>" + formatRupiah(amount);
+  return '<span style="color:var(--color-text-muted); font-size:12px;">' + label + ":</span><br>" + formatRupiah(amount);
 }
 
 function salesFeesCellHtml(r) {
@@ -408,7 +408,7 @@ async function openSalesEntryModal() {
 
     "<label>Channel</label><br>" +
     '<select id="salePlatform" onchange="onSalePlatformChange()">' + salePlatformOptionsHtml("") + "</select>" +
-    '<p style="font-size:12px; color:#666;">Platforms themselves are managed on the Settings page.</p><br>' +
+    '<p style="font-size:12px; color:var(--color-text-muted);">Platforms themselves are managed on the Settings page.</p><br>' +
 
     "<label>Products</label>" +
     '<div id="saleItemRows"></div>' +
@@ -425,7 +425,7 @@ async function openSalesEntryModal() {
       '<div><label>Gross Revenue</label><br><strong id="saleGrossRevenue" style="font-size:13px;">Rp 0</strong></div>' +
       '<div><label>Net Revenue</label><br><strong id="saleNetRevenue" style="font-size:13px;">Rp 0</strong></div>' +
     "</div>" +
-    '<p style="font-size:12px; color:#666; max-width:480px;">Net Revenue = Gross Revenue - (Platform Fee + Marketing Fee). It\'s not Net Profit yet — Food/Packaging Cost and other Opex aren\'t subtracted here (look up to P&amp;L for that).</p><br>' +
+    '<p style="font-size:12px; color:var(--color-text-muted); max-width:480px;">Net Revenue = Gross Revenue - (Platform Fee + Marketing Fee). It\'s not Net Profit yet — Food/Packaging Cost and other Opex aren\'t subtracted here (look up to P&amp;L for that).</p><br>' +
 
     "<label>Notes</label><br>" +
     '<input type="text" id="saleNotes"><br><br>' +
@@ -458,7 +458,7 @@ function addSaleItemRow() {
     '<div><label>Product</label><br><div class="saleProductCombo" style="min-width:240px;"></div></div>' +
     '<div><label>Qty</label><br><input type="number" class="qty" min="1" style="width:80px;" oninput="updateSaleRowTotal(this.closest(\'.item-row\'))"></div>' +
     '<div><label>Selling Price</label><br><input type="text" class="sellingPrice" inputmode="numeric" style="width:130px;" oninput="formatAmount(this); updateSaleRowTotal(this.closest(\'.item-row\'))"></div>' +
-    '<div><label>Total</label><br><input type="text" class="total" readonly style="width:130px; background:#f5f5f5;"></div>' +
+    '<div><label>Total</label><br><input type="text" class="total" readonly style="width:130px; background:var(--color-disabled-bg);"></div>' +
     '<button type="button" onclick="removeSaleItemRow(this)">Remove</button>';
   wrap.appendChild(row);
 
@@ -649,7 +649,7 @@ function addBatchEditItemRow(existingRow) {
     '<td><div class="batchEditProductCombo"></div></td>' +
     '<td><input type="number" class="qty" min="1" value="' + (existingRow ? existingRow.qty : "") + '" style="width:100%; box-sizing:border-box;" oninput="updateBatchEditRowTotal(this.closest(\'.batch-edit-row\'))"></td>' +
     '<td><input type="text" class="sellingPrice" inputmode="numeric" value="' + (existingRow ? formatRupiah(existingRow.sellingPrice) : "") + '" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this); updateBatchEditRowTotal(this.closest(\'.batch-edit-row\'))"></td>' +
-    '<td><input type="text" class="total" readonly style="width:100%; box-sizing:border-box; background:#f5f5f5;"></td>' +
+    '<td><input type="text" class="total" readonly style="width:100%; box-sizing:border-box; background:var(--color-disabled-bg);"></td>' +
     '<td><button type="button" onclick="removeBatchEditItemRow(this)">Remove</button></td>';
   wrap.appendChild(row);
 

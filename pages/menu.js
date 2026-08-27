@@ -115,7 +115,7 @@ function renderBatchTable(wrap, rows, scope) {
 function itemNameCell(b) {
   return (
     b.itemName +
-    '<br><span style="color:#666; font-size:12px;">' + b.sku + "</span>" +
+    '<br><span style="color:var(--color-text-muted); font-size:12px;">' + b.sku + "</span>" +
     '<br><button onclick="openBatchRecipeModal(\'' + b.batchCode + '\')">Open Recipe</button>'
   );
 }
@@ -136,7 +136,7 @@ function recipeCell(b) {
 function recipeCellViewHtml(b) {
   return (
     b.itemName +
-    '<br><span style="color:#666; font-size:12px;">' + b.sku + "</span>" +
+    '<br><span style="color:var(--color-text-muted); font-size:12px;">' + b.sku + "</span>" +
     '<br><button onclick="openBatchRecipeModal(\'' + b.batchCode + '\')">Open Recipe</button> ' +
     '<button onclick="enterChangeComponentMode(this, \'' + b.batchCode + '\')">Change Component</button>'
   );
@@ -314,7 +314,7 @@ async function openBatchRecipeModal(batchCode) {
     : '<tr><td colspan="3">No consumption recorded.</td></tr>';
 
   const title = batch
-    ? "Recipe Detail — " + batch.itemName + ' <span style="font-size:12px; color:#666; font-weight:normal;">(' + batch.sku + ")</span>"
+    ? "Recipe Detail — " + batch.itemName + ' <span style="font-size:12px; color:var(--color-text-muted); font-weight:normal;">(' + batch.sku + ")</span>"
     : "Recipe Detail";
 
   const raw = batch && batch.batchSize !== null ? batch.batchSize : "";
@@ -388,8 +388,8 @@ function buildBatchFormHtml() {
     "<label>Output SKU</label><br>" +
     '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">' +
       '<div id="batchOutputCombo" style="min-width:260px;"></div>' +
-      '<input type="text" id="batchOutputCategory" disabled placeholder="Category" style="background:#f5f5f5; width:120px;">' +
-      '<input type="text" id="batchOutputUnit" disabled placeholder="Unit" style="background:#f5f5f5; width:70px;">' +
+      '<input type="text" id="batchOutputCategory" disabled placeholder="Category" style="background:var(--color-disabled-bg); width:120px;">' +
+      '<input type="text" id="batchOutputUnit" disabled placeholder="Unit" style="background:var(--color-disabled-bg); width:70px;">' +
     "</div><br><br>" +
 
     '<div style="display:flex; gap:20px;">' +
@@ -484,7 +484,7 @@ function addBatchConsumptionRow(prefill) {
   row.className = "item-row";
   row.innerHTML =
     '<div><label>Item</label><br><div class="sku-combo" style="min-width:220px;"></div></div>' +
-    '<div><label>Unit</label><br><input type="text" class="unit" disabled style="background:#f5f5f5; width:55px;"></div>' +
+    '<div><label>Unit</label><br><input type="text" class="unit" disabled style="background:var(--color-disabled-bg); width:55px;"></div>' +
     '<div><label>Qty</label><br><input type="number" class="qty" min="0" step="any"></div>' +
     '<div><label>Notes</label><br><input type="text" class="lineNotes" style="width:140px;"></div>' +
     '<button type="button" onclick="removeBatchConsumptionRow(this)">Remove</button>';
@@ -773,7 +773,7 @@ function platformPricingRowHtml(r, fee) {
     ? '<span style="color:#16a34a;">&#9650;</span>'
     : r.marginTrend === "down"
       ? '<span style="color:#dc2626;">&#9660;</span>'
-      : '<span style="color:#888;">-</span>';
+      : '<span style="color:var(--color-text-muted);">-</span>';
 
   return (
     "<tr>" +
@@ -959,7 +959,7 @@ function renderManageCostingModal() {
         '<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">' +
           '<div id="addRecipeLineCombo" style="min-width:220px;"></div>' +
           '<input type="number" id="addRecipeLineQty" min="0" step="any" placeholder="Qty" style="width:90px;">' +
-          '<input type="text" id="addRecipeLineUnit" disabled placeholder="Unit" style="background:#f5f5f5; width:70px;">' +
+          '<input type="text" id="addRecipeLineUnit" disabled placeholder="Unit" style="background:var(--color-disabled-bg); width:70px;">' +
           '<button id="addRecipeLineBtn" onclick="addRecipeLineToCosting(\'' + data.sku + '\')">+ Add</button>' +
         "</div>" +
         '<span id="manageCostingStatus" class="save-status"></span>'
@@ -1019,7 +1019,7 @@ function manageCostingRowHtml(it, isFirst, isLast) {
   return (
     "<tr>" +
       moveCell +
-      "<td>" + it.name + '<br><span style="color:#666; font-size:12px;">' + it.sku + "</span></td>" +
+      "<td>" + it.name + '<br><span style="color:var(--color-text-muted); font-size:12px;">' + it.sku + "</span></td>" +
       qtyCell +
       "<td>" + it.unit + "</td>" +
       actionsCell +
@@ -1112,7 +1112,7 @@ function addRecipeLineToCosting(parentSku) {
 function costingItemRowHtml(it) {
   return (
     "<tr>" +
-      "<td>" + it.name + '<br><span style="color:#666; font-size:12px;">' + it.sku + "</span></td>" +
+      "<td>" + it.name + '<br><span style="color:var(--color-text-muted); font-size:12px;">' + it.sku + "</span></td>" +
       "<td>" + it.qty + "</td>" +
       "<td>" + it.unit + "</td>" +
       "<td>" + formatRupiah(it.unitCost) + "</td>" +

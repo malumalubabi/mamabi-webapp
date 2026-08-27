@@ -78,8 +78,8 @@ function dv2StylesHtml() {
   return (
     "<style>" +
       ".dv2-stat-row { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:20px; }" +
-      ".dv2-stat { flex:1 1 160px; background:#fafafa; border:1px solid #eee; border-radius:10px; padding:12px 16px; }" +
-      ".dv2-stat-label { font-size:12px; color:#888; }" +
+      ".dv2-stat { flex:1 1 160px; background:var(--color-card-bg); border:1px solid var(--color-border-on-card); box-shadow:0 1px 3px rgba(5,51,74,0.08); border-radius:10px; padding:12px 16px; }" +
+      ".dv2-stat-label { font-size:12px; color:var(--color-text-muted); }" +
       ".dv2-stat-value { font-size:22px; font-weight:700; margin-top:2px; }" +
       ".dv2-grid-2col { display:flex; gap:20px; align-items:flex-start; flex-wrap:wrap; }" +
       ".dv2-align-stretch { align-items:stretch; }" +
@@ -99,25 +99,28 @@ function dv2StylesHtml() {
       ".dv2-chart-scroll { flex:1; min-height:0; overflow-x:auto; overflow-y:hidden; }" +
       ".dv2-chart-scroll svg { height:100%; display:block; }" +
       ".dv2-chart-legend { flex-shrink:0; margin-top:6px; }" +
-      ".dv2-card { background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:16px 18px; }" +
-      ".dv2-card h4 { margin:0 0 12px; font-size:14px; font-weight:600; color:#333; }" +
-      ".dv2-quick-actions button { display:block; width:100%; box-sizing:border-box; text-align:left; padding:10px 12px; margin-bottom:8px; border-radius:8px; border:1px solid #e5e7eb; background:#f9fafb; cursor:pointer; }" +
+      ".dv2-card { background:var(--color-card-bg); border:1px solid var(--color-border-on-card); box-shadow:0 1px 3px rgba(5,51,74,0.08); border-radius:10px; padding:16px 18px; }" +
+      ".dv2-card h4 { margin:0 0 12px; font-size:14px; font-weight:600; color:var(--color-text-primary); }" +
+      ".dv2-quick-actions button { display:block; width:100%; box-sizing:border-box; text-align:left; padding:10px 12px; margin-bottom:8px; border-radius:8px; border:1px solid var(--color-border-on-card); background:var(--color-accent-tint); color:var(--color-text-primary); cursor:pointer; }" +
       ".dv2-quick-actions button:last-child { margin-bottom:0; }" +
-      ".dv2-txn-row { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid #f0f0f0; }" +
+      // filter:none cancels shared.css's generic button:hover{filter:brightness(1.2)},
+      // which would otherwise wash this pink tint 20% toward white on hover.
+      ".dv2-quick-actions button:hover { filter:none; background:var(--color-accent); }" +
+      ".dv2-txn-row { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--color-border-on-card); }" +
       ".dv2-txn-row:last-child { border-bottom:none; }" +
-      ".dv2-txn-avatar { width:36px; height:36px; border-radius:50%; background:#e0e7ff; color:#3730a3; display:flex; align-items:center; justify-content:center; font-weight:600; flex-shrink:0; }" +
+      ".dv2-txn-avatar { width:36px; height:36px; border-radius:50%; background:var(--color-accent-tint); color:var(--color-text-primary); display:flex; align-items:center; justify-content:center; font-weight:600; flex-shrink:0; }" +
       ".dv2-txn-main { flex:1; min-width:0; }" +
       ".dv2-txn-name { font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }" +
-      ".dv2-txn-sub { font-size:12px; color:#888; }" +
+      ".dv2-txn-sub { font-size:12px; color:var(--color-text-muted); }" +
       ".dv2-txn-right { text-align:right; flex-shrink:0; }" +
       ".dv2-txn-amount { font-weight:600; }" +
       ".dv2-badge { display:inline-block; font-size:11px; padding:2px 8px; border-radius:999px; margin-top:3px; }" +
       ".dv2-badge-red { background:#fee2e2; color:#b91c1c; }" +
       ".dv2-badge-amber { background:#fef3c7; color:#92400e; }" +
       ".dv2-mini-card { cursor:pointer; }" +
-      ".dv2-mini-label { font-size:12px; color:#888; }" +
+      ".dv2-mini-label { font-size:12px; color:var(--color-text-muted); }" +
       ".dv2-mini-value { font-size:18px; font-weight:700; margin:4px 0 8px; }" +
-      ".dv2-mini-bar-track { background:#eee; border-radius:999px; height:6px; overflow:hidden; }" +
+      ".dv2-mini-bar-track { background:var(--color-disabled-bg); border-radius:999px; height:6px; overflow:hidden; }" +
       ".dv2-mini-bar-fill { height:100%; border-radius:999px; }" +
     "</style>"
   );
@@ -243,8 +246,8 @@ function dv2RevenueChartSvg(points) {
     .map((frac) => {
       const y = padding.top + chartH - frac * chartH;
       return (
-        '<line x1="' + padding.left + '" y1="' + y.toFixed(1) + '" x2="' + (width - padding.right) + '" y2="' + y.toFixed(1) + '" stroke="#eee" stroke-width="1"/>' +
-        '<text x="' + (padding.left - 8) + '" y="' + (y + 4).toFixed(1) + '" font-size="10" fill="#999" text-anchor="end">' + dv2FormatRupiahShort(frac * maxVal) + "</text>"
+        '<line x1="' + padding.left + '" y1="' + y.toFixed(1) + '" x2="' + (width - padding.right) + '" y2="' + y.toFixed(1) + '" stroke="var(--color-border-on-card)" stroke-width="1"/>' +
+        '<text x="' + (padding.left - 8) + '" y="' + (y + 4).toFixed(1) + '" font-size="10" fill="var(--color-text-muted)" text-anchor="end">' + dv2FormatRupiahShort(frac * maxVal) + "</text>"
       );
     })
     .join("");
@@ -252,7 +255,7 @@ function dv2RevenueChartSvg(points) {
   const labelEvery = Math.max(1, Math.ceil(coords.length / 8));
   const xLabels = coords
     .filter((c, i) => i % labelEvery === 0 || i === coords.length - 1)
-    .map((c) => '<text x="' + c.x.toFixed(1) + '" y="' + (height - 8) + '" font-size="10" fill="#999" text-anchor="middle">' + c.label + "</text>")
+    .map((c) => '<text x="' + c.x.toFixed(1) + '" y="' + (height - 8) + '" font-size="10" fill="var(--color-text-muted)" text-anchor="middle">' + c.label + "</text>")
     .join("");
 
   const dots = coords.map((c) => '<circle cx="' + c.x.toFixed(1) + '" cy="' + c.y.toFixed(1) + '" r="2.5" fill="#2563eb"><title>' + c.label + ": " + formatRupiah(c.value) + "</title></circle>").join("");
@@ -292,8 +295,8 @@ function dv2RevenueMultiChartSvg(buckets) {
     .map((frac) => {
       const y = padding.top + chartH - frac * chartH;
       return (
-        '<line x1="' + padding.left + '" y1="' + y.toFixed(1) + '" x2="' + (width - padding.right) + '" y2="' + y.toFixed(1) + '" stroke="#eee" stroke-width="1"/>' +
-        '<text x="' + (padding.left - 8) + '" y="' + (y + 4).toFixed(1) + '" font-size="10" fill="#999" text-anchor="end">' + dv2FormatRupiahShort(frac * maxVal) + "</text>"
+        '<line x1="' + padding.left + '" y1="' + y.toFixed(1) + '" x2="' + (width - padding.right) + '" y2="' + y.toFixed(1) + '" stroke="var(--color-border-on-card)" stroke-width="1"/>' +
+        '<text x="' + (padding.left - 8) + '" y="' + (y + 4).toFixed(1) + '" font-size="10" fill="var(--color-text-muted)" text-anchor="end">' + dv2FormatRupiahShort(frac * maxVal) + "</text>"
       );
     })
     .join("");
@@ -302,7 +305,7 @@ function dv2RevenueMultiChartSvg(buckets) {
   const xLabels = buckets
     .map((b, i) => ({ b, i }))
     .filter(({ i }) => i % labelEvery === 0 || i === buckets.length - 1)
-    .map(({ b, i }) => '<text x="' + xOf(i).toFixed(1) + '" y="' + (height - 8) + '" font-size="10" fill="#999" text-anchor="middle">' + b.label + "</text>")
+    .map(({ b, i }) => '<text x="' + xOf(i).toFixed(1) + '" y="' + (height - 8) + '" font-size="10" fill="var(--color-text-muted)" text-anchor="middle">' + b.label + "</text>")
     .join("");
 
   const platformColors = dv2ColorsForPlatforms(platforms);
@@ -321,7 +324,7 @@ function dv2RevenueMultiChartSvg(buckets) {
   const legend = platforms
     .map(
       (platform, pi) =>
-        '<span style="display:inline-flex; align-items:center; gap:4px; margin-right:14px; font-size:11px; color:#666;">' +
+        '<span style="display:inline-flex; align-items:center; gap:4px; margin-right:14px; font-size:11px; color:var(--color-text-muted);">' +
           '<span style="width:9px; height:9px; border-radius:2px; background:' + platformColors[pi] + '; display:inline-block;"></span>' + platform +
         "</span>"
     )
@@ -422,7 +425,7 @@ function dv2DonutChartHtml(segments) {
         '<div style="display:flex; align-items:center; gap:6px; font-size:12px; margin:3px 0;">' +
           '<span style="width:10px; height:10px; border-radius:2px; background:' + DV2_DONUT_COLORS[i % DV2_DONUT_COLORS.length] + '; flex-shrink:0;"></span>' +
           '<span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + seg.category + "</span>" +
-          '<span style="margin-left:auto; color:#666; white-space:nowrap;">' + formatRupiah(seg.amount) + "</span>" +
+          '<span style="margin-left:auto; color:var(--color-text-muted); white-space:nowrap;">' + formatRupiah(seg.amount) + "</span>" +
         "</div>"
     )
     .join("");
@@ -479,7 +482,7 @@ function dv2MiniProgressCardHtml(label, valueText, ratio, color, caption, onclic
       '<div class="dv2-mini-label">' + label + "</div>" +
       '<div class="dv2-mini-value">' + valueText + "</div>" +
       '<div class="dv2-mini-bar-track"><div class="dv2-mini-bar-fill" style="width:' + pct.toFixed(1) + "%; background:" + color + ';"></div></div>' +
-      '<div style="font-size:11px; color:#888; margin-top:4px;">' + caption + "</div>" +
+      '<div style="font-size:11px; color:var(--color-text-muted); margin-top:4px;">' + caption + "</div>" +
     "</div>"
   );
 }

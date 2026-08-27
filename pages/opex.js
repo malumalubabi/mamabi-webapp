@@ -49,9 +49,9 @@ function buildOpexLogShellHtml() {
     '<div style="display:flex; justify-content:space-between; align-items:center;">' +
       "<h3>OpEx Log</h3>" +
       '<div style="display:flex; align-items:center; gap:10px;">' +
-        '<span id="opexSortBadge" style="color:#666; font-size:12px;">Sort: ' + OPEX_SORT_LABELS[_opexSort] + "</span>" +
+        '<span id="opexSortBadge" style="color:var(--color-text-muted); font-size:12px;">Sort: ' + OPEX_SORT_LABELS[_opexSort] + "</span>" +
         '<button onclick="openOpexSortModal()">Sort</button>' +
-        '<span id="opexFilterBadge" style="color:#666; font-size:12px;">' + (_opexCategoryFilter.length ? _opexCategoryFilter.join(", ") : "All") + "</span>" +
+        '<span id="opexFilterBadge" style="color:var(--color-text-muted); font-size:12px;">' + (_opexCategoryFilter.length ? _opexCategoryFilter.join(", ") : "All") + "</span>" +
         '<button onclick="openOpexFilterModal()">Set Filter</button>' +
         '<button onclick="openOpexEntryModal()">+ Add Expense</button>' +
       "</div>" +
@@ -154,7 +154,7 @@ function renderOpexLogRows() {
 
 function opexRowHtml(r) {
   const actionsCell = r.linkedFrom
-    ? ('<td><span style="color:#666; font-size:12px;">Auto-linked (' + r.linkedFrom + " " + r.linkedRef + ")</span></td>")
+    ? ('<td><span style="color:var(--color-text-muted); font-size:12px;">Auto-linked (' + r.linkedFrom + " " + r.linkedRef + ")</span></td>")
     : ("<td><button onclick=\"openOpexEntryModal('" + r.opexCode + "')\">Edit</button> " +
        "<button onclick=\"deleteOpexEntry('" + r.opexCode + "')\">Delete</button></td>");
 
@@ -248,7 +248,7 @@ function openOpexEntryModal(opexCode) {
     '<select id="opexCategory">' +
       _opexCategoryOptions.map((c) => "<option" + (row && row.category === c ? " selected" : "") + ">" + c + "</option>").join("") +
     "</select>" +
-    '<p style="font-size:12px; color:#666; margin:4px 0 0;">New category? Add it on the Settings page (PnL Categories) first.</p><br>' +
+    '<p style="font-size:12px; color:var(--color-text-muted); margin:4px 0 0;">New category? Add it on the Settings page (PnL Categories) first.</p><br>' +
     "<label>Description</label><br>" +
     '<input type="text" id="opexDesc" value="' + (row ? (row.desc || "") : "") + '"><br><br>' +
     "<label>Gross Amount</label><br>" +

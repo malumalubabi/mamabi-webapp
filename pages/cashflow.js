@@ -95,9 +95,9 @@ function buildCashflowLedgerShellHtml() {
         '<button id="cfTab-Cash" onclick="switchCashflowLedgerTab(\'Cash\')">Cash</button>' +
       "</div>" +
       '<div style="display:flex; align-items:center; gap:10px;">' +
-        '<span id="cashflowFilterBadge" style="color:#666; font-size:12px;">' + (_cashflowLedgerCategoryFilter.length ? _cashflowLedgerCategoryFilter.join(", ") : "All") + "</span>" +
+        '<span id="cashflowFilterBadge" style="color:var(--color-text-muted); font-size:12px;">' + (_cashflowLedgerCategoryFilter.length ? _cashflowLedgerCategoryFilter.join(", ") : "All") + "</span>" +
         '<button onclick="openCashflowLogFilterModal()">Set Filter</button>' +
-        '<span id="cashflowLedgerSortBadge" style="color:#666; font-size:12px;">Sort: ' + CASHFLOW_LEDGER_SORT_LABELS[_cashflowLedgerSort] + "</span>" +
+        '<span id="cashflowLedgerSortBadge" style="color:var(--color-text-muted); font-size:12px;">Sort: ' + CASHFLOW_LEDGER_SORT_LABELS[_cashflowLedgerSort] + "</span>" +
         '<button onclick="openCashflowLogSortModal()">Sort</button>' +
         '<button onclick="openCashflowEntryModal()">+ Input Transaction</button>' +
       "</div>" +
@@ -210,7 +210,7 @@ function applyCashflowLedgerFilter() {
 function cashflowRowHtml(r) {
   return (
     "<tr>" +
-      '<td style="white-space:nowrap;">' + r.date + '<br><span style="color:#666; font-size:12px;">' + r.txnCode + "</span></td>" +
+      '<td style="white-space:nowrap;">' + r.date + '<br><span style="color:var(--color-text-muted); font-size:12px;">' + r.txnCode + "</span></td>" +
       "<td>" + r.type + "</td>" +
       "<td>" + r.category + "</td>" +
       "<td>" + (r.description || "") + "</td>" +
@@ -278,7 +278,7 @@ function addCashflowRow() {
     '<div><label>Description</label><br><div class="cfDescCombo" style="min-width:200px;"></div></div>' +
     '<div><label>Amount</label><br><input type="text" class="cfAmount" inputmode="numeric" oninput="formatAmount(this)"></div>' +
     '<div><label>Category</label><br><select class="cfCategory" style="min-width:180px;" onchange="onCashflowCategoryChange(this)"></select></div>' +
-    '<div><label>Type</label><br><input type="text" class="cfType" readonly style="background:#f5f5f5;"></div>' +
+    '<div><label>Type</label><br><input type="text" class="cfType" readonly style="background:var(--color-disabled-bg);"></div>' +
     '<div><label>Notes</label><br><input type="text" class="cfNotes"></div>' +
     '<button type="button" onclick="removeCashflowRow(this)">Remove</button>';
   wrap.appendChild(row);
