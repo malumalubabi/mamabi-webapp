@@ -110,7 +110,10 @@
   <script src="/pages/database.js"></script>
   <script src="/pages/settings.js"></script>
   <script>
-    renderCurrentPage();
+    // Loaded before the first render so formatRupiah/formatPhoneDisplay/
+    // todayISO already reflect Settings > General on every page, not just
+    // after some later re-render (see shared.js's ensureGeneralSettings).
+    ensureGeneralSettings().then(renderCurrentPage);
   </script>
 
 </body>

@@ -13,6 +13,8 @@ let _salesLookups = null;
 let _activeSalesTab = "summary";
 let _lastSalesRows = [];
 let _salesLogChannelFilter = []; // empty = show every Channel (default)
+let _salesLogSort = "date-desc";
+const SALES_LOG_SORT_LABELS = { "date-desc": "Date (Newest)", "date-asc": "Date (Oldest)" };
 
 async function ensureSalesLookups() {
   if (!_salesLookups) _salesLookups = await api("lookups");
@@ -183,6 +185,47 @@ function applySalesLogChannelFilter() {
   renderSalesLogTab(document.getElementById("salesTableWrap"));
 }
 
+function openSalesLogSortModal() {
+  const options = [["date-desc", "Date (Newest)"], ["date-asc", "Date (Oldest)"]];
+  openModal(
+    "<h2>Sort Sales Log</h2>" +
+    options.map(([val, label]) =>
+      '<label style="display:block; margin:6px 0;"><input type="radio" name="salesLogSortOption" value="' + val + '"' + (_salesLogSort === val ? " checked" : "") + "> " + label + "</label>"
+    ).join("") +
+    '<br><button onclick="applySalesLogSort()">Apply</button>'
+  );
+}
+
+function applySalesLogSort() {
+  const selected = document.querySelector('input[name="salesLogSortOption"]:checked');
+  if (!selected) return;
+  _salesLogSort = selected.value;
+  closeModal();
+  renderSalesLogTab(document.getElementById("salesTableWrap"));
+}
+
+// Groups by groupKey first (preserving first-seen order) and sorts the
+// GROUPS by date - not a flat sort of individual rows, which could scatter
+// a multi-product batch/order's lines apart from each other and break
+// withGroupMergeInfo's rowspan merge (it needs same-groupKey rows
+// contiguous). Every line in one group shares the same date already, so
+// this is the group's own date either way.
+function sortSalesGroups(rows) {
+  const order = [];
+  const byKey = new Map();
+  rows.forEach((r) => {
+    if (!byKey.has(r.groupKey)) { byKey.set(r.groupKey, []); order.push(r.groupKey); }
+    byKey.get(r.groupKey).push(r);
+  });
+  const groups = order.map((k) => byKey.get(k));
+  groups.sort((a, b) => {
+    if (a[0].date === b[0].date) return 0;
+    const cmp = a[0].date < b[0].date ? -1 : 1;
+    return _salesLogSort === "date-asc" ? cmp : -cmp;
+  });
+  return groups.flat();
+}
+
 function renderSalesLogTab(wrap) {
   if (!_lastSalesRows.length) {
     wrap.innerHTML = "<h3>Sales Log</h3><p>No sales recorded yet.</p>";
@@ -192,7 +235,7 @@ function renderSalesLogTab(wrap) {
   const filteredRows = _salesLogChannelFilter.length
     ? _lastSalesRows.filter((r) => _salesLogChannelFilter.indexOf(r.platform) !== -1)
     : _lastSalesRows;
-  const rows = withGroupMergeInfo(withGroupRevenueTotals(filteredRows));
+  const rows = withGroupMergeInfo(withGroupRevenueTotals(sortSalesGroups(filteredRows)));
 
   // table-layout:fixed + an explicit colgroup - pagination hides rows via
   // display:none rather than removing them, so with the default auto layout
@@ -204,6 +247,8 @@ function renderSalesLogTab(wrap) {
       '<div style="display:flex; align-items:center; gap:10px;">' +
         '<span id="salesLogFilterBadge" style="color:#666; font-size:12px;">All</span>' +
         '<button onclick="openSalesLogFilterModal()">Set Filter</button>' +
+        '<span id="salesLogSortBadge" style="color:#666; font-size:12px;">Sort: ' + SALES_LOG_SORT_LABELS[_salesLogSort] + "</span>" +
+        '<button onclick="openSalesLogSortModal()">Sort</button>' +
       "</div>" +
     "</div>" +
     '<div id="salesPaginationNav" class="pagination-nav"></div>' +

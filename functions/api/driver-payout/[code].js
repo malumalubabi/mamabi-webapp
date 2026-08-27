@@ -9,6 +9,7 @@
 // now) - same resync helper Mark Paid uses, see functions/api/_lib/opex.js.
 import { getSupabase, getBrandId, jsonResponse, errorResponse } from "../_lib/supabase.js";
 import { resyncDriverPayoutOpexGroup } from "../_lib/opex.js";
+import { normalizeDriverNameRaw } from "../_lib/orders.js";
 
 export async function onRequestPatch({ request, env, params }) {
   try {
@@ -29,10 +30,12 @@ export async function onRequestPatch({ request, env, params }) {
     const oldDriverKey = oldDriverIsStaff ? current.driver_staff_id : current.driver_name_raw;
     const monthKey = String(current.order_date).slice(0, 7); // order_date isn't editable here, month never changes
 
+    const normalizedDriverNameRaw = "driverNameRaw" in body ? normalizeDriverNameRaw(body.driverNameRaw) : undefined;
+
     const update = {};
     if ("deliveryFee" in body) update.delivery_fee = body.deliveryFee;
     if ("driverStaffId" in body) update.driver_staff_id = body.driverStaffId;
-    if ("driverNameRaw" in body) update.driver_name_raw = body.driverNameRaw;
+    if ("driverNameRaw" in body) update.driver_name_raw = normalizedDriverNameRaw;
     if ("driverPayoutMethod" in body) update.driver_payout_method = body.driverPayoutMethod;
     if ("driverPayoutStatus" in body) update.driver_payout_status = body.driverPayoutStatus;
 
@@ -46,7 +49,7 @@ export async function onRequestPatch({ request, env, params }) {
     const newDriverIsStaff = "driverStaffId" in body || "driverNameRaw" in body ? !!body.driverStaffId : oldDriverIsStaff;
     const newDriverKey = newDriverIsStaff
       ? ("driverStaffId" in body ? body.driverStaffId : current.driver_staff_id)
-      : ("driverNameRaw" in body ? body.driverNameRaw : current.driver_name_raw);
+      : ("driverNameRaw" in body ? normalizedDriverNameRaw : current.driver_name_raw);
 
     await resyncDriverPayoutOpexGroup(supabase, brandId, oldDriverKey, oldDriverIsStaff, monthKey);
     if (newDriverKey !== oldDriverKey || newDriverIsStaff !== oldDriverIsStaff) {

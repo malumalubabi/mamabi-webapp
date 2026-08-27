@@ -78,8 +78,12 @@ async function loadOpexData() {
 // old app's OpexSummaryTable.html) ----------
 
 function renderOpexSummary(wrap) {
-  const now = new Date();
-  const monthKey = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
+  // todayISO() (shared.js) is timezone-aware off Settings > General ->
+  // Timezone, not the browser's own local clock - same source dashboard.js
+  // now uses server-side (see functions/api/dashboard.js's monthTotals/
+  // lowStockItems), so "this month" agrees between the two instead of two
+  // different ambient clocks disagreeing right around a month boundary.
+  const monthKey = todayISO().slice(0, 7);
   const monthRows = _lastOpexRows.filter((r) => String(r.date).slice(0, 7) === monthKey);
 
   const seen = [...new Set(monthRows.map((r) => r.category))];
@@ -92,7 +96,7 @@ function renderOpexSummary(wrap) {
     expenseByCategory[c] = monthRows.filter((r) => r.category === c).reduce((sum, r) => sum + r.accruedExpense, 0);
   });
   const total = categories.reduce((sum, c) => sum + expenseByCategory[c], 0);
-  const monthLabel = now.toLocaleString("en-US", { month: "short", year: "numeric" });
+  const monthLabel = new Date(monthKey + "-01T00:00:00Z").toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
 
   wrap.innerHTML =
     '<div id="opexSummaryScrollWrap" style="overflow-x:auto;">' +

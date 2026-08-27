@@ -4,6 +4,15 @@
 // purchase_lines fires the fn_log_cost_update trigger automatically
 // (sku_cost_history), same effect as the old app's "auto SKU/cost update"
 // but handled in the DB instead of app code - no separate warnings needed.
+//
+// Deliberately create-only (no PATCH/DELETE route, no Edit/Delete button on
+// the Purchase Log) - same reasoning as Cashflow's append-only running
+// balance: a purchase's cost_update_log entry (the trigger above) and
+// downstream current_unit_cost/stock_ledger numbers are all derived from it
+// at insert time, so editing or removing a historical purchase after the
+// fact would need to unwind and recompute all of that too, which isn't
+// supported. Fix a mistake with a new corrective purchase (or a Stock
+// Opname) instead of rewriting history.
 import { getSupabase, getBrandId, jsonResponse, errorResponse } from "./_lib/supabase.js";
 import { nextCode } from "./_lib/codes.js";
 
@@ -16,7 +25,7 @@ export async function onRequestGet({ env }) {
       .from("purchases")
       .select(
         "purchase_code, purchase_date, status, method, notes, suppliers(name), " +
-        "purchase_lines(category, qty, unit, total_cost, unit_cost, sku_items(sku, name))"
+        "purchase_lines(category, qty, unit, total_cost, unit_cost, notes, sku_items(sku, name))"
       )
       .eq("brand_id", brandId)
       .order("purchase_code", { ascending: false });
@@ -42,6 +51,7 @@ export async function onRequestGet({ env }) {
           unit: line.unit,
           totalCost: Number(line.total_cost),
           unitCost: Number(line.unit_cost),
+          lineNotes: line.notes,
           status: p.status,
           method: p.method,
           notes: p.notes
@@ -103,7 +113,8 @@ export async function onRequestPost({ request, env }) {
       category: it.category || null,
       qty: it.qty,
       unit: it.unit,
-      total_cost: it.totalCost
+      total_cost: it.totalCost,
+      notes: it.notes || null
     }));
 
     const { error: linesErr } = await supabase.from("purchase_lines").insert(lineRows);

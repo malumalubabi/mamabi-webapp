@@ -53,6 +53,26 @@ function emptyBucket() {
   return { revenueByPlatform: {}, foodCost: 0, packagingCost: 0, opexByCategory: {}, sectionByCategory: {} };
 }
 
+// Rolled-up Revenue/COGS/OPEX totals, cheap to compare instead of diffing
+// every platform/category line - proportionate for a "something changed"
+// flag (a per-line diff would catch a same-total offsetting change, but
+// that's a much rarer case than the actual drift this guards against: a
+// backdated order/opex landing in an already-closed month).
+function bucketTotals(b) {
+  return {
+    revenue: Object.values(b.revenueByPlatform).reduce((s, v) => s + v, 0),
+    cogs: b.foodCost + b.packagingCost,
+    opex: Object.values(b.opexByCategory).reduce((s, v) => s + v, 0)
+  };
+}
+
+function bucketTotalsDiffer(liveBucket, frozenBucket) {
+  const live = bucketTotals(liveBucket);
+  const frozen = bucketTotals(frozenBucket);
+  const EPS = 0.5; // rupiah - tolerate float rounding noise, not real drift
+  return Math.abs(live.revenue - frozen.revenue) > EPS || Math.abs(live.cogs - frozen.cogs) > EPS || Math.abs(live.opex - frozen.opex) > EPS;
+}
+
 // Amortized entries (amort=Yes, period=N) spread their accrued_expense
 // (already gross_amount/period, via the generated column) across N
 // consecutive months starting at entry_date's month, instead of landing
@@ -146,9 +166,14 @@ export async function onRequestGet({ env }) {
     const { monthKeys, nowKey, buckets, salesPlatformOrder, categoryOrder, categoryMetaMap, unpricedNames } = live;
 
     // Closed months: overwrite that month's bucket entirely with the frozen
-    // snapshot instead of the live one just built above.
+    // snapshot instead of the live one just built above - but first compare
+    // the live numbers against the snapshot being frozen-over, so a month
+    // that's drifted since it was closed (a backdated order/opex landing in
+    // it later) can be flagged instead of silently showing stale numbers
+    // with no hint that Recalculate is needed.
     const closedInfo = {};
     const closedBuckets = {};
+    const driftedInfo = {};
     pnlLinesRes.data.forEach((r) => {
       const mk = String(r.period_month).slice(0, 7);
       if (!closedBuckets[mk]) closedBuckets[mk] = emptyBucket();
@@ -162,7 +187,9 @@ export async function onRequestGet({ env }) {
       else if (r.section === "OPEX Variable") { b.opexByCategory[r.category] = amount; b.sectionByCategory[r.category] = "Variable"; }
     });
     Object.keys(closedBuckets).forEach((mk) => {
-      if (buckets[mk]) buckets[mk] = closedBuckets[mk];
+      if (!buckets[mk]) return;
+      driftedInfo[mk] = bucketTotalsDiffer(buckets[mk], closedBuckets[mk]);
+      buckets[mk] = closedBuckets[mk];
     });
 
     const months = monthKeys.map((mk) => ({
@@ -170,7 +197,8 @@ export async function onRequestGet({ env }) {
       label: monthLabel(mk),
       closed: !!closedInfo[mk],
       closedAt: closedInfo[mk] || null,
-      closeable: mk < nowKey
+      closeable: mk < nowKey,
+      drifted: !!driftedInfo[mk]
     }));
 
     const seenPlatforms = new Set();

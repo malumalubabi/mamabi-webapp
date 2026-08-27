@@ -12,7 +12,7 @@
 // go straight to opex_entries directly (not through here), so this guard
 // doesn't block their own legitimate syncing.
 import { getSupabase, getBrandId, jsonResponse, errorResponse } from "../_lib/supabase.js";
-import { getOpexLinkMap } from "../_lib/opex.js";
+import { getOpexLinkMap, isValidOpexCategory } from "../_lib/opex.js";
 
 const PATCHABLE_FIELDS = {
   grossAmount: "gross_amount",
@@ -38,6 +38,10 @@ export async function onRequestPatch({ request, env, params }) {
     if (blocked) return blocked;
 
     const body = await request.json();
+    if ("category" in body && !(await isValidOpexCategory(supabase, brandId, body.category))) {
+      return jsonResponse({ error: "Unknown category: " + body.category + " - add it in Settings (PnL Categories) first." }, 400);
+    }
+
     const update = {};
     for (const [clientKey, column] of Object.entries(PATCHABLE_FIELDS)) {
       if (clientKey in body) update[column] = body[clientKey];

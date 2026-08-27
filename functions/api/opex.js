@@ -6,7 +6,7 @@
 // Payroll/Rent/Utilities/etc., see pages/opex.js's Input Expense modal).
 import { getSupabase, getBrandId, jsonResponse, errorResponse } from "./_lib/supabase.js";
 import { nextCode } from "./_lib/codes.js";
-import { getOpexLinkMap } from "./_lib/opex.js";
+import { getOpexLinkMap, isValidOpexCategory } from "./_lib/opex.js";
 
 export async function onRequestGet({ env }) {
   try {
@@ -56,6 +56,11 @@ export async function onRequestPost({ request, env }) {
 
     const supabase = getSupabase(env);
     const brandId = await getBrandId(supabase);
+
+    if (!(await isValidOpexCategory(supabase, brandId, body.category))) {
+      return jsonResponse({ error: "Unknown category: " + body.category + " - add it in Settings (PnL Categories) first." }, 400);
+    }
+
     const opexCode = await nextCode(supabase, "opex_entries", "opex_code", brandId, "OPX", 4);
 
     // Same guard as the old app's saveOpexEntry_(): amort defaults to "No",

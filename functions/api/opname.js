@@ -60,25 +60,35 @@ export async function onRequestPost({ request, env }) {
     const stockBySku = new Map(stockRes.data.map((s) => [s.sku_id, Number(s.qty_on_hand)]));
     const costBySku = new Map(costRes.data.map((c) => [c.sku_id, Number(c.unit_cost)]));
 
-    const rows = [];
-    for (const it of body.items) {
+    // Each SKU counted in one submission gets its OWN sequential opname_code
+    // (SO-0001, SO-0002, ... - one row = one code, matching the old app's
+    // saveStockOpname() and stock_opname's UNIQUE(brand_id, opname_code)).
+    // nextCode() must be called ONCE up front, not per item inside the loop
+    // - it looks up the current max code in the DB, and nothing here gets
+    // inserted until the bulk insert below, so calling it per item would
+    // hand out the exact same code to every row and blow up that unique
+    // constraint on insert. Same starting-number-then-increment pattern as
+    // functions/api/cashflow.js's multi-entry POST.
+    const startCode = await nextCode(supabase, "stock_opname", "opname_code", brandId, "SO", 4);
+    const startNum = parseInt(startCode.match(/-(\d+)$/)[1], 10);
+
+    const rows = body.items.map((it, i) => {
       const bookBalance = stockBySku.has(it.skuId) ? stockBySku.get(it.skuId) : 0;
       const physicalCount = Number(it.physicalCount);
       const variance = physicalCount - bookBalance;
       const unitCost = costBySku.get(it.skuId);
-      const opnameCode = await nextCode(supabase, "stock_opname", "opname_code", brandId, "SO", 4);
 
-      rows.push({
+      return {
         brand_id: brandId,
-        opname_code: opnameCode,
+        opname_code: "SO-" + String(startNum + i).padStart(4, "0"),
         opname_date: body.date,
         sku_id: it.skuId,
         book_balance: bookBalance,
         physical_count: physicalCount,
         variance_value: unitCost === undefined ? null : Math.round(variance * unitCost * 100) / 100,
         notes: it.notes || null
-      });
-    }
+      };
+    });
 
     const { error: insErr } = await supabase.from("stock_opname").insert(rows);
     if (insErr) throw insErr;

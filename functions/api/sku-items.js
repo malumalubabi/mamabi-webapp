@@ -55,7 +55,11 @@ export async function onRequestPost({ request, env }) {
         category: body.category || null,
         name,
         unit,
-        status: body.status || "Available"
+        // Product's "on" state is "Active", everything else is "Available" -
+        // see pages/database.js's skuStatusOptionsHtml. The form always
+        // sends a real value; this default only matters for a direct API
+        // call that omits status.
+        status: body.status || (itemType === "Product" ? "Active" : "Available")
       })
       .select("id, sku, item_type, category, name, unit, status")
       .single();

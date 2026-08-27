@@ -42,6 +42,29 @@ const CASCADE_RENAME_TARGETS = {
   ]
 };
 
+// Reuses the exact same CASCADE_RENAME_TARGETS map (rename knows how to
+// find every row carrying a value - deleting the value out from under those
+// same rows is the same lookup, just checking existence instead of
+// updating). A value with no cascade targets defined (nothing in the map)
+// has nothing to check and deletes freely.
+async function findListValueUsage(supabase, brandId, listName, value) {
+  const targets = CASCADE_RENAME_TARGETS[listName] || [];
+  const usage = [];
+
+  for (const t of targets) {
+    if (t.kind === "text") {
+      const { count, error } = await supabase.from(t.table).select("id", { count: "exact", head: true }).eq("brand_id", brandId).eq(t.column, value);
+      if (error) throw error;
+      if (count) usage.push(t.table.replace(/_/g, " ") + " (" + count + ")");
+    } else if (t.kind === "array") {
+      const { count, error } = await supabase.from(t.table).select("id", { count: "exact", head: true }).eq("brand_id", brandId).contains(t.column, [value]);
+      if (error) throw error;
+      if (count) usage.push(t.table.replace(/_/g, " ") + " (" + count + ")");
+    }
+  }
+  return usage;
+}
+
 async function runCascadeRename(supabase, brandId, listName, oldValue, newValue) {
   const targets = CASCADE_RENAME_TARGETS[listName] || [];
   if (!targets.length || newValue === oldValue) return;
@@ -157,6 +180,11 @@ export async function onRequestDelete({ request, env }) {
 
     const supabase = getSupabase(env);
     const brandId = await getBrandId(supabase);
+
+    const usage = await findListValueUsage(supabase, brandId, listName, value);
+    if (usage.length) {
+      return jsonResponse({ error: "Can't delete \"" + value + "\" - still used in: " + usage.join(", ") + ". Rename it instead if it needs to change." }, 400);
+    }
 
     const { error, count } = await supabase
       .from("settings_lists")

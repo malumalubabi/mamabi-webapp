@@ -1,10 +1,11 @@
-// Simplified stand-in for the old app's recipe/BOM-driven Batch Production
-// (MenuService.gs startBatch/markBatchDone, scaled off recipe_lines). Our
-// recipe_lines is deliberately empty for now, so there's no BOM to scale -
-// this is direct manual entry instead: pick the output SKU, batch size,
-// yield, and manually list what was consumed, matching how the historical
-// data was migrated. Auto-consume-from-recipe can replace this once
-// recipe_lines is populated.
+// Ported from the old app's recipe/BOM-driven Batch Production
+// (MenuService.gs startBatch/markBatchDone, scaled off recipe_lines).
+// recipe_lines is populated now (Menu Engineering > Costing), and
+// pages/menu.js's Start New Batch modal auto-populates Consumption from it
+// (scaled by Batch Size) when the output SKU is selected - still freely
+// editable by hand afterward, same as the historical-migration rows that
+// predate recipe_lines existing at all. See functions/api/costing.js for
+// the live breakdown both read from.
 import { getSupabase, getBrandId, jsonResponse, errorResponse } from "./_lib/supabase.js";
 
 async function nextBatchCode(supabase, brandId) {
@@ -112,7 +113,8 @@ export async function onRequestPost({ request, env }) {
         consumption_date: body.date,
         sku_id: c.skuId,
         qty: c.qty,
-        source: "Batch Production"
+        source: "Batch Production",
+        notes: c.notes || null
       }));
       const { error: consErr } = await supabase.from("production_consumption").insert(rows);
       if (consErr) {

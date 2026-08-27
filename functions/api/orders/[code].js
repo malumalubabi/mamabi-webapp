@@ -2,6 +2,8 @@
 // table - PATCH /api/orders/ORD-0079. Only touches the fields the client
 // actually sends (status dropdowns, driver, payment), never the items.
 import { getSupabase, getBrandId, jsonResponse, errorResponse } from "../_lib/supabase.js";
+import { buildCostResolver } from "../_lib/costing.js";
+import { recordOrderConsumption, normalizeDriverNameRaw } from "../_lib/orders.js";
 
 const PATCHABLE_FIELDS = {
   orderStatus: "order_status",
@@ -24,6 +26,7 @@ export async function onRequestPatch({ request, env, params }) {
     for (const [clientKey, column] of Object.entries(PATCHABLE_FIELDS)) {
       if (clientKey in body) update[column] = body[clientKey];
     }
+    if ("driverNameRaw" in body) update.driver_name_raw = normalizeDriverNameRaw(body.driverNameRaw);
     if (!Object.keys(update).length) {
       return jsonResponse({ error: "No updatable fields provided" }, 400);
     }
@@ -52,7 +55,8 @@ export async function onRequestPatch({ request, env, params }) {
       fulfillmentStatus: update.fulfillment_status ?? current.fulfillment_status
     };
     const isDone = effective.orderStatus === "Cancelled" || (effective.paymentStatus === "Paid" && effective.fulfillmentStatus !== "Pending");
-    if (isDone && effective.orderStatus !== "Cancelled" && effective.orderStatus !== "Completed") {
+    const becomingCompleted = isDone && effective.orderStatus !== "Cancelled" && effective.orderStatus !== "Completed";
+    if (becomingCompleted) {
       update.order_status = "Completed";
     }
 
@@ -61,10 +65,26 @@ export async function onRequestPatch({ request, env, params }) {
       .update(update)
       .eq("brand_id", brandId)
       .eq("order_code", params.code)
-      .select("order_code")
+      .select("id, order_code, order_date")
       .maybeSingle();
     if (error) throw error;
     if (!data) return jsonResponse({ error: "Order not found: " + params.code }, 404);
+
+    // Deduct stock for direct-recipe Ingredient/Packaging/Operating lines
+    // at the exact moment this order becomes Completed (see _lib/orders.js)
+    // - the far more common path than POST's already-Completed case, since
+    // most orders are created Ongoing and reach Completed later via Mark
+    // Paid/Mark Delivered.
+    if (becomingCompleted) {
+      const { data: items, error: itemsErr } = await supabase
+        .from("order_items")
+        .select("sku_id, qty")
+        .eq("order_id", data.id);
+      if (itemsErr) throw itemsErr;
+
+      const resolver = await buildCostResolver(supabase, brandId);
+      await recordOrderConsumption(supabase, resolver, data.order_code, data.order_date, items.map((it) => ({ skuId: it.sku_id, qty: it.qty })));
+    }
 
     return jsonResponse({ orderCode: data.order_code });
   } catch (err) {

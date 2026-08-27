@@ -48,7 +48,11 @@ export async function onRequestPatch({ request, env, params }) {
       if (!unit) return jsonResponse({ error: "Unit is required" }, 400);
       update.unit = unit;
     }
-    if (body.status !== undefined) update.status = body.status || "Available";
+    // No item_type-blind fallback here (previously always defaulted to
+    // "Available" even for a Product, which uses Active/Inactive) - the
+    // client always sends a real value from skuStatusOptionsHtml's options,
+    // so just trust it.
+    if (body.status !== undefined && body.status) update.status = body.status;
 
     const { data, error } = await supabase
       .from("sku_items")
@@ -74,7 +78,7 @@ export async function onRequestDelete({ env, params }) {
 
     const { data: existing, error: findErr } = await supabase
       .from("sku_items")
-      .select("id")
+      .select("id, item_type")
       .eq("brand_id", brandId)
       .eq("sku", sku)
       .maybeSingle();
@@ -83,7 +87,8 @@ export async function onRequestDelete({ env, params }) {
 
     const usage = await findSkuUsage(supabase, existing.id);
     if (usage.length) {
-      return jsonResponse({ error: "Can't delete " + sku + " - still referenced in: " + usage.join(", ") + ". Set Status to \"Unavailable\" instead." }, 400);
+      const offStatus = existing.item_type === "Product" ? "Inactive" : "Unavailable";
+      return jsonResponse({ error: "Can't delete " + sku + " - still referenced in: " + usage.join(", ") + ". Set Status to \"" + offStatus + "\" instead." }, 400);
     }
 
     const { error: delErr } = await supabase.from("sku_items").delete().eq("id", existing.id);

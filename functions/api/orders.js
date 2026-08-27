@@ -2,6 +2,7 @@ import { getSupabase, getBrandId, jsonResponse, errorResponse } from "./_lib/sup
 import { nextCode } from "./_lib/codes.js";
 import { buildCostResolver } from "./_lib/costing.js";
 import { resyncDriverPayoutOpexGroup } from "./_lib/opex.js";
+import { recordOrderConsumption, normalizeDriverNameRaw } from "./_lib/orders.js";
 
 // Ported from the old app's isOrderDone_() (OrdersService.gs): an order is
 // "done" (History) once it's Cancelled, or once it's Paid AND fulfillment
@@ -59,13 +60,17 @@ export async function onRequestPost({ request, env }) {
 
     const deliveryFee = body.deliveryFee || 0;
 
+    // Normalized once so every downstream use (isGrabExpress check, the
+    // stored column, and the OpEx grouping call below) agrees on the exact
+    // same string - see _lib/orders.js's normalizeDriverNameRaw.
+    const driverNameRaw = normalizeDriverNameRaw(body.driverNameRaw);
+
     // GrabExpress is paid cash to the driver on pickup, real-time per
     // delivery - unlike internal drivers (Rian/Aaron/Chris) who get paid
     // lumpsum later, it never needs to sit in Unpaid Payout waiting for a
-    // manual Mark Paid. Case-insensitive so "grabexpress"/"GrabExpress "
-    // etc. still match; only driver_name_raw (external), never a
+    // manual Mark Paid. Only driver_name_raw (external), never a
     // driver_staff_id (internal), per the user's explicit instruction.
-    const isGrabExpress = typeof body.driverNameRaw === "string" && body.driverNameRaw.trim().toLowerCase() === "grabexpress";
+    const isGrabExpress = driverNameRaw === "GrabExpress";
 
     // order_status is derived, never a manual field (see isOrderDone above
     // and functions/api/orders/[code].js's PATCH, which re-derives the same
@@ -88,7 +93,7 @@ export async function onRequestPost({ request, env }) {
       payment_method: body.paymentMethod || null,
       delivery_fee: deliveryFee,
       driver_staff_id: body.driverStaffId || null,
-      driver_name_raw: body.driverNameRaw || null,
+      driver_name_raw: driverNameRaw,
       notes: body.notes || null
     };
     if (isGrabExpress) {
@@ -133,6 +138,14 @@ export async function onRequestPost({ request, env }) {
       throw itemsErr;
     }
 
+    // Deduct stock for direct-recipe Ingredient/Packaging/Operating lines
+    // when an order arrives already Completed (Paid + fulfilled in one
+    // shot) - see _lib/orders.js. Reuses the same resolver as the cost
+    // snapshots above.
+    if (orderStatus === "Completed") {
+      await recordOrderConsumption(supabase, resolver, order.order_code, body.orderDate, body.items);
+    }
+
     // Same Driver Payout OpEx group (per driver+month, see
     // functions/api/_lib/opex.js's resyncDriverPayoutOpexGroup) as Mark Paid
     // uses - GrabExpress's fee is still a real MaMaBi expense, not a
@@ -140,7 +153,7 @@ export async function onRequestPost({ request, env }) {
     // every other driver instead of staying fragmented one-entry-per-order
     // forever. Skipped for a zero fee (free delivery).
     if (isGrabExpress && deliveryFee > 0) {
-      await resyncDriverPayoutOpexGroup(supabase, brandId, body.driverNameRaw, false, body.orderDate.slice(0, 7));
+      await resyncDriverPayoutOpexGroup(supabase, brandId, driverNameRaw, false, body.orderDate.slice(0, 7));
     }
 
     return jsonResponse({ orderCode: order.order_code }, 201);

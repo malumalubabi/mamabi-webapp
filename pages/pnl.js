@@ -59,9 +59,18 @@ function monthHeaderHtml(m) {
   );
 }
 
+// A closed month's frozen snapshot can drift from live if an order/opex
+// backdated into it lands AFTER it was closed - Total Revenue/COGS/OPEX are
+// compared server-side (functions/api/pnl.js's bucketTotalsDiffer) so this
+// shows up instead of the numbers just quietly going stale with no hint
+// that Recalculate is needed.
 function monthActionHtml(m) {
   if (m.closed) {
+    const driftBadge = m.drifted
+      ? '<span style="font-size:11px; color:#b00020; white-space:nowrap;" title="Live data no longer matches this closed snapshot - click Recalculate to update it.">&#9888; Data changed since close</span>'
+      : "";
     return (
+      driftBadge +
       '<span style="font-size:11px; color:#666; white-space:nowrap;">&#128274; Closed ' + formatPnlClosedDate(m.closedAt) + "</span>" +
       '<button style="font-size:11px;" onclick="closeOrRecalculatePnlMonth(\'' + m.key + '\', true)">Recalculate</button>'
     );

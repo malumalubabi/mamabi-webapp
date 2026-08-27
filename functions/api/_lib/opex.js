@@ -1,5 +1,25 @@
 import { nextCode } from "./codes.js";
 
+// Manual OpEx entries (functions/api/opex.js's POST, functions/api/opex/
+// [code].js's PATCH) let category through as free text with nothing
+// checking it against settings_lists "PnL Categories" - unlike
+// functions/api/cashflow.js's POST, which already validates its category
+// the same way. A category that doesn't match any managed list value falls
+// through pnl.js's Fixed/Variable split as "Variable" (categoryMetaMap
+// lookup misses -> defaults there), silently misclassifying it instead of
+// erroring at entry time.
+export async function isValidOpexCategory(supabase, brandId, category) {
+  const { data, error } = await supabase
+    .from("settings_lists")
+    .select("value")
+    .eq("brand_id", brandId)
+    .eq("list_name", "PnL Categories")
+    .eq("value", category)
+    .maybeSingle();
+  if (error) throw error;
+  return !!data;
+}
+
 // Cross-reference helper - opex_entries has no column pointing back to what
 // created it, so "is this row auto-linked" is answered by checking whether
 // its opex_code shows up as a link column on orders (Driver Payout) or

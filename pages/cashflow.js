@@ -97,6 +97,8 @@ function buildCashflowLedgerShellHtml() {
       '<div style="display:flex; align-items:center; gap:10px;">' +
         '<span id="cashflowFilterBadge" style="color:#666; font-size:12px;">' + (_cashflowLedgerCategoryFilter.length ? _cashflowLedgerCategoryFilter.join(", ") : "All") + "</span>" +
         '<button onclick="openCashflowLogFilterModal()">Set Filter</button>' +
+        '<span id="cashflowLedgerSortBadge" style="color:#666; font-size:12px;">Sort: ' + CASHFLOW_LEDGER_SORT_LABELS[_cashflowLedgerSort] + "</span>" +
+        '<button onclick="openCashflowLogSortModal()">Sort</button>' +
         '<button onclick="openCashflowEntryModal()">+ Input Transaction</button>' +
       "</div>" +
     "</div>" +
@@ -125,6 +127,8 @@ function switchCashflowLedgerTab(account) {
 
 let _lastCashflowLedgerRows = [];
 let _cashflowLedgerCategoryFilter = []; // empty = show every Category (default)
+let _cashflowLedgerSort = "date-desc";
+const CASHFLOW_LEDGER_SORT_LABELS = { "date-desc": "Date (Newest)", "date-asc": "Date (Oldest)" };
 
 async function loadCashflowLedger(account) {
   const tbody = document.getElementById("cashflowLedgerTbody");
@@ -140,12 +144,39 @@ function renderCashflowLedgerRows() {
   const tbody = document.getElementById("cashflowLedgerTbody");
   if (!tbody) return;
 
-  const rows = _cashflowLedgerCategoryFilter.length
+  const sortBadge = document.getElementById("cashflowLedgerSortBadge");
+  if (sortBadge) sortBadge.textContent = "Sort: " + CASHFLOW_LEDGER_SORT_LABELS[_cashflowLedgerSort];
+
+  const filtered = _cashflowLedgerCategoryFilter.length
     ? _lastCashflowLedgerRows.filter((r) => _cashflowLedgerCategoryFilter.indexOf(r.category) !== -1)
     : _lastCashflowLedgerRows;
+  const rows = filtered.slice().sort((a, b) => {
+    if (a.date === b.date) return 0;
+    const cmp = a.date < b.date ? -1 : 1;
+    return _cashflowLedgerSort === "date-asc" ? cmp : -cmp;
+  });
 
   tbody.innerHTML = rows.length ? rows.map(cashflowRowHtml).join("") : '<tr><td colspan="8">No transactions match this filter.</td></tr>';
   paginateTable("cashflowLedgerTbody", "cashflowLedgerPaginationNav", 20);
+}
+
+function openCashflowLogSortModal() {
+  const options = [["date-desc", "Date (Newest)"], ["date-asc", "Date (Oldest)"]];
+  openModal(
+    "<h2>Sort Cashflow Ledger</h2>" +
+    options.map(([val, label]) =>
+      '<label style="display:block; margin:6px 0;"><input type="radio" name="cashflowLedgerSortOption" value="' + val + '"' + (_cashflowLedgerSort === val ? " checked" : "") + "> " + label + "</label>"
+    ).join("") +
+    '<br><button onclick="applyCashflowLedgerSort()">Apply</button>'
+  );
+}
+
+function applyCashflowLedgerSort() {
+  const selected = document.querySelector('input[name="cashflowLedgerSortOption"]:checked');
+  if (!selected) return;
+  _cashflowLedgerSort = selected.value;
+  closeModal();
+  renderCashflowLedgerRows();
 }
 
 function openCashflowLogFilterModal() {

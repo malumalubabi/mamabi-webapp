@@ -1,4 +1,22 @@
 -- ============================================================================
+-- ⚠ STALE - this file is the INITIAL migration only (2026-08-20), applied to
+-- Supabase as "mamabi_full_schema". 25 further migrations have been applied
+-- directly against the live project since (never written back here) - as of
+-- 2026-08-27 the live schema includes things this file knows nothing about:
+-- opex_entries, the whole Sales module (sales_batches/sales_entries), the
+-- Cashflow Category settings list, pnl_lines.closed_at, driver_payout_method,
+-- selling_price/base_yield_qty columns, sku display_order/registry_order,
+-- recipe_lines.line_order, RLS on opex_entries, orders.channel and
+-- order_items.cost_snapshot_source (added then later dropped again unused),
+-- and more - see the full list via the Supabase MCP tool's list_migrations,
+-- or query information_schema.columns/pg_constraint/pg_views directly.
+-- Do NOT treat this file as the current schema - it's a historical record of
+-- day one only. No attempt was made to regenerate it in full here: a
+-- manually-reconstructed dump risks being subtly wrong in a way that reads
+-- as authoritative, which is worse than this file just being visibly old.
+-- ============================================================================
+
+-- ============================================================================
 -- MaMaBi (MaluMaluBabi) — Full Schema Migration
 -- From: Google Sheets (Apps Script) -> Postgres (Supabase)
 -- ============================================================================

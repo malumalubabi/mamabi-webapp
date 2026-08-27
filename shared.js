@@ -3,12 +3,37 @@
 // only real change is withSaveStatus now wraps a fetch()-returning function
 // instead of google.script.run.
 
+// ---------- General settings (Currency Symbol / Phone Country Code /
+// Timezone) ----------
+//
+// Loaded once at app bootstrap (see index.html - awaited before the first
+// renderCurrentPage()) and cached here so formatRupiah/formatAmount/
+// formatPhoneDisplay/todayISO actually reflect what's configured in
+// Settings > General, instead of being permanently hardcoded regardless of
+// what's saved there. Defaults below match this brand's actual current
+// settings values, so a failed/slow fetch degrades to today's behavior,
+// not broken formatting.
+let _generalSettings = { currencySymbol: "Rp", phoneCountryCode: "62", timezone: "Asia/Makassar" };
+
+async function ensureGeneralSettings() {
+  try {
+    const data = await api("settings");
+    const byKey = {};
+    data.general.forEach((g) => { byKey[g.key] = g.value; });
+    if (byKey["Currency Symbol"]) _generalSettings.currencySymbol = byKey["Currency Symbol"];
+    if (byKey["Phone Country Code"]) _generalSettings.phoneCountryCode = byKey["Phone Country Code"];
+    if (byKey["Timezone"]) _generalSettings.timezone = byKey["Timezone"];
+  } catch (err) {
+    // Keep the defaults above - a failed settings fetch shouldn't block the app from loading.
+  }
+}
+
 // ---------- Formatting ----------
 
 function formatRupiah(value) {
   const num = Math.round(Number(value) || 0);
   const sign = num < 0 ? "-" : "";
-  return sign + "Rp " + Math.abs(num).toLocaleString("id-ID");
+  return sign + _generalSettings.currencySymbol + " " + Math.abs(num).toLocaleString("id-ID");
 }
 
 // Ported from the old app's 00 Core/Utils.gs formatPercent() - value is a
@@ -21,7 +46,7 @@ function formatPercent(value) {
 // Strips everything but digits, redisplays as "Rp 12.345".
 function formatAmount(input) {
   const digits = input.value.replace(/\D/g, "");
-  input.value = digits ? "Rp " + Number(digits).toLocaleString("id-ID") : "";
+  input.value = digits ? _generalSettings.currencySymbol + " " + Number(digits).toLocaleString("id-ID") : "";
 }
 
 // Reverse of formatAmount - pull the raw number back out of a formatted field.
@@ -33,7 +58,7 @@ function parseAmount(value) {
 // remainder split evenly (even -> 2 equal halves; odd divisible by 3 ->
 // groups of 3; other odd -> floor/ceil halves). countryCode defaults to 62.
 function formatPhoneDisplay(raw, countryCode) {
-  countryCode = countryCode || "62";
+  countryCode = countryCode || _generalSettings.phoneCountryCode;
   let digits = String(raw || "").replace(/\D/g, "");
   if (!digits) return "";
   if (digits.indexOf(countryCode) === 0) digits = "0" + digits.slice(countryCode.length);
@@ -58,10 +83,18 @@ function formatPhoneDisplay(raw, countryCode) {
   return groups.join("-");
 }
 
+// "Today" in the configured Timezone setting (not the browser's local
+// zone) - matches the old app's TIMEZONE-based date formatting. en-CA
+// formats as YYYY-MM-DD directly, no manual parsing needed.
 function todayISO() {
-  const d = new Date();
-  const tz = d.getTimezoneOffset() * 60000;
-  return new Date(d - tz).toISOString().slice(0, 10);
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: _generalSettings.timezone }).format(new Date());
+  } catch (err) {
+    // Unset/invalid timezone string - fall back to the browser's local date.
+    const d = new Date();
+    const tz = d.getTimezoneOffset() * 60000;
+    return new Date(d - tz).toISOString().slice(0, 10);
+  }
 }
 
 // ---------- Save status ("Saving X..." -> "X saved.") ----------

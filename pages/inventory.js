@@ -235,11 +235,21 @@ function saveMinStock(btn) {
 
 // ================================================================
 // Purchase Log - ported from 04 Inventory/StockInEntry.html +
-// StockInEntry_JS.html (form) and StockInTable.html (grouped log table)
+// StockInEntry_JS.html (form) and StockInTable.html (grouped log table).
+// No per-row Edit/Delete here on purpose - see functions/api/purchases.js's
+// file comment (create-only, same reasoning as Cashflow's append-only
+// ledger - cost/stock numbers derived from a purchase at insert time aren't
+// safe to silently recompute after the fact).
 // ================================================================
 
 let _supplierCombo = null;
 let _purchasePaginationTargetSize = 20;
+let _lastPurchaseRows = [];
+let _purchaseCategoryFilter = []; // empty = show every Category (default)
+let _purchaseStatusFilter = []; // empty = show every Status (default)
+let _purchaseSort = "date-desc";
+
+const PURCHASE_SORT_LABELS = { "date-desc": "Date (Newest)", "date-asc": "Date (Oldest)" };
 
 async function renderPurchasesTab(wrap) {
   wrap.innerHTML = buildPurchaseTableShellHtml();
@@ -340,6 +350,7 @@ function addPurchaseItemRow() {
     '<div><label>Unit</label><br><input type="text" class="unit" disabled style="background:#f5f5f5; width:55px;"></div>' +
     '<div><label>Qty</label><br><input type="number" class="qty" min="0" step="any"></div>' +
     '<div><label>Cost</label><br><input type="text" class="totalCost" inputmode="numeric" oninput="formatAmount(this); recalcPurchaseGrandTotal()"></div>' +
+    '<div><label>Notes</label><br><input type="text" class="lineNotes" style="width:140px;"></div>' +
     '<button type="button" onclick="removePurchaseItemRow(this)">Remove</button>';
   wrap.appendChild(row);
 
@@ -388,7 +399,8 @@ function collectPurchaseItems() {
       category: item ? item.category || null : null,
       unit: item ? item.unit : "",
       qty: qty,
-      totalCost: totalCost
+      totalCost: totalCost,
+      notes: row.querySelector(".lineNotes").value.trim() || null
     });
   });
   return items;
@@ -439,9 +451,15 @@ async function savePurchase() {
 
 function buildPurchaseTableShellHtml() {
   return (
-    '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+    '<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">' +
       "<h3>Purchase Log</h3>" +
-      '<button onclick="openPurchaseModal()">+ Input Purchase</button>' +
+      '<div style="display:flex; align-items:center; gap:10px;">' +
+        '<span id="purchaseFilterBadge" style="color:#666; font-size:12px;">All</span>' +
+        '<button onclick="openPurchaseFilterModal()">Set Filter</button>' +
+        '<span id="purchaseSortBadge" style="color:#666; font-size:12px;">Sort: ' + PURCHASE_SORT_LABELS[_purchaseSort] + "</span>" +
+        '<button onclick="openPurchaseSortModal()">Sort</button>' +
+        '<button onclick="openPurchaseModal()">+ Input Purchase</button>' +
+      "</div>" +
     "</div>" +
     "<style>" +
       "#purchaseLogTable { table-layout: fixed; }" +
@@ -469,12 +487,115 @@ function buildPurchaseTableShellHtml() {
 }
 
 async function loadPurchaseTable() {
-  const rows = await api("purchases");
+  _lastPurchaseRows = await api("purchases");
+  if (!document.getElementById("purchaseLogTbody")) return;
+  renderPurchaseLogRows();
+}
+
+// Regroups from scratch (purchaseCode-contiguous runs, first-seen order)
+// instead of trusting the server's groupStart/groupSize - those only match
+// the server's own fetch order, which filtering/sorting here changes.
+function regroupPurchaseRows(rows) {
+  const order = [];
+  const byCode = new Map();
+  rows.forEach((r) => {
+    if (!byCode.has(r.purchaseCode)) { byCode.set(r.purchaseCode, []); order.push(r.purchaseCode); }
+    byCode.get(r.purchaseCode).push(r);
+  });
+  return order.map((code) => byCode.get(code));
+}
+
+function flattenPurchaseGroups(groups) {
+  const flat = [];
+  groups.forEach((g) => g.forEach((r, i) => flat.push(Object.assign({}, r, { groupStart: i === 0, groupSize: g.length }))));
+  return flat;
+}
+
+// Category is filtered at the LINE level (a multi-item purchase can have
+// some lines match and some not - useful on its own, e.g. "every time we
+// bought X" regardless of what else was in that purchase), Status at the
+// group level (same value on every line of one purchase already). Sort
+// always operates on whole groups (by that purchase's date).
+function visiblePurchaseRows() {
+  const filtered = _lastPurchaseRows.filter((r) =>
+    (!_purchaseCategoryFilter.length || _purchaseCategoryFilter.indexOf(r.category || "") !== -1) &&
+    (!_purchaseStatusFilter.length || _purchaseStatusFilter.indexOf(r.status) !== -1)
+  );
+  const groups = regroupPurchaseRows(filtered);
+  groups.sort((a, b) => {
+    if (a[0].date === b[0].date) return 0;
+    const cmp = a[0].date < b[0].date ? -1 : 1;
+    return _purchaseSort === "date-asc" ? cmp : -cmp;
+  });
+  return flattenPurchaseGroups(groups);
+}
+
+function renderPurchaseLogRows() {
   const tbody = document.getElementById("purchaseLogTbody");
   if (!tbody) return;
-  tbody.innerHTML = rows.length ? rows.map(purchaseRowHtml).join("") : '<tr><td colspan="9">No purchases yet.</td></tr>';
+
+  const filterBadge = document.getElementById("purchaseFilterBadge");
+  if (filterBadge) {
+    const parts = [].concat(_purchaseCategoryFilter, _purchaseStatusFilter);
+    filterBadge.textContent = parts.length ? parts.join(", ") : "All";
+  }
+  const sortBadge = document.getElementById("purchaseSortBadge");
+  if (sortBadge) sortBadge.textContent = "Sort: " + PURCHASE_SORT_LABELS[_purchaseSort];
+
+  const rows = visiblePurchaseRows();
+  tbody.innerHTML = rows.length ? rows.map(purchaseRowHtml).join("") : '<tr><td colspan="9">No purchases match this filter.</td></tr>';
   paginateGroupedTable("purchaseLogTbody", "purchasePaginationNav", 20);
   enableDragScroll(document.getElementById("purchaseLogScrollWrap"));
+}
+
+function openPurchaseFilterModal() {
+  const categories = [...new Set(_lastPurchaseRows.map((r) => r.category || "").filter(Boolean))].sort();
+  const statuses = [...new Set(_lastPurchaseRows.map((r) => r.status).filter(Boolean))].sort();
+
+  const categoryChecks = categories.map((c) =>
+    '<label style="display:block; margin:4px 0;"><input type="checkbox" class="purchaseCategoryFilterCheck" value="' + c + '"' + (_purchaseCategoryFilter.indexOf(c) !== -1 ? " checked" : "") + "> " + c + "</label>"
+  ).join("");
+  const statusChecks = statuses.map((s) =>
+    '<label style="display:block; margin:4px 0;"><input type="checkbox" class="purchaseStatusFilterCheck" value="' + s + '"' + (_purchaseStatusFilter.indexOf(s) !== -1 ? " checked" : "") + "> " + s + "</label>"
+  ).join("");
+
+  openModal(
+    "<h2>Set Filter</h2>" +
+    "<label>Category</label>" +
+    "<div>" + categoryChecks + "</div><br>" +
+    "<label>Status</label>" +
+    "<div>" + statusChecks + "</div>" +
+    '<div style="margin-top:16px;">' +
+      '<button onclick="closeModal()">Cancel</button> ' +
+      '<button onclick="applyPurchaseFilter()">Apply Filter</button>' +
+    "</div>"
+  );
+}
+
+function applyPurchaseFilter() {
+  _purchaseCategoryFilter = Array.from(document.querySelectorAll(".purchaseCategoryFilterCheck:checked")).map((cb) => cb.value);
+  _purchaseStatusFilter = Array.from(document.querySelectorAll(".purchaseStatusFilterCheck:checked")).map((cb) => cb.value);
+  closeModal();
+  renderPurchaseLogRows();
+}
+
+function openPurchaseSortModal() {
+  const options = [["date-desc", "Date (Newest)"], ["date-asc", "Date (Oldest)"]];
+  openModal(
+    "<h2>Sort Purchase Log</h2>" +
+    options.map(([val, label]) =>
+      '<label style="display:block; margin:6px 0;"><input type="radio" name="purchaseSortOption" value="' + val + '"' + (_purchaseSort === val ? " checked" : "") + "> " + label + "</label>"
+    ).join("") +
+    '<br><button onclick="applyPurchaseSort()">Apply</button>'
+  );
+}
+
+function applyPurchaseSort() {
+  const selected = document.querySelector('input[name="purchaseSortOption"]:checked');
+  if (!selected) return;
+  _purchaseSort = selected.value;
+  closeModal();
+  renderPurchaseLogRows();
 }
 
 function purchaseRowHtml(r) {
@@ -493,7 +614,9 @@ function purchaseRowHtml(r) {
     '<tr class="' + (r.groupStart ? "group-start" : "") + '">' +
       groupCells +
       '<td title="' + (r.category || "") + '">' + (r.category || "") + "</td>" +
-      '<td title="' + r.itemName + '">' + r.itemName + "</td>" +
+      '<td title="' + r.itemName + (r.lineNotes ? " - " + r.lineNotes : "") + '">' + r.itemName +
+        (r.lineNotes ? '<br><span style="color:#666; font-size:11px;">' + r.lineNotes + "</span>" : "") +
+      "</td>" +
       "<td>" + r.qty + "</td>" +
       "<td>" + r.unit + "</td>" +
       "<td>" + formatRupiah(r.totalCost) + "</td>" +
@@ -522,6 +645,11 @@ async function openOpnameModal() {
   await loadOpnameChecklist();
 }
 
+// Column order is Item/Unit/Book Balance/Physical Count/Notes/Done - Done
+// last (right edge of the row), not leading, per explicit request. Type/
+// Category filters sit top-right, opposite Date/Search - condensed column
+// widths (colgroup + table-layout:fixed) so the whole checklist fits a
+// tablet screen without horizontal scrolling.
 function buildOpnameFormHtml() {
   return (
     "<h2>Input Stock Opname</h2>" +
@@ -532,14 +660,25 @@ function buildOpnameFormHtml() {
       '<input type="date" id="opnameDate">' +
     "</div><br><br>" +
 
-    "<label>Search Item</label><br>" +
-    '<input type="text" id="opnameItemFilter" placeholder="SKU or item name..." oninput="filterOpnameRows()">' +
-    "<br><br>" +
+    '<div style="display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:10px;">' +
+      "<div>" +
+        "<label>Search Item</label><br>" +
+        '<input type="text" id="opnameItemFilter" placeholder="SKU or item name..." style="width:180px;" oninput="filterOpnameRows()">' +
+      "</div>" +
+      '<div style="display:flex; gap:10px;">' +
+        '<div><label>Type</label><br><select id="opnameTypeFilter" style="width:130px;" onchange="filterOpnameRows()"><option value="">All Types</option></select></div>' +
+        '<div><label>Category</label><br><select id="opnameCategoryFilter" style="width:130px;" onchange="filterOpnameRows()"><option value="">All Categories</option></select></div>' +
+      "</div>" +
+    "</div><br>" +
 
-    "<table>" +
-      "<thead><tr><th>Done</th><th>Item</th><th>Unit</th><th>Book Balance</th><th>Physical Count</th><th>Notes</th></tr></thead>" +
-      '<tbody id="opnameChecklistBody"><tr><td colspan="6">Loading...</td></tr></tbody>' +
-    "</table><br>" +
+    '<div id="opnameChecklistScrollWrap" style="overflow-x:auto;">' +
+      '<table style="table-layout:fixed; min-width:630px;">' +
+        '<colgroup><col style="width:200px;"><col style="width:50px;"><col style="width:85px;">' +
+          '<col style="width:90px;"><col style="width:140px;"><col style="width:50px;"></colgroup>' +
+        "<thead><tr><th>Item</th><th>Unit</th><th>Book Balance</th><th>Physical Count</th><th>Notes</th><th>Done</th></tr></thead>" +
+        '<tbody id="opnameChecklistBody"><tr><td colspan="6">Loading...</td></tr></tbody>' +
+      "</table>" +
+    "</div><br>" +
 
     '<button id="saveOpnameBtn" onclick="saveStockOpname()">Save</button>' +
     '<span id="saveOpnameStatus" class="save-status"></span>'
@@ -548,6 +687,7 @@ function buildOpnameFormHtml() {
 
 function initOpnameForm() {
   setOpnameToday();
+  enableDragScroll(document.getElementById("opnameChecklistScrollWrap"));
 }
 
 function setOpnameToday() {
@@ -562,21 +702,38 @@ async function loadOpnameChecklist() {
   const items = await api("inventory/overview");
   if (!document.getElementById("opnameChecklistBody")) return;
 
+  populateOpnameFilterOptions(items);
+
   tbody.innerHTML = "";
   items.forEach((item) => {
     const tr = document.createElement("tr");
     tr.dataset.skuId = item.id;
     tr.dataset.sku = item.sku;
     tr.dataset.name = item.name;
+    tr.dataset.itemType = item.itemType || "";
+    tr.dataset.category = item.category || "";
     tr.innerHTML =
-      '<td><input type="checkbox" onchange="toggleOpnameRowLock(this)"></td>' +
       "<td>" + item.name + '<br><span style="color:#666; font-size:12px;">' + item.sku + "</span></td>" +
       "<td>" + item.unit + "</td>" +
       "<td>" + item.currentStock + "</td>" +
-      '<td><input type="number" class="physicalCount" min="0" step="any" style="width:90px;"></td>' +
-      '<td><input type="text" class="notes"></td>';
+      '<td><input type="number" class="physicalCount" min="0" step="any" style="width:100%; box-sizing:border-box;"></td>' +
+      '<td><input type="text" class="notes" style="width:100%; box-sizing:border-box;"></td>' +
+      '<td><input type="checkbox" onchange="toggleOpnameRowLock(this)"></td>';
     tbody.appendChild(tr);
   });
+}
+
+// Options built from whatever's actually in the checklist (not a separate
+// fixed list) - same "seen values only" approach as other ad-hoc filters in
+// this app (e.g. pages/sales.js's channel filter).
+function populateOpnameFilterOptions(items) {
+  const types = [...new Set(items.map((i) => i.itemType).filter(Boolean))].sort();
+  const categories = [...new Set(items.map((i) => i.category).filter(Boolean))].sort();
+
+  const typeSelect = document.getElementById("opnameTypeFilter");
+  const categorySelect = document.getElementById("opnameCategoryFilter");
+  if (typeSelect) typeSelect.innerHTML = '<option value="">All Types</option>' + types.map((t) => "<option>" + t + "</option>").join("");
+  if (categorySelect) categorySelect.innerHTML = '<option value="">All Categories</option>' + categories.map((c) => "<option>" + c + "</option>").join("");
 }
 
 function toggleOpnameRowLock(checkbox) {
@@ -602,10 +759,16 @@ function toggleOpnameRowLock(checkbox) {
 
 function filterOpnameRows() {
   const query = document.getElementById("opnameItemFilter").value.trim().toLowerCase();
+  const typeFilter = document.getElementById("opnameTypeFilter").value;
+  const categoryFilter = document.getElementById("opnameCategoryFilter").value;
+
   document.querySelectorAll("#opnameChecklistBody tr").forEach((row) => {
     const sku = (row.dataset.sku || "").toLowerCase();
     const name = (row.dataset.name || "").toLowerCase();
-    row.style.display = (!query || sku.indexOf(query) !== -1 || name.indexOf(query) !== -1) ? "" : "none";
+    const matchesQuery = !query || sku.indexOf(query) !== -1 || name.indexOf(query) !== -1;
+    const matchesType = !typeFilter || row.dataset.itemType === typeFilter;
+    const matchesCategory = !categoryFilter || row.dataset.category === categoryFilter;
+    row.style.display = (matchesQuery && matchesType && matchesCategory) ? "" : "none";
   });
 }
 
@@ -688,22 +851,98 @@ function opnameRowHtml(r) {
 // doesn't deduct stock for yet).
 // ================================================================
 
+let _lastConsumptionRows = [];
+let _consumptionSourceFilter = []; // empty = show every Source (default)
+let _consumptionSort = "date-desc";
+const CONSUMPTION_SORT_LABELS = { "date-desc": "Date (Newest)", "date-asc": "Date (Oldest)" };
+
 async function renderConsumptionLogTab(wrap) {
-  const rows = await api("consumption-log");
-  if (!rows.length) {
+  _lastConsumptionRows = await api("consumption-log");
+  if (!_lastConsumptionRows.length) {
     wrap.innerHTML = "<p>No consumption recorded yet.</p>";
     return;
   }
 
   wrap.innerHTML =
-    "<h3>Consumption Log</h3>" +
+    '<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">' +
+      "<h3>Consumption Log</h3>" +
+      '<div style="display:flex; align-items:center; gap:10px;">' +
+        '<span id="consumptionFilterBadge" style="color:#666; font-size:12px;">All</span>' +
+        '<button onclick="openConsumptionFilterModal()">Set Filter</button>' +
+        '<span id="consumptionSortBadge" style="color:#666; font-size:12px;">Sort: ' + CONSUMPTION_SORT_LABELS[_consumptionSort] + "</span>" +
+        '<button onclick="openConsumptionSortModal()">Sort</button>' +
+      "</div>" +
+    "</div>" +
     '<div id="consumptionPaginationNav" class="pagination-nav"></div>' +
     "<table>" +
       "<thead><tr><th>Ref ID</th><th>Date</th><th>Item</th><th>Qty</th><th>Source</th><th>Notes</th></tr></thead>" +
-      '<tbody id="consumptionTbody">' + rows.map(consumptionRowHtml).join("") + "</tbody>" +
+      '<tbody id="consumptionTbody"></tbody>' +
     "</table>";
 
+  renderConsumptionLogRows();
+}
+
+function renderConsumptionLogRows() {
+  const tbody = document.getElementById("consumptionTbody");
+  if (!tbody) return;
+
+  const filterBadge = document.getElementById("consumptionFilterBadge");
+  if (filterBadge) filterBadge.textContent = _consumptionSourceFilter.length ? _consumptionSourceFilter.join(", ") : "All";
+  const sortBadge = document.getElementById("consumptionSortBadge");
+  if (sortBadge) sortBadge.textContent = "Sort: " + CONSUMPTION_SORT_LABELS[_consumptionSort];
+
+  const filtered = _consumptionSourceFilter.length
+    ? _lastConsumptionRows.filter((r) => _consumptionSourceFilter.indexOf(r.source || "") !== -1)
+    : _lastConsumptionRows;
+  const rows = filtered.slice().sort((a, b) => {
+    if (a.date === b.date) return 0;
+    const cmp = a.date < b.date ? -1 : 1;
+    return _consumptionSort === "date-asc" ? cmp : -cmp;
+  });
+
+  tbody.innerHTML = rows.length ? rows.map(consumptionRowHtml).join("") : '<tr><td colspan="6">No consumption matches this filter.</td></tr>';
   paginateTable("consumptionTbody", "consumptionPaginationNav", 20);
+}
+
+function openConsumptionFilterModal() {
+  const sources = [...new Set(_lastConsumptionRows.map((r) => r.source || "").filter(Boolean))].sort();
+  const checkboxes = sources.map((s) =>
+    '<label style="display:block; margin:4px 0;"><input type="checkbox" class="consumptionSourceFilterCheck" value="' + s + '"' + (_consumptionSourceFilter.indexOf(s) !== -1 ? " checked" : "") + "> " + s + "</label>"
+  ).join("");
+
+  openModal(
+    "<h2>Set Filter - Source</h2>" +
+    "<div>" + checkboxes + "</div>" +
+    '<div style="margin-top:16px;">' +
+      '<button onclick="closeModal()">Cancel</button> ' +
+      '<button onclick="applyConsumptionFilter()">Apply Filter</button>' +
+    "</div>"
+  );
+}
+
+function applyConsumptionFilter() {
+  _consumptionSourceFilter = Array.from(document.querySelectorAll(".consumptionSourceFilterCheck:checked")).map((cb) => cb.value);
+  closeModal();
+  renderConsumptionLogRows();
+}
+
+function openConsumptionSortModal() {
+  const options = [["date-desc", "Date (Newest)"], ["date-asc", "Date (Oldest)"]];
+  openModal(
+    "<h2>Sort Consumption Log</h2>" +
+    options.map(([val, label]) =>
+      '<label style="display:block; margin:6px 0;"><input type="radio" name="consumptionSortOption" value="' + val + '"' + (_consumptionSort === val ? " checked" : "") + "> " + label + "</label>"
+    ).join("") +
+    '<br><button onclick="applyConsumptionSort()">Apply</button>'
+  );
+}
+
+function applyConsumptionSort() {
+  const selected = document.querySelector('input[name="consumptionSortOption"]:checked');
+  if (!selected) return;
+  _consumptionSort = selected.value;
+  closeModal();
+  renderConsumptionLogRows();
 }
 
 function consumptionRowHtml(r) {
@@ -725,26 +964,108 @@ function consumptionRowHtml(r) {
 // purchased at least once show up - see functions/api/current-cost.js).
 // ================================================================
 
+let _lastCurrentCostRows = [];
+let _currentCostCategoryFilter = []; // empty = show every Category (default)
+let _currentCostSort = "name-asc";
+const CURRENT_COST_SORT_LABELS = {
+  "name-asc": "Item Name (A-Z)", "name-desc": "Item Name (Z-A)",
+  "cost-desc": "Unit Cost (High-Low)", "cost-asc": "Unit Cost (Low-High)"
+};
+
 async function renderCurrentCostTab(wrap) {
-  const rows = await api("current-cost");
-  if (!rows.length) {
+  _lastCurrentCostRows = await api("current-cost");
+  if (!_lastCurrentCostRows.length) {
     wrap.innerHTML = "<h3>Current Cost</h3><p>No cost data yet - nothing has been purchased.</p>";
     return;
   }
 
   wrap.innerHTML =
-    "<h3>Current Cost</h3>" +
+    '<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">' +
+      "<h3>Current Cost</h3>" +
+      '<div style="display:flex; align-items:center; gap:10px;">' +
+        '<span id="currentCostFilterBadge" style="color:#666; font-size:12px;">All Categories</span>' +
+        '<button onclick="openCurrentCostFilterModal()">Set Filter</button>' +
+        '<span id="currentCostSortBadge" style="color:#666; font-size:12px;">Sort: ' + CURRENT_COST_SORT_LABELS[_currentCostSort] + "</span>" +
+        '<button onclick="openCurrentCostSortModal()">Sort</button>' +
+      "</div>" +
+    "</div>" +
     '<div id="currentCostPaginationNav" class="pagination-nav"></div>' +
     '<div id="currentCostScrollWrap" style="overflow-x:auto;">' +
       "<table>" +
         "<thead><tr><th>SKU</th><th>Category</th><th>Item Name</th><th>Unit</th><th>Purchase Qty</th>" +
         "<th>Purchase Price</th><th>Current Unit Cost</th><th>Last Updated</th><th>Supplier</th></tr></thead>" +
-        '<tbody id="currentCostTbody">' + rows.map(currentCostRowHtml).join("") + "</tbody>" +
+        '<tbody id="currentCostTbody"></tbody>' +
       "</table>" +
     "</div>";
 
-  paginateTable("currentCostTbody", "currentCostPaginationNav", 20);
+  renderCurrentCostRows();
   enableDragScroll(document.getElementById("currentCostScrollWrap"));
+}
+
+function renderCurrentCostRows() {
+  const tbody = document.getElementById("currentCostTbody");
+  if (!tbody) return;
+
+  const filterBadge = document.getElementById("currentCostFilterBadge");
+  if (filterBadge) filterBadge.textContent = _currentCostCategoryFilter.length ? _currentCostCategoryFilter.join(", ") : "All Categories";
+  const sortBadge = document.getElementById("currentCostSortBadge");
+  if (sortBadge) sortBadge.textContent = "Sort: " + CURRENT_COST_SORT_LABELS[_currentCostSort];
+
+  const filtered = _currentCostCategoryFilter.length
+    ? _lastCurrentCostRows.filter((r) => _currentCostCategoryFilter.indexOf(r.category || "") !== -1)
+    : _lastCurrentCostRows;
+  const rows = filtered.slice().sort((a, b) => {
+    switch (_currentCostSort) {
+      case "name-desc": return b.name.localeCompare(a.name);
+      case "cost-desc": return b.unitCost - a.unitCost;
+      case "cost-asc": return a.unitCost - b.unitCost;
+      default: return a.name.localeCompare(b.name);
+    }
+  });
+
+  tbody.innerHTML = rows.length ? rows.map(currentCostRowHtml).join("") : '<tr><td colspan="9">No items match this filter.</td></tr>';
+  paginateTable("currentCostTbody", "currentCostPaginationNav", 20);
+}
+
+function openCurrentCostFilterModal() {
+  const categories = [...new Set(_lastCurrentCostRows.map((r) => r.category || "").filter(Boolean))].sort();
+  const checkboxes = categories.map((c) =>
+    '<label style="display:block; margin:4px 0;"><input type="checkbox" class="currentCostCategoryFilterCheck" value="' + c + '"' + (_currentCostCategoryFilter.indexOf(c) !== -1 ? " checked" : "") + "> " + c + "</label>"
+  ).join("");
+
+  openModal(
+    "<h2>Set Filter - Category</h2>" +
+    "<div>" + checkboxes + "</div>" +
+    '<div style="margin-top:16px;">' +
+      '<button onclick="closeModal()">Cancel</button> ' +
+      '<button onclick="applyCurrentCostFilter()">Apply Filter</button>' +
+    "</div>"
+  );
+}
+
+function applyCurrentCostFilter() {
+  _currentCostCategoryFilter = Array.from(document.querySelectorAll(".currentCostCategoryFilterCheck:checked")).map((cb) => cb.value);
+  closeModal();
+  renderCurrentCostRows();
+}
+
+function openCurrentCostSortModal() {
+  const options = [["name-asc", "Item Name (A-Z)"], ["name-desc", "Item Name (Z-A)"], ["cost-desc", "Unit Cost (High-Low)"], ["cost-asc", "Unit Cost (Low-High)"]];
+  openModal(
+    "<h2>Sort Current Cost</h2>" +
+    options.map(([val, label]) =>
+      '<label style="display:block; margin:6px 0;"><input type="radio" name="currentCostSortOption" value="' + val + '"' + (_currentCostSort === val ? " checked" : "") + "> " + label + "</label>"
+    ).join("") +
+    '<br><button onclick="applyCurrentCostSort()">Apply</button>'
+  );
+}
+
+function applyCurrentCostSort() {
+  const selected = document.querySelector('input[name="currentCostSortOption"]:checked');
+  if (!selected) return;
+  _currentCostSort = selected.value;
+  closeModal();
+  renderCurrentCostRows();
 }
 
 function currentCostRowHtml(r) {
@@ -770,26 +1091,102 @@ function currentCostRowHtml(r) {
 // insert - nothing here writes to it directly.
 // ================================================================
 
+let _lastCostUpdateRows = [];
+let _costUpdateSupplierFilter = []; // empty = show every Supplier (default)
+let _costUpdateSort = "date-desc";
+const COST_UPDATE_SORT_LABELS = { "date-desc": "Date (Newest)", "date-asc": "Date (Oldest)" };
+
 async function renderCostUpdateLogTab(wrap) {
-  const rows = await api("cost-update-log");
-  if (!rows.length) {
+  _lastCostUpdateRows = await api("cost-update-log");
+  if (!_lastCostUpdateRows.length) {
     wrap.innerHTML = "<h3>Cost Update Log</h3><p>No cost updates yet.</p>";
     return;
   }
 
   wrap.innerHTML =
-    "<h3>Cost Update Log</h3>" +
+    '<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">' +
+      "<h3>Cost Update Log</h3>" +
+      '<div style="display:flex; align-items:center; gap:10px;">' +
+        '<span id="costUpdateFilterBadge" style="color:#666; font-size:12px;">All Suppliers</span>' +
+        '<button onclick="openCostUpdateFilterModal()">Set Filter</button>' +
+        '<span id="costUpdateSortBadge" style="color:#666; font-size:12px;">Sort: ' + COST_UPDATE_SORT_LABELS[_costUpdateSort] + "</span>" +
+        '<button onclick="openCostUpdateSortModal()">Sort</button>' +
+      "</div>" +
+    "</div>" +
     '<div id="costUpdatePaginationNav" class="pagination-nav"></div>' +
     '<div id="costUpdateScrollWrap" style="overflow-x:auto;">' +
       "<table>" +
         "<thead><tr><th>Date</th><th>SKU</th><th>Item Name</th><th>Supplier</th><th>Purchase Qty</th><th>Unit</th>" +
         "<th>Purchase Price</th><th>Previous Unit Cost</th><th>Updated Unit Cost</th><th>Variance</th><th>Variance %</th><th>Remarks</th></tr></thead>" +
-        '<tbody id="costUpdateTbody">' + rows.map(costUpdateRowHtml).join("") + "</tbody>" +
+        '<tbody id="costUpdateTbody"></tbody>' +
       "</table>" +
     "</div>";
 
-  paginateTable("costUpdateTbody", "costUpdatePaginationNav", 20);
+  renderCostUpdateRows();
   enableDragScroll(document.getElementById("costUpdateScrollWrap"));
+}
+
+function renderCostUpdateRows() {
+  const tbody = document.getElementById("costUpdateTbody");
+  if (!tbody) return;
+
+  const filterBadge = document.getElementById("costUpdateFilterBadge");
+  if (filterBadge) filterBadge.textContent = _costUpdateSupplierFilter.length ? _costUpdateSupplierFilter.join(", ") : "All Suppliers";
+  const sortBadge = document.getElementById("costUpdateSortBadge");
+  if (sortBadge) sortBadge.textContent = "Sort: " + COST_UPDATE_SORT_LABELS[_costUpdateSort];
+
+  const filtered = _costUpdateSupplierFilter.length
+    ? _lastCostUpdateRows.filter((r) => _costUpdateSupplierFilter.indexOf(r.supplier || "") !== -1)
+    : _lastCostUpdateRows;
+  const rows = filtered.slice().sort((a, b) => {
+    if (a.date === b.date) return 0;
+    const cmp = a.date < b.date ? -1 : 1;
+    return _costUpdateSort === "date-asc" ? cmp : -cmp;
+  });
+
+  tbody.innerHTML = rows.length ? rows.map(costUpdateRowHtml).join("") : '<tr><td colspan="12">No entries match this filter.</td></tr>';
+  paginateTable("costUpdateTbody", "costUpdatePaginationNav", 20);
+}
+
+function openCostUpdateFilterModal() {
+  const suppliers = [...new Set(_lastCostUpdateRows.map((r) => r.supplier || "").filter(Boolean))].sort();
+  const checkboxes = suppliers.map((s) =>
+    '<label style="display:block; margin:4px 0;"><input type="checkbox" class="costUpdateSupplierFilterCheck" value="' + s + '"' + (_costUpdateSupplierFilter.indexOf(s) !== -1 ? " checked" : "") + "> " + s + "</label>"
+  ).join("");
+
+  openModal(
+    "<h2>Set Filter - Supplier</h2>" +
+    "<div>" + checkboxes + "</div>" +
+    '<div style="margin-top:16px;">' +
+      '<button onclick="closeModal()">Cancel</button> ' +
+      '<button onclick="applyCostUpdateFilter()">Apply Filter</button>' +
+    "</div>"
+  );
+}
+
+function applyCostUpdateFilter() {
+  _costUpdateSupplierFilter = Array.from(document.querySelectorAll(".costUpdateSupplierFilterCheck:checked")).map((cb) => cb.value);
+  closeModal();
+  renderCostUpdateRows();
+}
+
+function openCostUpdateSortModal() {
+  const options = [["date-desc", "Date (Newest)"], ["date-asc", "Date (Oldest)"]];
+  openModal(
+    "<h2>Sort Cost Update Log</h2>" +
+    options.map(([val, label]) =>
+      '<label style="display:block; margin:6px 0;"><input type="radio" name="costUpdateSortOption" value="' + val + '"' + (_costUpdateSort === val ? " checked" : "") + "> " + label + "</label>"
+    ).join("") +
+    '<br><button onclick="applyCostUpdateSort()">Apply</button>'
+  );
+}
+
+function applyCostUpdateSort() {
+  const selected = document.querySelector('input[name="costUpdateSortOption"]:checked');
+  if (!selected) return;
+  _costUpdateSort = selected.value;
+  closeModal();
+  renderCostUpdateRows();
 }
 
 function costUpdateRowHtml(r) {

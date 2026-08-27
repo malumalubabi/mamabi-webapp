@@ -120,21 +120,66 @@ function itemNameCell(b) {
   );
 }
 
-// "Recipe" cell - ported from MenuBatchProduction_JS.html's recipeViewHtml().
-// Change Component there swaps in a live combobox to re-point the batch at
-// a different recipe SKU; without a BOM to re-scale from, it's a "Coming
-// soon" placeholder here.
+// "Recipe" cell - ported from MenuBatchProduction_JS.html's recipeViewHtml()/
+// enterChangeComponentMode()/updateBatchRecipe(). Change Component swaps in
+// a live combobox (same item_type as the current output - Component-only or
+// Semi-Finished-only, matching the old app's per-type picker) to re-point
+// the batch at a different recipe SKU. Now feasible (recipe_lines is
+// populated) via the same auto-scale-from-recipe machinery Start New Batch
+// uses - see saveChangeComponent below and functions/api/batches/[code].js.
 function recipeCell(b) {
+  return (
+    '<div class="recipeCellView" data-batch-code="' + b.batchCode + '">' + recipeCellViewHtml(b) + "</div>"
+  );
+}
+
+function recipeCellViewHtml(b) {
   return (
     b.itemName +
     '<br><span style="color:#666; font-size:12px;">' + b.sku + "</span>" +
     '<br><button onclick="openBatchRecipeModal(\'' + b.batchCode + '\')">Open Recipe</button> ' +
-    '<button onclick="changeComponentPlaceholder()">Change Component</button>'
+    '<button onclick="enterChangeComponentMode(this, \'' + b.batchCode + '\')">Change Component</button>'
   );
 }
 
-function changeComponentPlaceholder() {
-  alert("Coming soon");
+function enterChangeComponentMode(btn, batchCode) {
+  const cell = btn.closest(".recipeCellView");
+  const batch = _lastBatchesData.find((b) => b.batchCode === batchCode);
+  const currentItem = _batchLookups.skus.find((s) => s.sku === batch.sku);
+  const type = currentItem ? currentItem.item_type : null;
+
+  cell.innerHTML =
+    '<div class="changeComponentCombo" style="min-width:200px;"></div>' +
+    '<button onclick="saveChangeComponent(\'' + batchCode + '\', this)">Update</button> ' +
+    '<button onclick="cancelChangeComponent(\'' + batchCode + '\')">Cancel</button>';
+
+  const options = _batchLookups.skus.filter((s) => s.item_type === type && s.sku !== batch.sku);
+  cell._combo = createCombobox(
+    cell.querySelector(".changeComponentCombo"),
+    options.map((s) => ({ value: s.id, label: s.name, sub: s.sku })),
+    { placeholder: "Select " + (type || "item").toLowerCase() + "..." }
+  );
+}
+
+function cancelChangeComponent(batchCode) {
+  const batch = _lastBatchesData.find((b) => b.batchCode === batchCode);
+  const cell = document.querySelector('.recipeCellView[data-batch-code="' + batchCode + '"]');
+  if (cell && batch) cell.innerHTML = recipeCellViewHtml(batch);
+}
+
+async function saveChangeComponent(batchCode, btn) {
+  const cell = btn.closest(".recipeCellView");
+  const newSkuId = cell._combo ? cell._combo.getValue() : "";
+  if (!newSkuId) { alert("Please select a component."); return; }
+
+  btn.disabled = true;
+  try {
+    await api("batches/" + encodeURIComponent(batchCode), { method: "PATCH", body: { outputSkuId: newSkuId } });
+    await loadBatchTable(_activeBatchScope);
+  } catch (err) {
+    alert(err.message);
+    btn.disabled = false;
+  }
 }
 
 // Batch Size cell - view/edit toggle ported from MenuBatchProduction_JS.html's
@@ -441,6 +486,7 @@ function addBatchConsumptionRow(prefill) {
     '<div><label>Item</label><br><div class="sku-combo" style="min-width:220px;"></div></div>' +
     '<div><label>Unit</label><br><input type="text" class="unit" disabled style="background:#f5f5f5; width:55px;"></div>' +
     '<div><label>Qty</label><br><input type="number" class="qty" min="0" step="any"></div>' +
+    '<div><label>Notes</label><br><input type="text" class="lineNotes" style="width:140px;"></div>' +
     '<button type="button" onclick="removeBatchConsumptionRow(this)">Remove</button>';
   wrap.appendChild(row);
 
@@ -479,7 +525,7 @@ function collectBatchConsumption() {
   document.querySelectorAll("#batchConsumptionRows .item-row").forEach((row) => {
     const skuId = row._combo.getValue();
     const qty = Number(row.querySelector(".qty").value) || 0;
-    if (skuId && qty > 0) items.push({ skuId: skuId, qty: qty });
+    if (skuId && qty > 0) items.push({ skuId: skuId, qty: qty, notes: row.querySelector(".lineNotes").value.trim() || null });
   });
   return items;
 }

@@ -74,6 +74,7 @@ let _activeSkuType = "Ingredient";
 let _lastSkuRows = [];
 let _skuArrangeMode = false;
 let _skuArrangeRows = [];
+let _skuCategoryFilter = []; // empty = show every Category (default) - reset on type switch, see switchSkuType
 
 function skuTypeTabId(type) {
   return "skuTypeTab-" + type.replace(/[^a-zA-Z]/g, "");
@@ -97,6 +98,7 @@ function switchSkuType(type) {
   if (type === _activeSkuType) return;
   _activeSkuType = type;
   _skuArrangeMode = false;
+  _skuCategoryFilter = []; // categories are type-specific, stale otherwise
   wireSkuTypeTabs();
   loadSkuType(type);
 }
@@ -115,13 +117,27 @@ async function loadSkuType(type) {
 // by functions/api/sku-order.js (display_order for Product, so this stays
 // in sync with Pricing's own Arrange; registry_order for every other type,
 // which also drives Stock Overview's row order).
+// Filter only applies to the normal view, not Arrange mode - Arrange
+// always stages/reorders the FULL list (same as before), a partial
+// filtered view would make "Save Order" silently drop whatever's hidden.
+function visibleSkuRows() {
+  if (_skuArrangeMode) return _skuArrangeRows;
+  return _skuCategoryFilter.length ? _lastSkuRows.filter((r) => _skuCategoryFilter.indexOf(r.category || "") !== -1) : _lastSkuRows;
+}
+
 function renderSkuTable(wrap) {
-  const rows = _skuArrangeMode ? _skuArrangeRows : _lastSkuRows;
+  const rows = visibleSkuRows();
 
   wrap.innerHTML =
     '<div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0;">' +
       "<h3>SKU Registry - " + _activeSkuType + "</h3>" +
-      '<button onclick="openSkuModal(null)">+ Add SKU</button>' +
+      '<div style="display:flex; align-items:center; gap:10px;">' +
+        (_skuArrangeMode ? "" :
+          '<span id="skuFilterBadge" style="color:#666; font-size:12px;">' + (_skuCategoryFilter.length ? _skuCategoryFilter.join(", ") : "All Categories") + "</span>" +
+          '<button onclick="openSkuFilterModal()">Set Filter</button>'
+        ) +
+        '<button onclick="openSkuModal(null)">+ Add SKU</button>' +
+      "</div>" +
     "</div>" +
     '<div id="skuPaginationNav" class="pagination-nav"></div>' +
     '<div id="skuScrollWrap" style="overflow-x:auto;">' +
@@ -129,7 +145,7 @@ function renderSkuTable(wrap) {
         "<thead><tr>" +
           (_skuArrangeMode ? "<th></th>" : "") +
           "<th>SKU</th><th>Category</th><th>Name</th><th>Unit</th><th>Status</th><th></th></tr></thead>" +
-        '<tbody id="skuTbody">' + rows.map((r, i) => skuRowHtml(r, i === 0, i === rows.length - 1)).join("") + "</tbody>" +
+        '<tbody id="skuTbody">' + (rows.length ? rows.map((r, i) => skuRowHtml(r, i === 0, i === rows.length - 1)).join("") : '<tr><td colspan="6">No SKUs match this filter.</td></tr>') + "</tbody>" +
       "</table>" +
     "</div>" +
     '<div style="display:flex; justify-content:flex-start; gap:8px; margin-top:8px;">' +
@@ -140,6 +156,30 @@ function renderSkuTable(wrap) {
 
   if (!_skuArrangeMode) paginateTable("skuTbody", "skuPaginationNav", 20);
   enableDragScroll(document.getElementById("skuScrollWrap"));
+}
+
+function openSkuFilterModal() {
+  const categories = [...new Set(_lastSkuRows.map((r) => r.category || "").filter(Boolean))].sort();
+  const checkboxes = categories.map((c) =>
+    '<label style="display:block; margin:4px 0;">' +
+      '<input type="checkbox" class="skuCategoryFilterCheck" value="' + c + '"' + (_skuCategoryFilter.indexOf(c) !== -1 ? " checked" : "") + "> " + c +
+    "</label>"
+  ).join("");
+
+  openModal(
+    "<h2>Set Filter - Category</h2>" +
+    "<div>" + (checkboxes || "<p>No categories on this SKU type.</p>") + "</div>" +
+    '<div style="margin-top:16px;">' +
+      '<button onclick="closeModal()">Cancel</button> ' +
+      '<button onclick="applySkuFilter()">Apply Filter</button>' +
+    "</div>"
+  );
+}
+
+function applySkuFilter() {
+  _skuCategoryFilter = Array.from(document.querySelectorAll(".skuCategoryFilterCheck:checked")).map((cb) => cb.value);
+  closeModal();
+  renderSkuTable(document.getElementById("skuTypeWrap"));
 }
 
 function skuRowHtml(r, isFirst, isLast) {
@@ -203,8 +243,20 @@ function saveArrangeSku() {
 // SKU code/Type/Category are only enterable at Add time (free text, per
 // explicit decision - no auto-generation/config system) and locked after
 // that (matches the old app's updateSkuItem, which never touched them either).
+// Product uses Active/Inactive, every other type uses Available/Unavailable
+// - two different vocabularies for the same on/off concept (Product's
+// "Active" predates the Inventory-side Available/Unavailable pair and was
+// never reconciled - fixing that mismatch is out of scope here, this just
+// stops the Status dropdown from silently corrupting it). First option is
+// always the "on" state and the default for a brand-new SKU.
+function skuStatusOptionsHtml(itemType, currentStatus) {
+  const options = itemType === "Product" ? ["Active", "Inactive"] : ["Available", "Unavailable"];
+  return options.map((o) => "<option" + ((currentStatus ? currentStatus === o : o === options[0]) ? " selected" : "") + ">" + o + "</option>").join("");
+}
+
 function openSkuModal(sku) {
   const row = sku ? _lastSkuRows.find((r) => r.sku === sku) : null;
+  const itemType = row ? row.item_type : _activeSkuType;
 
   openModal(
     "<h2>" + (sku ? "Edit SKU - " + sku : "Add SKU - " + _activeSkuType) + "</h2>" +
@@ -222,10 +274,7 @@ function openSkuModal(sku) {
     "<label>Unit</label><br>" +
     '<input type="text" id="skuUnit" value="' + (row ? row.unit : "") + '" style="width:100px;"><br><br>' +
     "<label>Status</label><br>" +
-    '<select id="skuStatus">' +
-      '<option' + (!row || row.status === "Available" ? " selected" : "") + '>Available</option>' +
-      '<option' + (row && row.status === "Unavailable" ? " selected" : "") + '>Unavailable</option>' +
-    "</select><br><br>" +
+    '<select id="skuStatus">' + skuStatusOptionsHtml(itemType, row ? row.status : null) + "</select><br><br>" +
     '<button id="saveSkuBtn" onclick="saveSku(' + (sku ? "'" + sku + "'" : "null") + ')">Save</button>' +
     '<span id="saveSkuStatus" class="save-status"></span>'
   );
@@ -276,6 +325,7 @@ function deleteSku(sku) {
 
 let _lastSupplierRows = [];
 let _supplierSort = "name-asc";
+let _supplierStatusFilter = []; // empty = show every Status (default)
 
 const ENTITY_SORT_LABELS = {
   "name-asc": "Name (A-Z)",
@@ -299,11 +349,29 @@ function sortEntityRows(rows, sortKey, codeField) {
   return sorted;
 }
 
+// Status filter (Active/Inactive) - same options for Supplier and Customer,
+// but kept as separate state/functions per entity (not a shared generic
+// dispatcher) to match how every other filter in this app is wired.
+function filterEntityRowsByStatus(rows, statusFilter) {
+  if (!statusFilter.length) return rows;
+  return rows.filter((r) => statusFilter.indexOf(r.is_active ? "Active" : "Inactive") !== -1);
+}
+
+function statusFilterCheckboxesHtml(checkClass, currentFilter) {
+  return ["Active", "Inactive"].map((o) =>
+    '<label style="display:block; margin:4px 0;">' +
+      '<input type="checkbox" class="' + checkClass + '" value="' + o + '"' + (currentFilter.indexOf(o) !== -1 ? " checked" : "") + "> " + o +
+    "</label>"
+  ).join("");
+}
+
 async function renderSupplierSection(wrap) {
   wrap.innerHTML =
     '<div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0;">' +
       "<h3>Supplier List</h3>" +
       '<div style="display:flex; align-items:center; gap:10px;">' +
+        '<span id="supplierFilterBadge" style="color:#666; font-size:12px;">' + (_supplierStatusFilter.length ? _supplierStatusFilter.join(", ") : "All Statuses") + "</span>" +
+        '<button onclick="openSupplierFilterModal()">Set Filter</button>' +
         '<span id="supplierSortBadge" style="color:#666; font-size:12px;">Sort: ' + ENTITY_SORT_LABELS[_supplierSort] + "</span>" +
         '<button onclick="openSupplierSortModal()">Sort</button>' +
         '<button onclick="openSupplierModal(null)">+ Add Supplier</button>' +
@@ -323,15 +391,35 @@ async function renderSupplierSection(wrap) {
 }
 
 function renderSupplierTable() {
-  const badge = document.getElementById("supplierSortBadge");
-  if (badge) badge.textContent = "Sort: " + ENTITY_SORT_LABELS[_supplierSort];
+  const sortBadge = document.getElementById("supplierSortBadge");
+  if (sortBadge) sortBadge.textContent = "Sort: " + ENTITY_SORT_LABELS[_supplierSort];
+  const filterBadge = document.getElementById("supplierFilterBadge");
+  if (filterBadge) filterBadge.textContent = _supplierStatusFilter.length ? _supplierStatusFilter.join(", ") : "All Statuses";
 
   const tbody = document.getElementById("supplierTbody");
   if (!tbody) return;
-  const rows = sortEntityRows(_lastSupplierRows, _supplierSort, "supplier_code");
-  tbody.innerHTML = rows.map(supplierRowHtml).join("");
+  const filtered = filterEntityRowsByStatus(_lastSupplierRows, _supplierStatusFilter);
+  const rows = sortEntityRows(filtered, _supplierSort, "supplier_code");
+  tbody.innerHTML = rows.length ? rows.map(supplierRowHtml).join("") : '<tr><td colspan="8">No suppliers match this filter.</td></tr>';
   paginateTable("supplierTbody", "supplierPaginationNav", 20);
   enableDragScroll(document.getElementById("supplierScrollWrap"));
+}
+
+function openSupplierFilterModal() {
+  openModal(
+    "<h2>Set Filter - Status</h2>" +
+    "<div>" + statusFilterCheckboxesHtml("supplierStatusFilterCheck", _supplierStatusFilter) + "</div>" +
+    '<div style="margin-top:16px;">' +
+      '<button onclick="closeModal()">Cancel</button> ' +
+      '<button onclick="applySupplierFilter()">Apply Filter</button>' +
+    "</div>"
+  );
+}
+
+function applySupplierFilter() {
+  _supplierStatusFilter = Array.from(document.querySelectorAll(".supplierStatusFilterCheck:checked")).map((cb) => cb.value);
+  closeModal();
+  renderSupplierTable();
 }
 
 function openSupplierSortModal() {
@@ -435,12 +523,15 @@ function deleteSupplier(code) {
 
 let _lastCustomerRows = [];
 let _customerSort = "name-asc";
+let _customerStatusFilter = []; // empty = show every Status (default)
 
 async function renderCustomerSection(wrap) {
   wrap.innerHTML =
     '<div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0;">' +
       "<h3>Customer List</h3>" +
       '<div style="display:flex; align-items:center; gap:10px;">' +
+        '<span id="customerFilterBadge" style="color:#666; font-size:12px;">' + (_customerStatusFilter.length ? _customerStatusFilter.join(", ") : "All Statuses") + "</span>" +
+        '<button onclick="openCustomerFilterModal()">Set Filter</button>' +
         '<span id="customerSortBadge" style="color:#666; font-size:12px;">Sort: ' + ENTITY_SORT_LABELS[_customerSort] + "</span>" +
         '<button onclick="openCustomerSortModal()">Sort</button>' +
         '<button onclick="openCustomerModal(null)">+ Add Customer</button>' +
@@ -460,15 +551,35 @@ async function renderCustomerSection(wrap) {
 }
 
 function renderCustomerTable() {
-  const badge = document.getElementById("customerSortBadge");
-  if (badge) badge.textContent = "Sort: " + ENTITY_SORT_LABELS[_customerSort];
+  const sortBadge = document.getElementById("customerSortBadge");
+  if (sortBadge) sortBadge.textContent = "Sort: " + ENTITY_SORT_LABELS[_customerSort];
+  const filterBadge = document.getElementById("customerFilterBadge");
+  if (filterBadge) filterBadge.textContent = _customerStatusFilter.length ? _customerStatusFilter.join(", ") : "All Statuses";
 
   const tbody = document.getElementById("customerTbody");
   if (!tbody) return;
-  const rows = sortEntityRows(_lastCustomerRows, _customerSort, "customer_code");
-  tbody.innerHTML = rows.map(customerRowHtml).join("");
+  const filtered = filterEntityRowsByStatus(_lastCustomerRows, _customerStatusFilter);
+  const rows = sortEntityRows(filtered, _customerSort, "customer_code");
+  tbody.innerHTML = rows.length ? rows.map(customerRowHtml).join("") : '<tr><td colspan="8">No customers match this filter.</td></tr>';
   paginateTable("customerTbody", "customerPaginationNav", 20);
   enableDragScroll(document.getElementById("customerScrollWrap"));
+}
+
+function openCustomerFilterModal() {
+  openModal(
+    "<h2>Set Filter - Status</h2>" +
+    "<div>" + statusFilterCheckboxesHtml("customerStatusFilterCheck", _customerStatusFilter) + "</div>" +
+    '<div style="margin-top:16px;">' +
+      '<button onclick="closeModal()">Cancel</button> ' +
+      '<button onclick="applyCustomerFilter()">Apply Filter</button>' +
+    "</div>"
+  );
+}
+
+function applyCustomerFilter() {
+  _customerStatusFilter = Array.from(document.querySelectorAll(".customerStatusFilterCheck:checked")).map((cb) => cb.value);
+  closeModal();
+  renderCustomerTable();
 }
 
 function openCustomerSortModal() {
@@ -572,12 +683,27 @@ function deleteCustomer(code) {
 
 let _lastStaffRows = [];
 let _staffRoleOptions = [];
+let _staffSort = "role-priority";
+let _staffRoleFilter = []; // empty = show every Role (default)
+let _staffStatusFilter = []; // empty = show every Status (default)
+
+const STAFF_SORT_LABELS = {
+  "role-priority": "Role Priority (default)",
+  "name-asc": "Name (A-Z)",
+  "name-desc": "Name (Z-A)"
+};
 
 async function renderStaffSection(wrap) {
   wrap.innerHTML =
-    '<div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0;">' +
+    '<div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0; flex-wrap:wrap; gap:8px;">' +
       "<h3>Staff List</h3>" +
-      '<button onclick="openStaffModal(null)">+ Add Staff</button>' +
+      '<div style="display:flex; align-items:center; gap:10px;">' +
+        '<span id="staffFilterBadge" style="color:#666; font-size:12px;">All</span>' +
+        '<button onclick="openStaffFilterModal()">Set Filter</button>' +
+        '<span id="staffSortBadge" style="color:#666; font-size:12px;">Sort: ' + STAFF_SORT_LABELS[_staffSort] + "</span>" +
+        '<button onclick="openStaffSortModal()">Sort</button>' +
+        '<button onclick="openStaffModal(null)">+ Add Staff</button>' +
+      "</div>" +
     "</div>" +
     '<div id="staffPaginationNav" class="pagination-nav"></div>' +
     '<div id="staffScrollWrap" style="overflow-x:auto;">' +
@@ -591,11 +717,83 @@ async function renderStaffSection(wrap) {
   _lastStaffRows = staffRows;
   _staffRoleOptions = settingsData.lists["Staff Roles"] || [];
 
+  if (!document.getElementById("staffTbody")) return;
+  renderStaffTable();
+}
+
+function sortStaffRows(rows, sortKey) {
+  if (sortKey === "name-asc") return rows.slice().sort((a, b) => a.name.localeCompare(b.name));
+  if (sortKey === "name-desc") return rows.slice().sort((a, b) => b.name.localeCompare(a.name));
+  return sortStaffRowsByRolePriority(rows);
+}
+
+function filterStaffRows(rows) {
+  return rows.filter((r) => {
+    const matchesRole = !_staffRoleFilter.length || (r.roles || []).some((role) => _staffRoleFilter.indexOf(role) !== -1);
+    const matchesStatus = !_staffStatusFilter.length || _staffStatusFilter.indexOf(r.is_active ? "Active" : "Inactive") !== -1;
+    return matchesRole && matchesStatus;
+  });
+}
+
+function renderStaffTable() {
+  const filterBadge = document.getElementById("staffFilterBadge");
+  if (filterBadge) {
+    const parts = [].concat(_staffRoleFilter, _staffStatusFilter);
+    filterBadge.textContent = parts.length ? parts.join(", ") : "All";
+  }
+  const sortBadge = document.getElementById("staffSortBadge");
+  if (sortBadge) sortBadge.textContent = "Sort: " + STAFF_SORT_LABELS[_staffSort];
+
   const tbody = document.getElementById("staffTbody");
   if (!tbody) return;
-  tbody.innerHTML = sortStaffRowsByRolePriority(_lastStaffRows).map(staffRowHtml).join("");
+  const rows = sortStaffRows(filterStaffRows(_lastStaffRows), _staffSort);
+  tbody.innerHTML = rows.length ? rows.map(staffRowHtml).join("") : '<tr><td colspan="6">No staff match this filter.</td></tr>';
   paginateTable("staffTbody", "staffPaginationNav", 20);
   enableDragScroll(document.getElementById("staffScrollWrap"));
+}
+
+function openStaffFilterModal() {
+  const roleChecks = _staffRoleOptions.map((r) =>
+    '<label style="display:block; margin:4px 0;"><input type="checkbox" class="staffRoleFilterCheck" value="' + r + '"' + (_staffRoleFilter.indexOf(r) !== -1 ? " checked" : "") + "> " + r + "</label>"
+  ).join("");
+
+  openModal(
+    "<h2>Set Filter</h2>" +
+    "<label>Role</label>" +
+    "<div>" + roleChecks + "</div><br>" +
+    "<label>Status</label>" +
+    "<div>" + statusFilterCheckboxesHtml("staffStatusFilterCheck", _staffStatusFilter) + "</div>" +
+    '<div style="margin-top:16px;">' +
+      '<button onclick="closeModal()">Cancel</button> ' +
+      '<button onclick="applyStaffFilter()">Apply Filter</button>' +
+    "</div>"
+  );
+}
+
+function applyStaffFilter() {
+  _staffRoleFilter = Array.from(document.querySelectorAll(".staffRoleFilterCheck:checked")).map((cb) => cb.value);
+  _staffStatusFilter = Array.from(document.querySelectorAll(".staffStatusFilterCheck:checked")).map((cb) => cb.value);
+  closeModal();
+  renderStaffTable();
+}
+
+function openStaffSortModal() {
+  const options = [["role-priority", "Role Priority (default)"], ["name-asc", "Name (A-Z)"], ["name-desc", "Name (Z-A)"]];
+  openModal(
+    "<h2>Sort Staff List</h2>" +
+    options.map(([val, label]) =>
+      '<label style="display:block; margin:6px 0;"><input type="radio" name="staffSortOption" value="' + val + '"' + (_staffSort === val ? " checked" : "") + "> " + label + "</label>"
+    ).join("") +
+    '<br><button onclick="applyStaffSort()">Apply</button>'
+  );
+}
+
+function applyStaffSort() {
+  const selected = document.querySelector('input[name="staffSortOption"]:checked');
+  if (!selected) return;
+  _staffSort = selected.value;
+  closeModal();
+  renderStaffTable();
 }
 
 // Default (only) Staff order: by role priority, where priority = the

@@ -1,12 +1,29 @@
 import { getSupabase, getBrandId, jsonResponse, errorResponse } from "./_lib/supabase.js";
 
+// "This month" in the configured Timezone setting (Settings > General),
+// not the Worker's own UTC clock - same source pages/opex.js's Summary now
+// reads client-side via todayISO() (shared.js), so Dashboard and OpEx
+// Summary agree on which month "this month" is instead of two different
+// ambient clocks disagreeing right around a month boundary.
+async function currentMonthStart(supabase, brandId) {
+  const { data, error } = await supabase.from("settings").select("value").eq("brand_id", brandId).eq("key", "Timezone").maybeSingle();
+  if (error) throw error;
+  const timezone = (data && data.value) || "Asia/Makassar";
+
+  try {
+    const todayInZone = new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date()); // "YYYY-MM-DD"
+    return todayInZone.slice(0, 7) + "-01";
+  } catch (err) {
+    return new Date().toISOString().slice(0, 7) + "-01";
+  }
+}
+
 export async function onRequestGet({ env }) {
   try {
     const supabase = getSupabase(env);
     const brandId = await getBrandId(supabase);
 
-    const now = new Date();
-    const monthStart = now.toISOString().slice(0, 7) + "-01";
+    const monthStart = await currentMonthStart(supabase, brandId);
 
     const [cashRow, bankRow, monthTxns, lowStock, recentOrders] = await Promise.all([
       latestBalance(supabase, brandId, "Cash"),
@@ -65,10 +82,15 @@ async function monthTotals(supabase, brandId, monthStart) {
 // to compare against. Acceptable for now: a SKU with truly zero stock and
 // zero purchases is a data-entry gap, not a runtime alert.
 async function lowStockItems(supabase, brandId) {
+  // Same exclusions as functions/api/inventory/overview.js: Product isn't a
+  // stocked item (min_stock on one is meaningless), and an Unavailable SKU
+  // should stay out of every Inventory Stock view, alerts included.
   const { data: skus, error: skuErr } = await supabase
     .from("sku_items")
     .select("id, sku, name, unit, min_stock")
     .eq("brand_id", brandId)
+    .neq("item_type", "Product")
+    .neq("status", "Unavailable")
     .not("min_stock", "is", null);
   if (skuErr) throw skuErr;
   if (!skus.length) return [];
