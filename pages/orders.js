@@ -6,12 +6,19 @@ let _driverCombo = null;
 let _activeScope = "ongoing";
 let _ordersByCode = {}; // last-rendered Ongoing/History rows, keyed by order_code - lets the Mark Paid modal show order details without a re-fetch
 
+const ORDERS_SCOPES = ["ongoing", "history", "payout"];
+
+// ?tab=payout deep-links straight to Driver Payout (e.g. Dashboard's
+// Unpaid Driver Payout tile) - same "?tab=" convention as pages/sales.js/
+// database.js, defaults to "ongoing" like before when absent/unrecognized.
 async function renderOrdersPage(content) {
   await ensureOrdersLookups();
 
-  content.innerHTML = "<h2>Orders</h2>" + buildOrdersTableShellHtml();
+  const query = location.hash.split("?")[1] || "";
+  const tabParam = new URLSearchParams(query).get("tab");
+  _activeScope = ORDERS_SCOPES.indexOf(tabParam) !== -1 ? tabParam : "ongoing";
 
-  wireOrdersTabs();
+  content.innerHTML = "<h2>Orders</h2>" + buildOrdersTableShellHtml();
   await loadOrdersTable(_activeScope);
 }
 
@@ -324,18 +331,14 @@ function buildOrdersTableShellHtml() {
   return (
     '<div style="display:flex; justify-content:space-between; align-items:center;">' +
       '<div class="tabs" style="margin-bottom:0;">' +
-        '<button id="tabOngoing" class="tab-active" onclick="switchOrdersTab(\'ongoing\')">Ongoing Orders</button>' +
-        '<button id="tabHistory" onclick="switchOrdersTab(\'history\')">Order History</button>' +
-        '<button id="tabPayout" onclick="switchOrdersTab(\'payout\')">Driver Payout</button>' +
+        '<button id="tabOngoing" class="' + (_activeScope === "ongoing" ? "tab-active" : "") + '" onclick="switchOrdersTab(\'ongoing\')">Ongoing Orders</button>' +
+        '<button id="tabHistory" class="' + (_activeScope === "history" ? "tab-active" : "") + '" onclick="switchOrdersTab(\'history\')">Order History</button>' +
+        '<button id="tabPayout" class="' + (_activeScope === "payout" ? "tab-active" : "") + '" onclick="switchOrdersTab(\'payout\')">Driver Payout</button>' +
       "</div>" +
       '<button onclick="openOrderModal()">+ New Order</button>' +
     "</div>" +
     '<div id="ordersTableWrap"><p>Loading...</p></div>'
   );
-}
-
-function wireOrdersTabs() {
-  _activeScope = "ongoing";
 }
 
 function switchOrdersTab(scope) {

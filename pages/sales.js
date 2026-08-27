@@ -391,7 +391,12 @@ function salesProductOptions() {
   return _salesLookups.skus.filter((s) => s.item_type === "Product");
 }
 
-function openSalesEntryModal() {
+// Self-contained (loads its own lookups) rather than assuming
+// renderSalesPage already ran - callable from anywhere, e.g. Dashboard's
+// "+ Input Sales" shortcut, which may open this before the Sales page
+// itself has ever been visited this session.
+async function openSalesEntryModal() {
+  await ensureSalesLookups();
   openModal(
     "<h2>Input Sales</h2>" +
     "<label>Date</label><br>" +

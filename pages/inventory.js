@@ -26,9 +26,20 @@ function stockableSkus() {
 
 let _activeInvStockTab = "overview";
 
+// ?tab=overview&filter=low deep-links straight to Stock Overview
+// pre-filtered to Habis/Mepet (e.g. Dashboard's Stock Alert tile) - same
+// "?tab=" convention as pages/sales.js/database.js. filter=low sets
+// _overviewStatusFilter (see below) before that tab renders.
 async function renderInventoryStockPage(content) {
   content.innerHTML = "<h2>Inventory Stock</h2>" + buildInventoryStockTabsHtml();
   await ensureInvLookups();
+
+  const query = location.hash.split("?")[1] || "";
+  const params = new URLSearchParams(query);
+  const tabParam = params.get("tab");
+  _activeInvStockTab = INV_STOCK_TABS.indexOf(tabParam) !== -1 ? tabParam : "overview";
+  _overviewStatusFilter = params.get("filter") === "low" ? ["Habis", "Mepet"] : [];
+
   await switchInventoryStockTab(_activeInvStockTab, true);
 }
 
@@ -115,9 +126,16 @@ const OVERVIEW_ITEM_TYPES = ["Ingredient", "Semi-Finished", "Component", "Packag
 
 let _overviewRows = [];
 let _overviewTypeFilter = []; // empty = show every Item Type (default)
+let _overviewStatusFilter = []; // empty = show every Status - set to ["Habis","Mepet"] via ?filter=low deep-link (see renderInventoryStockPage)
 
 async function renderOverviewTab(wrap) {
+  const lowStockBanner = _overviewStatusFilter.length
+    ? '<p style="background:#fff3e0; padding:8px 12px; margin:0 0 8px;">Showing Low Stock only (from Dashboard). ' +
+        '<a href="#" onclick="clearOverviewStatusFilter(); return false;">Clear</a></p>'
+    : "";
+
   wrap.innerHTML =
+    lowStockBanner +
     '<div style="display:flex; justify-content:space-between; align-items:center;">' +
       "<h3>Stock Overview</h3>" +
       '<div style="display:flex; align-items:center; gap:10px;">' +
@@ -152,15 +170,21 @@ function renderStockOverviewTable() {
   const tbody = document.getElementById("stockOverviewTbody");
   if (!tbody) return; // tab may have been switched away while this was loading
 
-  const rows = _overviewTypeFilter.length
-    ? _overviewRows.filter((r) => _overviewTypeFilter.indexOf(r.itemType) !== -1)
-    : _overviewRows;
+  const rows = _overviewRows.filter((r) =>
+    (!_overviewTypeFilter.length || _overviewTypeFilter.indexOf(r.itemType) !== -1) &&
+    (!_overviewStatusFilter.length || _overviewStatusFilter.indexOf(r.status) !== -1)
+  );
 
   tbody.innerHTML = rows.length ? rows.map(overviewRowHtml).join("") : '<tr><td colspan="8">No items match this filter.</td></tr>';
   paginateTable("stockOverviewTbody", "stockOverviewPaginationNav", 20);
 
   const badge = document.getElementById("overviewFilterBadge");
   if (badge) badge.textContent = _overviewTypeFilter.length ? _overviewTypeFilter.join(", ") : "All";
+}
+
+function clearOverviewStatusFilter() {
+  _overviewStatusFilter = [];
+  renderOverviewTab(document.getElementById("inventoryStockTabContent"));
 }
 
 function openOverviewFilterModal() {
