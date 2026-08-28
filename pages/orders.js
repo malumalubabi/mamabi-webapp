@@ -72,8 +72,8 @@ function buildOrderFormHtml() {
 
     // One header row for the whole list (not per-item field labels), same
     // table/colgroup pattern as Input Sales.
-    '<table style="table-layout:fixed;">' +
-      '<colgroup><col style="width:220px;"><col style="width:60px;"><col style="width:110px;"><col style="width:110px;"><col style="width:74px;"></colgroup>' +
+    '<table style="table-layout:fixed; width:auto;">' +
+      '<colgroup><col style="width:200px;"><col style="width:90px;"><col style="width:130px;"><col style="width:130px;"><col style="width:74px;"></colgroup>' +
       "<thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th><th></th></tr></thead>" +
       '<tbody id="orderItemRows"></tbody>' +
     "</table>" +

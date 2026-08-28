@@ -36,13 +36,15 @@ async function renderSettingsPage(content) {
     "<h2>Settings</h2>" +
     "<p>Global config used across the app - Payment Method, Sales Platform, Staff Roles, and similar option lists.</p>" +
     '<div id="settingsGeneralWrap" style="margin-bottom:32px;"><p>Loading...</p></div>' +
-    '<div id="settingsListsWrap"></div>';
+    '<div id="settingsListsWrap"></div>' +
+    '<div id="skuConfigWrap"></div>';
 
   _lastSettingsData = await api("settings");
   if (!document.getElementById("settingsGeneralWrap")) return;
 
   renderGeneralSettings();
   renderAllSettingsLists();
+  renderSkuConfigSection();
 }
 
 // ---------- General ----------
@@ -333,4 +335,222 @@ function saveArrangeSettingsList() {
     renderManageSettingsListModal();
     renderAllSettingsLists();
   });
+}
+
+// ---------- SKU Configuration ----------
+// Type Codes + per-Type Category Codes + Unit Codes - these three settings_
+// lists are what Database > SKU > Add SKU actually reads to auto-generate a
+// new SKU's code (TYPE-CATEGORY-NNNN, see functions/api/sku-items.js), not
+// derived from existing SKUs. SKU_TYPES is database.js's constant (loaded
+// before this file - see index.html's script order), not redefined here to
+// avoid the two drifting apart.
+// Type Codes is edit-only (PATCH, no add/remove) - the 6 types themselves
+// are a fixed set hardcoded across the app (Database > SKU's own tabs), so
+// "adding a 7th type" here wouldn't do anything useful; Category/Unit Codes
+// are freely addable/removable since their values aren't fixed.
+
+let _skuConfigCategoryType = SKU_TYPES[0];
+
+function renderSkuConfigSection() {
+  const wrap = document.getElementById("skuConfigWrap");
+  if (!wrap) return;
+  const typeMeta = _lastSettingsData.listsMeta["SKU Type Code"] || {};
+  const unitItems = _lastSettingsData.lists["SKU Unit Code"] || [];
+  const unitMeta = _lastSettingsData.listsMeta["SKU Unit Code"] || {};
+
+  // Category rows flattened across every Type into one Type/Category/Code
+  // table (each Type's own list stays separate in settings_lists/the Manage
+  // modal - this is just a combined read-only preview).
+  const categoryRows = [];
+  SKU_TYPES.forEach((t) => {
+    const items = _lastSettingsData.lists["SKU Category Code - " + t] || [];
+    const meta = _lastSettingsData.listsMeta["SKU Category Code - " + t] || {};
+    items.forEach((c) => categoryRows.push({ type: t, category: c, code: meta[c] || "" }));
+  });
+
+  wrap.innerHTML =
+    '<div class="settings-list-section" style="margin-bottom:28px;">' +
+      "<h3>SKU Configuration</h3>" +
+      '<p style="font-size:12px; color:var(--color-text-muted); max-width:600px;">Type/Category/Unit codes used to auto-generate new SKU codes in Database &gt; SKU &gt; Add SKU.</p>' +
+
+      "<h4>Type Codes</h4>" +
+      '<table style="max-width:300px;"><thead><tr><th>Type</th><th>Code</th></tr></thead><tbody>' +
+        SKU_TYPES.map((t) => "<tr><td>" + t + "</td><td style=\"color:var(--color-text-muted); font-size:12px;\">" + (typeMeta[t] || "-") + "</td></tr>").join("") +
+      "</tbody></table>" +
+
+      "<h4 style=\"margin-top:16px;\">Category Codes</h4>" +
+      '<table style="max-width:420px;"><thead><tr><th>Type</th><th>Category</th><th>Code</th></tr></thead><tbody>' +
+        (categoryRows.length
+          ? categoryRows.map((r) => "<tr><td>" + r.type + "</td><td>" + r.category + "</td><td style=\"color:var(--color-text-muted); font-size:12px;\">" + (r.code || "-") + "</td></tr>").join("")
+          : '<tr><td colspan="3" style="color:var(--color-text-muted); font-size:12px;">None configured yet.</td></tr>') +
+      "</tbody></table>" +
+
+      "<h4 style=\"margin-top:16px;\">Unit Codes</h4>" +
+      '<table style="max-width:300px;"><thead><tr><th>Unit</th><th>Code</th></tr></thead><tbody>' +
+        (unitItems.length
+          ? unitItems.map((u) => "<tr><td>" + u + "</td><td style=\"color:var(--color-text-muted); font-size:12px;\">" + (unitMeta[u] || "-") + "</td></tr>").join("")
+          : '<tr><td colspan="2" style="color:var(--color-text-muted); font-size:12px;">None configured yet.</td></tr>') +
+      "</tbody></table>" +
+
+      '<div style="margin-top:8px;"><button onclick="openSkuConfigModal()">Manage SKU Config</button></div>' +
+    "</div>";
+}
+
+function openSkuConfigModal() {
+  renderSkuConfigModal();
+}
+
+function renderSkuConfigModal() {
+  const typeMeta = _lastSettingsData.listsMeta["SKU Type Code"] || {};
+
+  const catType = _skuConfigCategoryType;
+  const catListName = "SKU Category Code - " + catType;
+  const catItems = _lastSettingsData.lists[catListName] || [];
+  const catMeta = _lastSettingsData.listsMeta[catListName] || {};
+
+  const unitItems = _lastSettingsData.lists["SKU Unit Code"] || [];
+  const unitMeta = _lastSettingsData.listsMeta["SKU Unit Code"] || {};
+
+  openModal(
+    "<h2>Manage SKU Config</h2>" +
+
+    "<h3>Type Codes</h3>" +
+    '<table style="max-width:400px;"><thead><tr><th>Type</th><th>Code</th><th></th></tr></thead><tbody>' +
+      SKU_TYPES.map(skuTypeCodeRowHtml).join("") +
+    "</tbody></table><br>" +
+
+    "<h3>Category Codes</h3>" +
+    "<label>Type</label><br>" +
+    '<select id="skuConfigCategoryType" onchange="switchSkuConfigCategoryType(this.value)">' +
+      SKU_TYPES.map((t) => "<option" + (t === catType ? " selected" : "") + ">" + t + "</option>").join("") +
+    "</select><br><br>" +
+    '<div style="margin-bottom:8px; display:flex; align-items:center; gap:8px;">' +
+      '<input type="text" id="newSkuCategoryValue" placeholder="New category"> ' +
+      '<input type="text" id="newSkuCategoryCode" placeholder="Code (e.g. AROM)" style="width:110px; text-transform:uppercase;"> ' +
+      '<button id="addSkuCategoryBtn" onclick="addSkuConfigItem(\'' + catListName.replace(/'/g, "\\'") + '\', \'newSkuCategoryValue\', \'newSkuCategoryCode\', \'addSkuCategoryBtn\', \'addSkuCategoryStatus\')">+ Add</button>' +
+      '<span id="addSkuCategoryStatus" class="save-status"></span>' +
+    "</div>" +
+    '<table style="max-width:400px;"><thead><tr><th>Category</th><th>Code</th><th></th></tr></thead><tbody>' +
+      (catItems.length ? catItems.map((v) => skuConfigItemRowHtml(catListName, v, catMeta[v])).join("") : '<tr><td colspan="3" style="color:var(--color-text-muted); font-size:12px;">None configured yet.</td></tr>') +
+    "</tbody></table><br>" +
+
+    "<h3>Unit Codes</h3>" +
+    '<div style="margin-bottom:8px; display:flex; align-items:center; gap:8px;">' +
+      '<input type="text" id="newSkuUnitValue" placeholder="New unit"> ' +
+      '<input type="text" id="newSkuUnitCode" placeholder="Code (e.g. g)" style="width:110px;"> ' +
+      '<button id="addSkuUnitBtn" onclick="addSkuConfigItem(\'SKU Unit Code\', \'newSkuUnitValue\', \'newSkuUnitCode\', \'addSkuUnitBtn\', \'addSkuUnitStatus\')">+ Add</button>' +
+      '<span id="addSkuUnitStatus" class="save-status"></span>' +
+    "</div>" +
+    '<table style="max-width:400px;"><thead><tr><th>Unit</th><th>Code</th><th></th></tr></thead><tbody>' +
+      (unitItems.length ? unitItems.map((v) => skuConfigItemRowHtml("SKU Unit Code", v, unitMeta[v])).join("") : '<tr><td colspan="3" style="color:var(--color-text-muted); font-size:12px;">None configured yet.</td></tr>') +
+    "</tbody></table>"
+  );
+}
+
+function skuTypeCodeRowHtml(type) {
+  const code = (_lastSettingsData.listsMeta["SKU Type Code"] || {})[type] || "";
+  return (
+    "<tr><td>" + type + "</td>" +
+    '<td><input type="text" class="skuTypeCodeInput" value="' + code + '" style="width:80px; text-transform:uppercase;"></td>' +
+    '<td><button onclick="saveSkuTypeCode(\'' + type + '\', this)">Save</button></td></tr>'
+  );
+}
+
+function saveSkuTypeCode(type, btn) {
+  const code = btn.closest("tr").querySelector(".skuTypeCodeInput").value.trim().toUpperCase();
+  if (!code) { alert("Please enter a code."); return; }
+
+  withInlineSaveStatus(btn, "Code", async function () {
+    await api("settings-lists", { method: "PATCH", body: { listName: "SKU Type Code", oldValue: type, newValue: type, meta: code } });
+    _lastSettingsData = await api("settings");
+    renderSkuConfigModal();
+    renderSkuConfigSection();
+  });
+}
+
+function switchSkuConfigCategoryType(type) {
+  _skuConfigCategoryType = type;
+  renderSkuConfigModal();
+}
+
+function skuConfigItemRowHtml(listName, value, code) {
+  const escapedValue = value.replace(/'/g, "\\'");
+  const escapedList = listName.replace(/'/g, "\\'");
+  return (
+    "<tr><td>" + value + "</td>" +
+    '<td style="color:var(--color-text-muted); font-size:12px;">' + (code || "") + "</td>" +
+    '<td><button onclick="openEditSkuConfigItem(\'' + escapedList + '\', \'' + escapedValue + '\')">Edit</button> ' +
+    '<button onclick="removeSkuConfigItem(\'' + escapedList + '\', \'' + escapedValue + '\')">Remove</button></td></tr>'
+  );
+}
+
+function addSkuConfigItem(listName, valueInputId, codeInputId, btnId, statusId) {
+  const value = document.getElementById(valueInputId).value.trim();
+  // Category/Type codes are always uppercase (AROM, IN, ...) by convention -
+  // Unit codes aren't (a gram's code is "g", not "G"), so only force case
+  // for the ones that actually follow that convention.
+  const rawCode = document.getElementById(codeInputId).value.trim();
+  const code = listName === "SKU Unit Code" ? rawCode : rawCode.toUpperCase();
+  if (!value) { alert("Please enter a name."); return; }
+  if (!code) { alert("Please enter a code."); return; }
+
+  const btn = document.getElementById(btnId);
+  const statusEl = document.getElementById(statusId);
+
+  withSaveStatus(btn, statusEl, "Item", async function () {
+    await api("settings-lists", { method: "POST", body: { listName: listName, value: value, meta: code } });
+    _lastSettingsData = await api("settings");
+    renderSkuConfigModal();
+    renderSkuConfigSection();
+  });
+}
+
+function skuConfigModalTitle(listName) {
+  if (listName === "SKU Unit Code") return "Unit";
+  return "Category (" + listName.replace("SKU Category Code - ", "") + ")";
+}
+
+function openEditSkuConfigItem(listName, oldValue) {
+  const meta = (_lastSettingsData.listsMeta[listName] || {})[oldValue] || "";
+
+  openModal(
+    "<h2>Edit " + skuConfigModalTitle(listName) + "</h2>" +
+    "<label>Name</label><br>" +
+    '<input type="text" id="editSkuConfigValue" value="' + oldValue + '"><br><br>' +
+    "<label>Code</label><br>" +
+    '<input type="text" id="editSkuConfigCode" value="' + meta + '" style="width:110px;' + (listName === "SKU Unit Code" ? "" : " text-transform:uppercase;") + '"><br><br>' +
+    '<button id="editSkuConfigBtn" onclick="saveEditSkuConfigItem(\'' + listName.replace(/'/g, "\\'") + '\', \'' + oldValue.replace(/'/g, "\\'") + '\')">Save</button> ' +
+    '<button onclick="renderSkuConfigModal()">Cancel</button>' +
+    '<span id="editSkuConfigStatus" class="save-status"></span>'
+  );
+}
+
+function saveEditSkuConfigItem(listName, oldValue) {
+  const newValue = document.getElementById("editSkuConfigValue").value.trim();
+  const rawCode = document.getElementById("editSkuConfigCode").value.trim();
+  const code = listName === "SKU Unit Code" ? rawCode : rawCode.toUpperCase();
+  if (!newValue) { alert("Please enter a name."); return; }
+  if (!code) { alert("Please enter a code."); return; }
+
+  const btn = document.getElementById("editSkuConfigBtn");
+  const statusEl = document.getElementById("editSkuConfigStatus");
+
+  withSaveStatus(btn, statusEl, "Item", async function () {
+    await api("settings-lists", { method: "PATCH", body: { listName: listName, oldValue: oldValue, newValue: newValue, meta: code } });
+    _lastSettingsData = await api("settings");
+    renderSkuConfigModal();
+    renderSkuConfigSection();
+  });
+}
+
+function removeSkuConfigItem(listName, value) {
+  if (!confirm('Remove "' + value + '"? Add SKU won\'t be able to auto-generate a code for it anymore.')) return;
+
+  api("settings-lists", { method: "DELETE", body: { listName: listName, value: value } })
+    .then(async () => {
+      _lastSettingsData = await api("settings");
+      renderSkuConfigModal();
+      renderSkuConfigSection();
+    })
+    .catch((err) => alert(err.message));
 }

@@ -390,8 +390,8 @@ async function openSalesEntryModal() {
     '<select id="salePlatform" onchange="onSalePlatformChange()">' + salePlatformOptionsHtml("") + "</select>" +
     '<p style="font-size:12px; color:var(--color-text-muted);">Platforms themselves are managed on the Settings page.</p><br>' +
 
-    '<table style="table-layout:fixed; margin-bottom:8px;">' +
-      '<colgroup><col style="width:220px;"><col style="width:60px;"><col style="width:110px;"><col style="width:110px;"><col style="width:74px;"></colgroup>' +
+    '<table style="table-layout:fixed; width:auto; margin-bottom:8px;">' +
+      '<colgroup><col style="width:200px;"><col style="width:90px;"><col style="width:130px;"><col style="width:130px;"><col style="width:74px;"></colgroup>' +
       "<thead><tr><th>Item</th><th>Qty</th><th>Selling Price</th><th>Total</th><th></th></tr></thead>" +
       '<tbody id="saleItemRows"></tbody>' +
       '<tfoot><tr><td colspan="5"><button type="button" onclick="addSaleItemRow()">+ Add Item</button></td></tr></tfoot>' +
@@ -591,8 +591,8 @@ function openSalesBatchModal(batchCode) {
       "</div><br>" +
     "</div>" +
 
-    '<table style="table-layout:fixed; margin-bottom:8px;">' +
-      '<colgroup><col style="width:220px;"><col style="width:60px;"><col style="width:110px;"><col style="width:110px;"><col style="width:74px;"></colgroup>' +
+    '<table style="table-layout:fixed; width:auto; margin-bottom:8px;">' +
+      '<colgroup><col style="width:200px;"><col style="width:90px;"><col style="width:130px;"><col style="width:130px;"><col style="width:74px;"></colgroup>' +
       "<thead><tr><th>Item</th><th>Qty</th><th>Selling Price</th><th>Total</th><th></th></tr></thead>" +
       '<tbody id="batchEditItemRows"></tbody>' +
       '<tfoot><tr><td colspan="5"><button type="button" onclick="addBatchEditItemRow()">+ Add Item</button></td></tr></tfoot>' +

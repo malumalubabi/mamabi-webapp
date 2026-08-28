@@ -5,14 +5,18 @@
 // (sku_cost_history), same effect as the old app's "auto SKU/cost update"
 // but handled in the DB instead of app code - no separate warnings needed.
 //
-// Deliberately create-only (no PATCH/DELETE route, no Edit/Delete button on
-// the Purchase Log) - same reasoning as Cashflow's append-only running
-// balance: a purchase's cost_update_log entry (the trigger above) and
-// downstream current_unit_cost/stock_ledger numbers are all derived from it
-// at insert time, so editing or removing a historical purchase after the
-// fact would need to unwind and recompute all of that too, which isn't
-// supported. Fix a mistake with a new corrective purchase (or a Stock
-// Opname) instead of rewriting history.
+// Editing/deleting a purchase (see purchases/[code].js's PATCH) is safe -
+// as of the 20260820195501_cost_history_delete_update_sync migration,
+// purchase_lines also has an AFTER UPDATE trigger
+// (fn_sync_cost_history_on_line_update) that keeps its sku_cost_history row
+// in sync, sku_cost_history.purchase_line_id ON DELETE CASCADEs, and
+// fn_cost_history_self_correct/fn_cost_history_resync_next keep the whole
+// previous_unit_cost/variance_pct chain internally consistent afterward.
+// current_unit_cost/stock_ledger are plain views (not snapshots), so both
+// reflect an edit immediately with no manual recompute needed. (This
+// comment used to say Purchase Log was deliberately create-only - that was
+// true when written, but the DB grew edit/delete support later and this
+// went stale; don't trust an old file comment over the actual schema.)
 import { getSupabase, getBrandId, jsonResponse, errorResponse } from "./_lib/supabase.js";
 import { nextCode } from "./_lib/codes.js";
 
@@ -24,8 +28,8 @@ export async function onRequestGet({ env }) {
     const { data, error } = await supabase
       .from("purchases")
       .select(
-        "purchase_code, purchase_date, status, method, notes, suppliers(name), " +
-        "purchase_lines(category, qty, unit, total_cost, unit_cost, notes, sku_items(sku, name))"
+        "purchase_code, purchase_date, status, method, notes, supplier_id, suppliers(name), " +
+        "purchase_lines(id, sku_id, category, qty, unit, total_cost, unit_cost, notes, sku_items(sku, name))"
       )
       .eq("brand_id", brandId)
       .order("purchase_code", { ascending: false });
@@ -44,7 +48,10 @@ export async function onRequestGet({ env }) {
           groupSize: lines.length,
           purchaseCode: p.purchase_code,
           date: p.purchase_date,
+          supplierId: p.supplier_id,
           supplier: p.suppliers ? p.suppliers.name : "",
+          lineId: line.id,
+          skuId: line.sku_id,
           category: line.category,
           itemName: line.sku_items ? line.sku_items.name : "",
           qty: Number(line.qty),

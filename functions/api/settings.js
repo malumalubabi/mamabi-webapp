@@ -29,7 +29,14 @@ const GENERAL_KEYS = [
   "Platform Fee %"
 ];
 
-const LIST_NAMES = ["Payment Method", "Sales Platform", "PnL Categories", "Staff Roles", "Cashflow Category"];
+// SKU Category Code is one list per SKU type (categories are always
+// type-scoped - "Protein" under Component and "Protein" under Ingredient
+// are different lists with potentially different codes) - see
+// pages/database.js's SKU_TYPES and pages/settings.js's SKU Config modal.
+const SKU_CONFIG_TYPES = ["Ingredient", "Packaging", "Operating", "Product", "Component", "Semi-Finished"];
+
+const LIST_NAMES = ["Payment Method", "Sales Platform", "PnL Categories", "Staff Roles", "Cashflow Category", "SKU Type Code", "SKU Unit Code"]
+  .concat(SKU_CONFIG_TYPES.map((t) => "SKU Category Code - " + t));
 
 export async function onRequestGet({ env }) {
   try {

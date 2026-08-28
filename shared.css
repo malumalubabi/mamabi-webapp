@@ -770,6 +770,13 @@ th {
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
   position: relative;
 }
+/* The global h2 rule's 8px margin-bottom (shared.css heading hierarchy
+   section) reads as cramped for a modal title sitting right above its
+   first form field/table - every modal opens with an <h2>, so this widens
+   just that gap without touching h2 elsewhere (page titles, etc). */
+.modal-box h2 {
+  margin-bottom: 16px;
+}
 .modal-close {
   position: absolute;
   top: 12px;

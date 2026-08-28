@@ -2,6 +2,7 @@
 // lookups.js has its own select of every SKU (all types) for other modules'
 // comboboxes - this is the standalone management page's data source.
 import { getSupabase, getBrandId, jsonResponse, errorResponse } from "./_lib/supabase.js";
+import { nextCode } from "./_lib/codes.js";
 
 export async function onRequestGet({ request, env }) {
   try {
@@ -33,18 +34,36 @@ export async function onRequestGet({ request, env }) {
 export async function onRequestPost({ request, env }) {
   try {
     const body = await request.json();
-    const sku = (body.sku || "").trim().toUpperCase();
     const name = (body.name || "").trim();
     const unit = (body.unit || "").trim();
     const itemType = (body.itemType || "").trim();
+    const category = (body.category || "").trim();
 
-    if (!sku) return jsonResponse({ error: "SKU code is required" }, 400);
     if (!itemType) return jsonResponse({ error: "Item Type is required" }, 400);
+    if (!category) return jsonResponse({ error: "Category is required" }, 400);
     if (!name) return jsonResponse({ error: "Item Name is required" }, 400);
     if (!unit) return jsonResponse({ error: "Unit is required" }, 400);
 
     const supabase = getSupabase(env);
     const brandId = await getBrandId(supabase);
+
+    // SKU codes follow TYPE-CATEGORY-NNNN (e.g. "SF-AROM-0001") - the TYPE
+    // and CATEGORY segments come from Settings > SKU Configuration
+    // (settings_lists "SKU Type Code" / "SKU Category Code - {itemType}"),
+    // not derived from any existing sku_items row - see pages/settings.js's
+    // Manage SKU Config modal and pages/database.js's Add SKU form, whose
+    // Category dropdown only ever offers categories configured there.
+    const [typeRes, categoryRes] = await Promise.all([
+      supabase.from("settings_lists").select("meta").eq("brand_id", brandId).eq("list_name", "SKU Type Code").eq("value", itemType).maybeSingle(),
+      supabase.from("settings_lists").select("meta").eq("brand_id", brandId).eq("list_name", "SKU Category Code - " + itemType).eq("value", category).maybeSingle()
+    ]);
+    if (typeRes.error) throw typeRes.error;
+    if (categoryRes.error) throw categoryRes.error;
+    if (!typeRes.data || !typeRes.data.meta) return jsonResponse({ error: "No SKU code configured for Type \"" + itemType + "\" - add it in Settings > Manage SKU Config first." }, 400);
+    if (!categoryRes.data || !categoryRes.data.meta) return jsonResponse({ error: "No SKU code configured for Category \"" + category + "\" - add it in Settings > Manage SKU Config first." }, 400);
+
+    const prefix = typeRes.data.meta + "-" + categoryRes.data.meta;
+    const sku = await nextCode(supabase, "sku_items", "sku", brandId, prefix, 4);
 
     const { data, error } = await supabase
       .from("sku_items")
@@ -52,7 +71,7 @@ export async function onRequestPost({ request, env }) {
         brand_id: brandId,
         sku,
         item_type: itemType,
-        category: body.category || null,
+        category,
         name,
         unit,
         // Product's "on" state is "Active", everything else is "Available" -

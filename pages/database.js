@@ -240,9 +240,11 @@ function saveArrangeSku() {
   });
 }
 
-// SKU code/Type/Category are only enterable at Add time (free text, per
-// explicit decision - no auto-generation/config system) and locked after
-// that (matches the old app's updateSkuItem, which never touched them either).
+// SKU code/Type/Category are only set at Add time - SKU Code auto-fills
+// from Settings > SKU Configuration (Type/Category codes, see
+// skuCodePreview below and functions/api/sku-items.js) and Category is a
+// dropdown of that same config, both locked after creation (matches the old
+// app's updateSkuItem, which never touched them either).
 // Product uses Active/Inactive, every other type uses Available/Unavailable
 // - two different vocabularies for the same on/off concept (Product's
 // "Active" predates the Inventory-side Available/Unavailable pair and was
@@ -254,39 +256,88 @@ function skuStatusOptionsHtml(itemType, currentStatus) {
   return options.map((o) => "<option" + ((currentStatus ? currentStatus === o : o === options[0]) ? " selected" : "") + ">" + o + "</option>").join("");
 }
 
-function openSkuModal(sku) {
+// Category/Unit options both come from Settings > SKU Configuration now
+// (settings_lists "SKU Category Code - {type}" / "SKU Unit Code") - strict
+// dropdowns, no manual entry (per explicit reversal of an earlier free-text
+// version). Fetched once per session; Manage SKU Config is a separate page
+// (Settings), so a value added there won't show up here until next reload -
+// acceptable since Add SKU and Settings aren't used in the same breath.
+let _skuConfigData = null;
+
+async function ensureSkuConfigData() {
+  if (_skuConfigData) return;
+  _skuConfigData = await api("settings");
+}
+
+// Matches the server's own derivation (functions/api/sku-items.js) so the
+// user sees the real code before saving, not just after. Prefix comes from
+// SKU Configuration's meta (Type code + Category code), not from any
+// existing sku_items row - works even for a configured category with zero
+// SKUs yet. Empty return means Type/Category isn't configured at all (only
+// reachable by picking the blank/default option, since both dropdowns only
+// ever offer configured values).
+function skuCodePreview(category) {
+  const typeCode = (_skuConfigData.listsMeta["SKU Type Code"] || {})[_activeSkuType];
+  const categoryCode = (_skuConfigData.listsMeta["SKU Category Code - " + _activeSkuType] || {})[category];
+  if (!typeCode || !categoryCode) return "";
+
+  const prefix = typeCode + "-" + categoryCode;
+  let maxN = 0;
+  _lastSkuRows.forEach((r) => {
+    if (r.sku.indexOf(prefix + "-") !== 0) return;
+    const m = r.sku.match(/-(\d+)$/);
+    if (m) maxN = Math.max(maxN, parseInt(m[1], 10));
+  });
+  return prefix + "-" + String(maxN + 1).padStart(4, "0");
+}
+
+function onSkuCategoryChange() {
+  document.getElementById("skuCode").value = skuCodePreview(document.getElementById("skuCategory").value);
+}
+
+async function openSkuModal(sku) {
   const row = sku ? _lastSkuRows.find((r) => r.sku === sku) : null;
   const itemType = row ? row.item_type : _activeSkuType;
+
+  await ensureSkuConfigData();
+  const categories = row ? [] : (_skuConfigData.lists["SKU Category Code - " + itemType] || []);
+  const units = _skuConfigData.lists["SKU Unit Code"] || [];
 
   openModal(
     "<h2>" + (sku ? "Edit SKU - " + sku : "Add SKU - " + _activeSkuType) + "</h2>" +
     (row
       ? ('<p><strong>SKU:</strong> ' + row.sku + ' &nbsp; <strong>Type:</strong> ' + row.item_type + ' &nbsp; <strong>Category:</strong> ' + (row.category || "-") + "</p>")
       : (
-          "<label>SKU Code</label><br>" +
-          '<input type="text" id="skuCode" placeholder="e.g. IN-PROT-0016" style="text-transform:uppercase;"><br><br>' +
           "<label>Category</label><br>" +
-          '<input type="text" id="skuCategory"><br><br>'
+          '<select id="skuCategory" onchange="onSkuCategoryChange()" style="width:170px;">' +
+            (categories.length ? categories.map((c) => "<option>" + c + "</option>").join("") : '<option value="">No categories configured</option>') +
+          "</select><br><br>" +
+          "<label>SKU Code</label><br>" +
+          '<input type="text" id="skuCode" readonly style="background:var(--color-disabled-bg);"><br><br>'
         )
     ) +
     "<label>Item Name</label><br>" +
     '<input type="text" id="skuName" value="' + (row ? row.name : "") + '"><br><br>' +
     "<label>Unit</label><br>" +
-    '<input type="text" id="skuUnit" value="' + (row ? row.unit : "") + '" style="width:100px;"><br><br>' +
+    '<select id="skuUnit" style="width:170px;">' +
+      (units.length ? units.map((u) => "<option" + (row && row.unit === u ? " selected" : "") + ">" + u + "</option>").join("") : '<option value="">No units configured</option>') +
+    "</select><br><br>" +
     "<label>Status</label><br>" +
     '<select id="skuStatus">' + skuStatusOptionsHtml(itemType, row ? row.status : null) + "</select><br><br>" +
     '<button id="saveSkuBtn" onclick="saveSku(' + (sku ? "'" + sku + "'" : "null") + ')">Save</button>' +
     '<span id="saveSkuStatus" class="save-status"></span>'
   );
+
+  if (!row && categories.length) onSkuCategoryChange();
 }
 
 function saveSku(existingSku) {
   const name = document.getElementById("skuName").value.trim();
-  const unit = document.getElementById("skuUnit").value.trim();
+  const unit = document.getElementById("skuUnit").value;
   const status = document.getElementById("skuStatus").value;
 
   if (!name) { alert("Please enter an Item Name."); return; }
-  if (!unit) { alert("Please enter a Unit."); return; }
+  if (!unit) { alert("Please select a Unit."); return; }
 
   const btn = document.getElementById("saveSkuBtn");
   const statusEl = document.getElementById("saveSkuStatus");
@@ -300,12 +351,11 @@ function saveSku(existingSku) {
     return;
   }
 
-  const sku = document.getElementById("skuCode").value.trim().toUpperCase();
-  const category = document.getElementById("skuCategory").value.trim();
-  if (!sku) { alert("Please enter a SKU code."); return; }
+  const category = document.getElementById("skuCategory").value;
+  if (!category) { alert("Please select a Category."); return; }
 
   withSaveStatus(btn, statusEl, "SKU", async function () {
-    await api("sku-items", { method: "POST", body: { sku: sku, itemType: _activeSkuType, category: category, name: name, unit: unit, status: status } });
+    await api("sku-items", { method: "POST", body: { itemType: _activeSkuType, category: category, name: name, unit: unit, status: status } });
     closeModal();
     await loadSkuType(_activeSkuType);
   });

@@ -253,7 +253,7 @@ function buildCashflowFormHtml() {
     // One header row for the whole list (not per-item field labels), same
     // table/colgroup pattern as Input Sales - Notes now rides in its own
     // column aligned with every other field instead of trailing below.
-    '<table style="table-layout:fixed;">' +
+    '<table style="table-layout:fixed; width:auto;">' +
       '<colgroup><col style="width:230px;"><col style="width:160px;"><col style="width:160px;"><col style="width:120px;"><col style="width:74px;"></colgroup>' +
       "<thead><tr><th>Description</th><th>Amount</th><th>Category</th><th>Notes</th><th></th></tr></thead>" +
       '<tbody id="cashflowRows"></tbody>' +

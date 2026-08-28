@@ -334,8 +334,12 @@ function buildPurchaseFormHtml() {
     // Type/Category ride to the right of the item name instead of their own
     // columns, Unit rides next to Qty instead of its own column, per
     // explicit request to fit one item per row without excess width.
-    '<table style="table-layout:fixed;">' +
-      '<colgroup><col style="width:230px;"><col style="width:90px;"><col style="width:110px;"><col style="width:100px;"><col style="width:74px;"></colgroup>' +
+    // width:auto overrides shared.css's global "table { width:100% }" -
+    // without it, table-layout:fixed still stretches to fill the modal and
+    // turns every <col> width below into a mere ratio instead of an actual
+    // px value, silently ballooning every column (Notes/Remove included).
+    '<table style="table-layout:fixed; width:auto;">' +
+      '<colgroup><col style="width:330px;"><col style="width:175px;"><col style="width:160px;"><col style="width:140px;"><col style="width:74px;"></colgroup>' +
       "<thead><tr><th>Item</th><th>Qty</th><th>Cost</th><th>Notes</th><th></th></tr></thead>" +
       '<tbody id="purchaseItemRows"></tbody>' +
     "</table>" +
@@ -407,9 +411,9 @@ function addPurchaseItemRow() {
       "</div>" +
     "</td>" +
     "<td>" +
-      '<div style="display:flex; align-items:center; gap:8px;">' +
-        '<input type="number" class="qty" min="0" step="any" style="width:60px; flex-shrink:0;">' +
-        '<span class="unitLabel" style="font-size:12px; color:var(--color-text-muted); white-space:nowrap;"></span>' +
+      '<div style="display:flex; align-items:center; gap:6px;">' +
+        '<input type="number" class="qty" min="0" step="any" style="width:96px; flex-shrink:0;">' +
+        '<span class="unitLabel" style="font-size:12px; color:var(--color-text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></span>' +
       "</div>" +
     "</td>" +
     '<td><input type="text" class="totalCost" inputmode="numeric" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this); recalcPurchaseGrandTotal()"></td>' +
@@ -530,12 +534,12 @@ function buildPurchaseTableShellHtml() {
       "</div>" +
     "</div>" +
     "<style>" +
-      "#purchaseLogTable { table-layout: fixed; }" +
+      "#purchaseLogTable { table-layout: fixed; width: auto; }" +
       "#purchaseLogTable th, #purchaseLogTable td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-top: 2px; padding-bottom: 2px; }" +
-      ".colId { width: 220px; } .colCategory { width: 100px; }" +
-      ".colItemName { width: 260px; } .colQty { width: 55px; } .colUnit { width: 60px; }" +
-      ".colTotalCost { width: 130px; } .colUnitCost { width: 110px; } .colStatus { width: 90px; }" +
-      ".colNotes { width: 160px; }" +
+      ".colId { width: 190px; } .colCategory { width: 100px; }" +
+      ".colItemName { width: 260px; } .colQty { width: 75px; } .colUnit { width: 60px; }" +
+      ".colTotalCost { width: 130px; } .colUnitCost { width: 110px; } .colStatus { width: 130px; }" +
+      ".colNotes { width: 160px; } .colEdit { width: 60px; }" +
     "</style>" +
     '<div id="purchasePaginationNav" class="pagination-nav"></div>' +
     '<div id="purchaseLogScrollWrap" style="overflow-x:auto;">' +
@@ -544,11 +548,11 @@ function buildPurchaseTableShellHtml() {
           '<col class="colId"><col class="colCategory">' +
           '<col class="colItemName"><col class="colQty"><col class="colUnit">' +
           '<col class="colTotalCost"><col class="colUnitCost"><col class="colStatus">' +
-          '<col class="colNotes">' +
+          '<col class="colNotes"><col class="colEdit">' +
         "</colgroup>" +
         "<thead><tr><th>Date</th><th>Category</th><th>Item Name</th>" +
-        "<th>Qty</th><th>Unit</th><th>Total Cost</th><th>Unit Cost</th><th>Status</th><th>Notes</th></tr></thead>" +
-        '<tbody id="purchaseLogTbody"><tr><td colspan="9">Loading...</td></tr></tbody>' +
+        '<th style="text-align:right;">Qty</th><th>Unit</th><th>Total Cost</th><th>Unit Cost</th><th>Status</th><th>Notes</th><th></th></tr></thead>' +
+        '<tbody id="purchaseLogTbody"><tr><td colspan="10">Loading...</td></tr></tbody>' +
       "</table>" +
     "</div>"
   );
@@ -611,7 +615,7 @@ function renderPurchaseLogRows() {
   if (sortBadge) sortBadge.textContent = "Sort: " + PURCHASE_SORT_LABELS[_purchaseSort];
 
   const rows = visiblePurchaseRows();
-  tbody.innerHTML = rows.length ? rows.map(purchaseRowHtml).join("") : '<tr><td colspan="9">No purchases match this filter.</td></tr>';
+  tbody.innerHTML = rows.length ? rows.map(purchaseRowHtml).join("") : '<tr><td colspan="10">No purchases match this filter.</td></tr>';
   paginateGroupedTable("purchaseLogTbody", "purchasePaginationNav", 20);
   enableDragScroll(document.getElementById("purchaseLogScrollWrap"));
 }
@@ -675,7 +679,8 @@ function purchaseRowHtml(r) {
     : "";
   const trailingCells = r.groupStart
     ? '<td rowspan="' + r.groupSize + '">' + r.status + '<br><span style="color:var(--color-text-muted); font-size:12px;">' + r.method + "</span></td>" +
-      '<td rowspan="' + r.groupSize + '" title="' + (r.notes || "") + '">' + (r.notes || "") + "</td>"
+      '<td rowspan="' + r.groupSize + '" title="' + (r.notes || "") + '">' + (r.notes || "") + "</td>" +
+      '<td rowspan="' + r.groupSize + '" class="remove-cell"><button type="button" class="btn-remove" onclick="openEditPurchaseModal(\'' + r.purchaseCode + '\')">Edit</button></td>'
     : "";
 
   return (
@@ -685,13 +690,233 @@ function purchaseRowHtml(r) {
       '<td title="' + r.itemName + (r.lineNotes ? " - " + r.lineNotes : "") + '">' + r.itemName +
         (r.lineNotes ? '<br><span style="color:var(--color-text-muted); font-size:12px;">' + r.lineNotes + "</span>" : "") +
       "</td>" +
-      "<td>" + r.qty + "</td>" +
+      '<td style="text-align:right;">' + r.qty + "</td>" +
       "<td>" + r.unit + "</td>" +
       '<td><span class="font-number">' + formatRupiah(r.totalCost) + "</span></td>" +
       '<td><span class="font-number">' + formatRupiah(r.unitCost) + "</span></td>" +
       trailingCells +
     "</tr>"
   );
+}
+
+// ---------- Edit Purchase modal (same layout as Input Purchase, pre-filled) ----------
+// Safe to edit/delete a historical purchase now - see purchases.js's file
+// comment for why (DB-side trigger chain keeps sku_cost_history/
+// current_unit_cost/stock_ledger correct automatically).
+
+let _editSupplierCombo = null;
+
+async function openEditPurchaseModal(purchaseCode) {
+  const lines = _lastPurchaseRows.filter((r) => r.purchaseCode === purchaseCode);
+  if (!lines.length) return;
+  const first = lines[0];
+
+  // Same reasoning as openPurchaseModal() - always refetch, a supplier
+  // added elsewhere mid-session wouldn't otherwise show up here.
+  _invLookups = null;
+  await ensureInvLookups();
+
+  openModal(buildEditPurchaseFormHtml(purchaseCode, first));
+  initEditPurchaseForm(lines, first);
+}
+
+function buildEditPurchaseFormHtml(purchaseCode, first) {
+  return (
+    "<h2>Edit Purchase - " + purchaseCode + "</h2>" +
+    "<label>Date</label><br>" +
+    '<input type="date" id="editPurchaseDate" value="' + first.date + '"><br><br>' +
+
+    "<label>Supplier</label><br>" +
+    '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">' +
+      '<div id="editPurchaseSupplierCombo" style="min-width:220px;"></div>' +
+      '<label style="display:flex; align-items:center; gap:4px; font-weight:normal;">' +
+        '<input type="checkbox" id="editNewSupplierToggle" onchange="toggleEditNewSupplier()">' +
+        "New Supplier" +
+      "</label>" +
+      '<input type="text" id="editNewSupplierName" placeholder="New supplier name" style="display:none;">' +
+    "</div><br><br>" +
+
+    '<table style="table-layout:fixed; width:auto;">' +
+      '<colgroup><col style="width:330px;"><col style="width:175px;"><col style="width:160px;"><col style="width:140px;"><col style="width:74px;"></colgroup>' +
+      "<thead><tr><th>Item</th><th>Qty</th><th>Cost</th><th>Notes</th><th></th></tr></thead>" +
+      '<tbody id="editPurchaseItemRows"></tbody>' +
+    "</table>" +
+    '<button type="button" onclick="addEditPurchaseItemRow()">+ Add Item</button>' +
+    '<div style="margin-top:8px; font-weight:bold;">Total Cost: <span id="editPurchaseGrandTotal" class="font-number">Rp 0</span></div><br><br>' +
+
+    '<div style="display:flex; gap:20px;">' +
+      "<div>" +
+        "<label>Status</label><br>" +
+        '<select id="editPurchaseStatus"><option>Paid</option><option>Unpaid</option><option>Pending</option></select>' +
+      "</div>" +
+      "<div>" +
+        "<label>Method</label><br>" +
+        '<select id="editPurchaseMethod"></select>' +
+      "</div>" +
+    "</div><br><br>" +
+
+    "<label>Notes</label><br>" +
+    '<input type="text" id="editPurchaseNotes" value="' + (first.notes || "") + '"><br><br>' +
+
+    '<button id="saveEditPurchaseBtn" onclick="saveEditPurchase(\'' + purchaseCode + '\')">Save</button>' +
+    '<span id="saveEditPurchaseStatus" class="save-status"></span>'
+  );
+}
+
+function initEditPurchaseForm(lines, first) {
+  const methodSelect = document.getElementById("editPurchaseMethod");
+  methodSelect.innerHTML = _invLookups.paymentMethods.map((m) => "<option>" + m + "</option>").join("");
+  methodSelect.value = first.method || "";
+  document.getElementById("editPurchaseStatus").value = first.status || "Paid";
+
+  _editSupplierCombo = createCombobox(
+    document.getElementById("editPurchaseSupplierCombo"),
+    _invLookups.suppliers.map((s) => ({ value: s.id, label: s.name })),
+    { placeholder: "Select supplier...", allowFreeText: false }
+  );
+  if (first.supplierId) {
+    const sup = _invLookups.suppliers.find((s) => s.id === first.supplierId);
+    if (sup) _editSupplierCombo.setSelection(sup.id, sup.name);
+  }
+
+  document.getElementById("editPurchaseItemRows").innerHTML = "";
+  lines.forEach((r) => addEditPurchaseItemRow(r));
+}
+
+function toggleEditNewSupplier() {
+  const isNew = document.getElementById("editNewSupplierToggle").checked;
+  const combo = document.getElementById("editPurchaseSupplierCombo");
+  combo.style.pointerEvents = isNew ? "none" : "";
+  combo.style.opacity = isNew ? "0.5" : "";
+  document.getElementById("editNewSupplierName").style.display = isNew ? "" : "none";
+  if (isNew && _editSupplierCombo) _editSupplierCombo.clear();
+  if (!isNew) document.getElementById("editNewSupplierName").value = "";
+}
+
+// existingRow (optional) pre-fills the row from a live purchase line -
+// row.dataset.lineId marks it as an existing line so saveEditPurchase()
+// PATCHes it instead of inserting a new one.
+function addEditPurchaseItemRow(existingRow) {
+  const wrap = document.getElementById("editPurchaseItemRows");
+  const row = document.createElement("tr");
+  row.className = "edit-purchase-item-row";
+  if (existingRow) row.dataset.lineId = existingRow.lineId;
+  row.innerHTML =
+    "<td>" +
+      '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">' +
+        '<div class="sku-combo" style="flex:1; min-width:0;"></div>' +
+        '<div class="itemMeta" style="font-size:12px; color:var(--color-text-muted); text-align:left; flex-shrink:0; line-height:1.4;"></div>' +
+      "</div>" +
+    "</td>" +
+    "<td>" +
+      '<div style="display:flex; align-items:center; gap:6px;">' +
+        '<input type="number" class="qty" min="0" step="any" value="' + (existingRow ? existingRow.qty : "") + '" style="width:96px; flex-shrink:0;">' +
+        '<span class="unitLabel" style="font-size:12px; color:var(--color-text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></span>' +
+      "</div>" +
+    "</td>" +
+    '<td><input type="text" class="totalCost" inputmode="numeric" value="' + (existingRow ? formatRupiah(existingRow.totalCost) : "") + '" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this); recalcEditPurchaseGrandTotal()"></td>' +
+    '<td><input type="text" class="lineNotes" value="' + (existingRow && existingRow.lineNotes ? existingRow.lineNotes : "") + '" style="width:100%; box-sizing:border-box;"></td>' +
+    '<td class="remove-cell"><button type="button" class="btn-remove" onclick="removeEditPurchaseItemRow(this)">Remove</button></td>';
+  wrap.appendChild(row);
+
+  const combo = createCombobox(
+    row.querySelector(".sku-combo"),
+    stockableSkus().map((s) => ({ value: s.id, label: s.name, sub: s.sku })),
+    {
+      placeholder: "Select item...",
+      allowFreeText: false,
+      onSelect: function (skuId) { onEditPurchaseItemChange(row, skuId); }
+    }
+  );
+  row._combo = combo;
+
+  if (existingRow) {
+    const item = _invLookups.skus.find((s) => s.id === existingRow.skuId);
+    if (item) combo.setSelection(item.id, item.name); // fires onSelect -> onEditPurchaseItemChange
+  }
+
+  recalcEditPurchaseGrandTotal();
+}
+
+function onEditPurchaseItemChange(row, skuId) {
+  const item = _invLookups.skus.find((s) => s.id === skuId);
+  row.querySelector(".itemMeta").innerHTML = item
+    ? item.item_type + (item.category ? "<br>" + item.category : "")
+    : "";
+  row.querySelector(".unitLabel").textContent = item ? item.unit : "";
+}
+
+function removeEditPurchaseItemRow(btn) {
+  const rows = document.querySelectorAll("#editPurchaseItemRows .edit-purchase-item-row");
+  if (rows.length <= 1) return;
+  btn.closest(".edit-purchase-item-row").remove();
+  recalcEditPurchaseGrandTotal();
+}
+
+function recalcEditPurchaseGrandTotal() {
+  let total = 0;
+  document.querySelectorAll("#editPurchaseItemRows .totalCost").forEach((input) => { total += parseAmount(input.value); });
+  document.getElementById("editPurchaseGrandTotal").textContent = formatRupiah(total);
+}
+
+function collectEditPurchaseItems() {
+  const items = [];
+  document.querySelectorAll("#editPurchaseItemRows .edit-purchase-item-row").forEach((row) => {
+    const skuId = row._combo.getValue();
+    const item = _invLookups.skus.find((s) => s.id === skuId);
+    const qty = row.querySelector(".qty").value;
+    const totalCost = parseAmount(row.querySelector(".totalCost").value);
+    if (!skuId && !qty && !totalCost) return; // skip a fully-empty row
+    items.push({
+      lineId: row.dataset.lineId || undefined,
+      skuId: skuId,
+      category: item ? item.category || null : null,
+      unit: item ? item.unit : "",
+      qty: qty,
+      totalCost: totalCost,
+      notes: row.querySelector(".lineNotes").value.trim() || null
+    });
+  });
+  return items;
+}
+
+async function saveEditPurchase(purchaseCode) {
+  const items = collectEditPurchaseItems();
+
+  if (!document.getElementById("editPurchaseDate").value) { alert("Please select a date."); return; }
+  if (!items.length) { alert("Please add at least one item."); return; }
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    if (!it.skuId) { alert("Please select an item for row " + (i + 1) + "."); return; }
+    if (!it.qty || Number(it.qty) <= 0) { alert("Please enter a valid qty for row " + (i + 1) + "."); return; }
+    if (!it.totalCost || it.totalCost <= 0) { alert("Please enter a valid cost for row " + (i + 1) + "."); return; }
+  }
+
+  const isNewSupplier = document.getElementById("editNewSupplierToggle").checked;
+  const supplierName = document.getElementById("editNewSupplierName").value.trim();
+  if (isNewSupplier && !supplierName) { alert("Please enter the new supplier's name."); return; }
+  if (!isNewSupplier && !_editSupplierCombo.getValue()) { alert("Please select a supplier."); return; }
+
+  const btn = document.getElementById("saveEditPurchaseBtn");
+  const statusEl = document.getElementById("saveEditPurchaseStatus");
+
+  withSaveStatus(btn, statusEl, "Purchase", async function () {
+    const payload = {
+      date: document.getElementById("editPurchaseDate").value,
+      isNewSupplier: isNewSupplier,
+      supplierName: isNewSupplier ? supplierName : undefined,
+      supplierId: isNewSupplier ? undefined : _editSupplierCombo.getValue(),
+      status: document.getElementById("editPurchaseStatus").value,
+      method: document.getElementById("editPurchaseMethod").value,
+      notes: document.getElementById("editPurchaseNotes").value || null,
+      items: items
+    };
+
+    const updated = await api("purchases/" + encodeURIComponent(purchaseCode), { method: "PATCH", body: payload });
+    closeModal();
+    await loadPurchaseTable();
+    return updated;
+  });
 }
 
 // ================================================================
