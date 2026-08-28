@@ -82,7 +82,7 @@ function dv2StylesHtml() {
       ".dv2-stat-row { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:20px; }" +
       // Shadow-only for depth (no border) - box-shadow already reads as a
       // raised card on its own, a border on top of it is redundant.
-      ".dv2-stat { flex:1 1 160px; background:var(--gradient-card-bg); box-shadow:0 1px 3px rgba(5,51,74,0.08); border-radius:10px; padding:12px 16px; }" +
+      ".dv2-stat { flex:1 1 160px; background:var(--color-card-bg); background:var(--gradient-card-bg); box-shadow:0 1px 3px rgba(5,51,74,0.08); border-radius:10px; padding:12px 16px; }" +
       ".dv2-stat-label { font-size:12px; color:var(--color-text-muted); }" +
       // 18px = the app's one heading size (shared.css h2/h3/h4) - kept to
       // that same tier instead of its own larger size, per the "2-3 sizes
@@ -135,7 +135,7 @@ function dv2StylesHtml() {
       // defines one shared heading tier for every h2/h3/h4 in the app;
       // color still needed since .dv2-card's own background differs from
       // whatever ambient text color its container would otherwise inherit.
-      ".dv2-card { background:var(--gradient-card-bg); box-shadow:0 1px 3px rgba(5,51,74,0.08); border-radius:10px; padding:16px; }" +
+      ".dv2-card { background:var(--color-card-bg); background:var(--gradient-card-bg); box-shadow:0 1px 3px rgba(5,51,74,0.08); border-radius:10px; padding:16px; }" +
       ".dv2-card h4 { color:var(--color-text-primary); }" +
       ".dv2-quick-actions button { display:block; width:100%; box-sizing:border-box; text-align:left; padding:12px; margin-bottom:8px; border-radius:8px; border:1px solid var(--color-border-on-card); background:var(--color-accent-tint); color:var(--color-text-primary); cursor:pointer; }" +
       ".dv2-quick-actions button:last-child { margin-bottom:0; }" +

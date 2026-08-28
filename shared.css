@@ -61,6 +61,11 @@
 body {
   margin: 0;
   font-family: "Plus Jakarta Sans", Arial, sans-serif;
+  /* Plain-color fallback before the gradient - the gradient tokens use
+     color-mix() (Safari 16.2+ only); on an older Safari the gradient
+     declaration is invalid and dropped, but this earlier solid one for the
+     same property still applies instead of leaving the element transparent. */
+  background: var(--color-bg-page);
   background: var(--gradient-page-bg);
   color: var(--color-text-on-dark);
 }
@@ -118,6 +123,7 @@ footer {
 #content {
   margin: 16px;
   padding: 16px;
+  background: var(--color-panel-bg);
   background: var(--gradient-panel-bg);
   color: var(--color-text-primary);
   border-radius: 10px;
@@ -160,6 +166,7 @@ button {
   padding: 8px 16px;
   border: none;
   border-radius: 10px;
+  background: var(--color-bg-page);
   background: var(--gradient-btn-primary);
   color: var(--color-card-bg);
   font: inherit;
@@ -360,6 +367,7 @@ th {
   display: flex;
   gap: 8px;
   padding: 8px 12px;
+  background: var(--color-bg-page);
   background: var(--gradient-page-bg);
   border-bottom: 1px solid var(--color-border-on-dark);
   /* No flex-wrap - on a narrow/mobile viewport this scrolls horizontally
@@ -416,6 +424,7 @@ th {
   position: fixed;
   flex-direction: column;
   min-width: 170px;
+  background: var(--color-card-bg);
   background: var(--gradient-card-bg);
   color: var(--color-text-primary);
   box-shadow: 0 2px 6px rgba(0,0,0,0.25);
@@ -460,6 +469,7 @@ th {
   left: 100%;
   flex-direction: column;
   min-width: 170px;
+  background: var(--color-card-bg);
   background: var(--gradient-card-bg);
   color: var(--color-text-primary);
   box-shadow: 0 2px 6px rgba(0,0,0,0.25);
@@ -556,6 +566,7 @@ th {
 .tabs button.tab-active {
   border-color: var(--color-border-on-card);
   border-radius: 4px 4px 0 0;
+  background: var(--color-card-bg);
   background: var(--gradient-card-bg);
   font-weight: bold;
   margin-bottom: -1px;
@@ -740,6 +751,7 @@ th {
   box-sizing: border-box;
 }
 .modal-box {
+  background: var(--color-card-bg);
   background: var(--gradient-card-bg);
   color: var(--color-text-primary);
   border-radius: 8px;
