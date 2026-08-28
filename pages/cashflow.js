@@ -254,8 +254,8 @@ function buildCashflowFormHtml() {
     // table/colgroup pattern as Input Sales - Notes now rides in its own
     // column aligned with every other field instead of trailing below.
     '<table style="table-layout:fixed;">' +
-      '<colgroup><col style="width:190px;"><col style="width:100px;"><col style="width:160px;"><col style="width:100px;"><col style="width:120px;"><col style="width:74px;"></colgroup>' +
-      "<thead><tr><th>Description</th><th>Amount</th><th>Category</th><th>Type</th><th>Notes</th><th></th></tr></thead>" +
+      '<colgroup><col style="width:230px;"><col style="width:160px;"><col style="width:160px;"><col style="width:120px;"><col style="width:74px;"></colgroup>' +
+      "<thead><tr><th>Description</th><th>Amount</th><th>Category</th><th>Notes</th><th></th></tr></thead>" +
       '<tbody id="cashflowRows"></tbody>' +
     "</table>" +
     '<button type="button" onclick="addCashflowRow()">+ Add Entry</button>' +
@@ -285,8 +285,7 @@ function addCashflowRow() {
   row.innerHTML =
     '<td><div class="cfDescCombo"></div></td>' +
     '<td><input type="text" class="cfAmount" inputmode="numeric" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this)"></td>' +
-    '<td><select class="cfCategory" style="width:100%; box-sizing:border-box;" onchange="onCashflowCategoryChange(this)"></select></td>' +
-    '<td><input type="text" class="cfType" readonly style="width:100%; box-sizing:border-box; background:var(--color-disabled-bg);"></td>' +
+    '<td><select class="cfCategory" style="width:100%; box-sizing:border-box;" onchange="onCashflowCategoryChange(this)"></select><input type="hidden" class="cfType"></td>' +
     '<td><input type="text" class="cfNotes" style="width:100%; box-sizing:border-box;"></td>' +
     '<td class="remove-cell"><button type="button" class="btn-remove" onclick="removeCashflowRow(this)">Remove</button></td>';
   wrap.appendChild(row);

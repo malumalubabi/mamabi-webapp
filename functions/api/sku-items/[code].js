@@ -53,13 +53,18 @@ export async function onRequestPatch({ request, env, params }) {
     // client always sends a real value from skuStatusOptionsHtml's options,
     // so just trust it.
     if (body.status !== undefined && body.status) update.status = body.status;
+    // Manage Costing's Yield field (Component/Semi-Finished only) - null
+    // clears it back to unset rather than being rejected like name/unit.
+    if (body.baseYieldQty !== undefined) {
+      update.base_yield_qty = body.baseYieldQty === null || body.baseYieldQty === "" ? null : Number(body.baseYieldQty);
+    }
 
     const { data, error } = await supabase
       .from("sku_items")
       .update(update)
       .eq("brand_id", brandId)
       .eq("sku", sku)
-      .select("id, sku, item_type, category, name, unit, status")
+      .select("id, sku, item_type, category, name, unit, status, base_yield_qty")
       .maybeSingle();
     if (error) throw error;
     if (!data) return jsonResponse({ error: "SKU not found: " + sku }, 404);

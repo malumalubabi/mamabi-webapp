@@ -238,8 +238,14 @@ function renderComboOptions(optionsBox, items, query, onPick) {
     row.appendChild(labelSpan);
     row.appendChild(subSpan);
 
-    // mousedown (not click) so the pick registers before blur closes the panel.
-    row.addEventListener("mousedown", function (e) {
+    // pointerdown (not click, and not mousedown) so the pick registers
+    // before blur closes the panel - mousedown alone is unreliable on iOS
+    // Safari's touch-to-mouse-event synthesis (reported: picking a product
+    // in Input Sales silently failed to register on iPhone Safari, working
+    // fine on Android Chrome, leaving the item list empty and blocking
+    // Save). pointerdown covers touch/mouse/pen uniformly and is supported
+    // on iOS Safari 13+.
+    row.addEventListener("pointerdown", function (e) {
       e.preventDefault();
       onPick(it);
     });
@@ -307,7 +313,7 @@ function createDropdownCombobox(container, currentItems, opts, commitValue) {
     renderComboOptions(optionsBox, currentItems, search.value, pick);
   });
 
-  document.addEventListener("mousedown", function (e) {
+  document.addEventListener("pointerdown", function (e) {
     if (!container.contains(e.target)) closePanel();
   });
 

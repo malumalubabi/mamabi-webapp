@@ -916,11 +916,20 @@ async function loadCostingDetail(sku) {
 }
 
 // ---------- Manage Costing modal (recipe_lines CRUD + Arrange) ----------
+//
+// Qty edits, Add Item and Remove are all staged locally (DOM only, no API
+// call) instead of saving+closing+reloading per action - one "Save" button
+// at the bottom commits everything (updated qtys, additions, removals, and
+// Yield) together. Arrange is the one exception: it's already its own local-
+// staging flow with its own explicit Save Order button, so it's left as-is,
+// with a guard so entering it can't silently discard unsaved Save-pending
+// edits made above.
 
 let _addRecipeLineCombo = null;
 let _manageCostingData = null;
 let _manageCostingArrangeMode = false;
 let _manageCostingArrangeItems = [];
+let _manageCostingDirty = false;
 
 async function openManageCostingModal() {
   const sku = _currentCostingSku;
@@ -928,15 +937,24 @@ async function openManageCostingModal() {
 
   _manageCostingData = await api("costing?sku=" + encodeURIComponent(sku));
   _manageCostingArrangeMode = false;
+  _manageCostingDirty = false;
   renderManageCostingModal();
+}
+
+function markManageCostingDirty() {
+  _manageCostingDirty = true;
 }
 
 // Rebuilt via openModal() every time arrange mode toggles or a move happens
 // (openModal() closes+recreates the backdrop itself, so this stays simple -
-// no manual DOM patching / no risk of losing the close button).
+// no manual DOM patching / no risk of losing the close button). Regular Qty
+// edits/Add/Remove, by contrast, patch the DOM directly (see
+// addRecipeLineToCosting/removeManageCostingRow) precisely so they DON'T
+// trigger a rebuild that would blow away other in-progress unsaved edits.
 function renderManageCostingModal() {
   const data = _manageCostingData;
   const items = _manageCostingArrangeMode ? _manageCostingArrangeItems : data.items;
+  const isComponentMode = data.itemType === "Component" || data.itemType === "Semi-Finished";
 
   const rows = items.length
     ? items.map((it, i) => manageCostingRowHtml(it, i === 0, i === items.length - 1)).join("")
@@ -963,14 +981,35 @@ function renderManageCostingModal() {
           '<div id="addRecipeLineCombo" style="min-width:220px;"></div>' +
           '<input type="number" id="addRecipeLineQty" min="0" step="any" placeholder="Qty" style="width:90px;">' +
           '<input type="text" id="addRecipeLineUnit" disabled placeholder="Unit" style="background:var(--color-disabled-bg); width:70px;">' +
-          '<button id="addRecipeLineBtn" onclick="addRecipeLineToCosting(\'' + data.sku + '\')">+ Add</button>' +
-        "</div>" +
-        '<span id="manageCostingStatus" class="save-status"></span>'
+          '<button type="button" id="addRecipeLineBtn" onclick="addRecipeLineToCosting()">+ Add</button>' +
+        "</div>"
+      );
+
+  // Yield only means anything for a produced Component/Semi-Finished recipe
+  // (Products don't have a base_yield_qty) - editable here now instead of
+  // only shown read-only in the Costing detail summary.
+  const yieldSection = (!_manageCostingArrangeMode && isComponentMode)
+    ? (
+        '<div style="margin-top:16px;">' +
+          '<label for="manageCostingYield">Yield (g)</label><br>' +
+          '<input type="number" id="manageCostingYield" min="0" step="any" value="' + (data.baseYieldQty === null ? "" : data.baseYieldQty) + '" style="width:120px;" oninput="markManageCostingDirty()">' +
+        "</div>"
+      )
+    : "";
+
+  const saveBar = _manageCostingArrangeMode
+    ? ""
+    : (
+        '<div style="margin-top:16px;">' +
+          '<button id="saveManageCostingBtn" onclick="saveManageCostingAll()">Save</button> ' +
+          '<span id="manageCostingStatus" class="save-status"></span>' +
+        "</div>"
       );
 
   openModal(
     "<h2>Manage Costing - " + data.name + " (" + data.sku + ")</h2>" +
-    "<table>" +
+    yieldSection +
+    '<table style="margin-top:16px;">' +
       "<thead><tr>" +
         (_manageCostingArrangeMode ? "<th></th>" : "") +
         "<th>Item</th><th>Qty</th><th>Unit</th>" +
@@ -979,7 +1018,8 @@ function renderManageCostingModal() {
       '<tbody id="manageCostingBody">' + rows + "</tbody>" +
     "</table>" +
     arrangeBar +
-    addItemSection
+    addItemSection +
+    saveBar
   );
 
   if (!_manageCostingArrangeMode) {
@@ -1010,17 +1050,14 @@ function manageCostingRowHtml(it, isFirst, isLast) {
 
   const qtyCell = _manageCostingArrangeMode
     ? "<td>" + it.qty + "</td>"
-    : '<td><input type="number" class="lineQtyInput" min="0" step="any" value="' + it.qty + '" style="width:80px;"></td>';
+    : '<td><input type="number" class="lineQtyInput" min="0" step="any" value="' + it.qty + '" style="width:80px;" oninput="markManageCostingDirty()"></td>';
 
   const actionsCell = _manageCostingArrangeMode
     ? ""
-    : "<td>" +
-        '<button onclick="saveRecipeLineQty(\'' + it.lineId + '\', this)">Save</button> ' +
-        '<button onclick="deleteRecipeLineFromCosting(\'' + it.lineId + '\')">Delete</button>' +
-      "</td>";
+    : '<td class="remove-cell"><button type="button" class="btn-remove" onclick="removeManageCostingRow(this)">Remove</button></td>';
 
   return (
-    "<tr>" +
+    "<tr" + (_manageCostingArrangeMode ? "" : ' data-line-id="' + it.lineId + '"') + ">" +
       moveCell +
       "<td>" + it.name + '<br><span style="color:var(--color-text-muted); font-size:12px;">' + it.sku + "</span></td>" +
       qtyCell +
@@ -1031,6 +1068,7 @@ function manageCostingRowHtml(it, isFirst, isLast) {
 }
 
 function startArrangeCosting() {
+  if (_manageCostingDirty) { alert("Please Save your changes first, then Arrange."); return; }
   _manageCostingArrangeMode = true;
   _manageCostingArrangeItems = _manageCostingData.items.slice();
   renderManageCostingModal();
@@ -1067,34 +1105,21 @@ function saveArrangeCosting() {
   });
 }
 
-// Saving/deleting/adding closes the modal and reloads the Costing detail
-// panel behind it - same close-then-reload pattern as the rest of the app
-// (e.g. Driver Payout's edit modals) rather than refreshing the modal in
-// place.
-function saveRecipeLineQty(lineId, btn) {
-  const row = btn.closest("tr");
-  const qty = Number(row.querySelector(".lineQtyInput").value);
-  if (!qty || qty <= 0) { alert("Please enter a valid qty."); return; }
+// Pure DOM removal - no API call, no re-render of the rest of the table, so
+// any other row's in-progress unsaved qty edit is left alone. Actually
+// deleted (or un-added) server-side only once Save is clicked.
+function removeManageCostingRow(btn) {
+  btn.closest("tr").remove();
+  markManageCostingDirty();
 
-  withInlineSaveStatus(btn, "Qty", async function () {
-    await api("recipe-lines/" + encodeURIComponent(lineId), { method: "PATCH", body: { qty: qty } });
-    closeModal();
-    await loadCostingDetail(_currentCostingSku);
-  });
+  const tbody = document.getElementById("manageCostingBody");
+  if (!tbody.querySelector("tr")) tbody.innerHTML = '<tr><td colspan="4">No recipe lines yet.</td></tr>';
 }
 
-function deleteRecipeLineFromCosting(lineId) {
-  if (!confirm("Remove this ingredient from the recipe?")) return;
-
-  api("recipe-lines/" + encodeURIComponent(lineId), { method: "DELETE" })
-    .then(function () {
-      closeModal();
-      return loadCostingDetail(_currentCostingSku);
-    })
-    .catch((err) => alert(err.message));
-}
-
-function addRecipeLineToCosting(parentSku) {
+// Appends a new <tr> straight into the DOM instead of POSTing immediately -
+// data-new-sku/data-unit (no data-line-id) mark it as unsaved so
+// saveManageCostingAll() knows to POST it as a new line rather than PATCH.
+function addRecipeLineToCosting() {
   const itemSku = _addRecipeLineCombo ? _addRecipeLineCombo.getValue() : "";
   const qty = Number(document.getElementById("addRecipeLineQty").value);
   const unit = document.getElementById("addRecipeLineUnit").value;
@@ -1102,11 +1127,76 @@ function addRecipeLineToCosting(parentSku) {
   if (!itemSku) { alert("Please select an item."); return; }
   if (!qty || qty <= 0) { alert("Please enter a valid qty."); return; }
 
-  const btn = document.getElementById("addRecipeLineBtn");
-  const statusEl = document.getElementById("manageCostingStatus");
+  const item = _menuEngLookups.skus.find((s) => s.sku === itemSku);
+  const tbody = document.getElementById("manageCostingBody");
+  if (!tbody.querySelector(".lineQtyInput")) tbody.innerHTML = ""; // clear the "No recipe lines yet." placeholder
 
-  withSaveStatus(btn, statusEl, "Item", async function () {
-    await api("recipe-lines", { method: "POST", body: { parentSku: parentSku, componentSku: itemSku, qty: qty, unit: unit } });
+  const row = document.createElement("tr");
+  row.dataset.newSku = itemSku;
+  row.dataset.unit = unit;
+  row.innerHTML =
+    "<td>" + (item ? item.name : itemSku) + '<br><span style="color:var(--color-text-muted); font-size:12px;">' + itemSku + "</span></td>" +
+    '<td><input type="number" class="lineQtyInput" min="0" step="any" value="' + qty + '" style="width:80px;" oninput="markManageCostingDirty()"></td>' +
+    "<td>" + unit + "</td>" +
+    '<td class="remove-cell"><button type="button" class="btn-remove" onclick="removeManageCostingRow(this)">Remove</button></td>';
+  tbody.appendChild(row);
+
+  _addRecipeLineCombo.clear();
+  document.getElementById("addRecipeLineQty").value = "";
+  document.getElementById("addRecipeLineUnit").value = "";
+  markManageCostingDirty();
+}
+
+// The one final Save - diffs the table's current DOM state against the
+// original snapshot (_manageCostingData.items) to figure out what changed,
+// then fires every PATCH/POST/DELETE together. Not wrapped in a DB
+// transaction (these are separate REST calls), so a failure partway through
+// can leave a partial save - acceptable here since each call is independently
+// idempotent-ish and the modal stays open with an error rather than silently
+// losing anything.
+function saveManageCostingAll() {
+  const btn = document.getElementById("saveManageCostingBtn");
+  const statusEl = document.getElementById("manageCostingStatus");
+  const parentSku = _manageCostingData.sku;
+  const isComponentMode = _manageCostingData.itemType === "Component" || _manageCostingData.itemType === "Semi-Finished";
+
+  const rows = Array.from(document.querySelectorAll("#manageCostingBody tr"));
+  const keptLineIds = [];
+  const updates = [];
+  const additions = [];
+
+  for (const row of rows) {
+    const qtyInput = row.querySelector(".lineQtyInput");
+    if (!qtyInput) continue; // the "No recipe lines yet." placeholder row
+    const qty = Number(qtyInput.value);
+    if (!qty || qty <= 0) { alert("Please enter a valid qty for every item."); return; }
+
+    if (row.dataset.lineId) {
+      keptLineIds.push(row.dataset.lineId);
+      updates.push({ lineId: row.dataset.lineId, qty: qty });
+    } else if (row.dataset.newSku) {
+      additions.push({ componentSku: row.dataset.newSku, qty: qty, unit: row.dataset.unit });
+    }
+  }
+
+  const deletedLineIds = _manageCostingData.items
+    .map((it) => it.lineId)
+    .filter((id) => keptLineIds.indexOf(id) === -1);
+
+  let yieldValue;
+  if (isComponentMode) {
+    const yieldInput = document.getElementById("manageCostingYield");
+    yieldValue = yieldInput.value === "" ? null : Number(yieldInput.value);
+  }
+
+  withSaveStatus(btn, statusEl, "Costing", async function () {
+    const calls = updates.map((u) => api("recipe-lines/" + encodeURIComponent(u.lineId), { method: "PATCH", body: { qty: u.qty } }))
+      .concat(deletedLineIds.map((id) => api("recipe-lines/" + encodeURIComponent(id), { method: "DELETE" })))
+      .concat(additions.map((a) => api("recipe-lines", { method: "POST", body: { parentSku: parentSku, componentSku: a.componentSku, qty: a.qty, unit: a.unit } })));
+    if (isComponentMode) calls.push(api("sku-items/" + encodeURIComponent(parentSku), { method: "PATCH", body: { baseYieldQty: yieldValue } }));
+
+    await Promise.all(calls);
+    _manageCostingDirty = false;
     closeModal();
     await loadCostingDetail(parentSku);
   });
