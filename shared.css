@@ -435,7 +435,14 @@ th {
      main nav dropdown is always frontmost, per explicit request. */
   z-index: 2000;
 }
-.navbar-item.open .navbar-dropdown {
+/* Was ".navbar-item.open .navbar-dropdown" (descendant selector) - now a
+   class on the dropdown itself, since shared.js detaches it to <body> while
+   open (see toggleNavDropdown) to escape #navbar's -webkit-overflow-
+   scrolling:touch, which was rendering it invisible-but-clickable on iOS
+   Safari (a WebKit bug: a position:fixed descendant of a
+   -webkit-overflow-scrolling:touch ancestor). Once detached it's no longer
+   a descendant of .navbar-item, so the old selector would never match. */
+.navbar-dropdown.open {
   display: flex;
 }
 .navbar-dropdown button {

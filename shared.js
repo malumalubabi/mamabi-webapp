@@ -649,6 +649,13 @@ function renderCurrentPage() {
   const content = document.getElementById("content");
   const renderFn = PAGE_REGISTRY[name];
 
+  // Every nav link's onclick already calls this, but hashchange can also
+  // fire from the browser's own back/forward button without going through
+  // one of those - if a dropdown was left open+detached (see
+  // toggleNavDropdown) at that moment, setActiveNavButton's
+  // ".navbar-dropdown [data-page]" lookups below would miss it since it's
+  // no longer nested under its .navbar-item.
+  closeNavDropdowns();
   setActiveNavButton(name, new URLSearchParams(query || "").get("tab") || "");
 
   if (!renderFn) {
@@ -664,31 +671,58 @@ function renderCurrentPage() {
 // ---------- Navbar dropdowns ----------
 // Ported verbatim from the old app's 99 Shared/Layout/LayoutNavbar.html.
 
+// Closes every open dropdown - and, since an open dropdown lives under
+// <body> while it's open (see toggleNavDropdown), moves each one back to
+// its real spot under its .navbar-item so the static nav markup is intact
+// for the next open. .navbar-subitem.open isn't #navbar-scoped here for the
+// same reason: an open one currently lives inside the detached dropdown,
+// not under #navbar.
 function closeNavDropdowns() {
   document.querySelectorAll("#navbar .navbar-item.open").forEach(function (el) {
     el.classList.remove("open");
   });
-  document.querySelectorAll("#navbar .navbar-subitem.open").forEach(function (el) {
+  document.querySelectorAll(".navbar-dropdown.open").forEach(function (dropdown) {
+    dropdown.classList.remove("open");
+    if (dropdown._navHomeParent) dropdown._navHomeParent.appendChild(dropdown);
+  });
+  document.querySelectorAll(".navbar-subitem.open").forEach(function (el) {
     el.classList.remove("open");
   });
 }
 
 function toggleNavDropdown(btn) {
   const item = btn.closest(".navbar-item");
+  const dropdown = item.querySelector(":scope > .navbar-dropdown");
   const wasOpen = item.classList.contains("open");
   closeNavDropdowns();
   if (!wasOpen) {
     item.classList.add("open");
-    positionNavDropdown(item.querySelector(":scope > .navbar-dropdown"), btn);
+    openNavDropdownDetached(dropdown, item, btn);
   }
 }
 
-// .navbar-dropdown is position:fixed (see shared.css) so it isn't clipped
-// by #navbar's own overflow-x:auto (mobile horizontal scroll) - computed
-// here instead of via CSS top/left since "fixed" positions relative to the
-// viewport, not the trigger button. Closes on any scroll (below) rather
-// than tracking position live, since the trigger itself moves out from
-// under it the moment the page or the navbar scrolls.
+// Moves the dropdown to a direct child of <body> before showing it, instead
+// of leaving it nested under #navbar - #navbar has -webkit-overflow-
+// scrolling:touch (for the mobile horizontal nav scroll), and a
+// position:fixed descendant of a -webkit-overflow-scrolling:touch ancestor
+// is a known WebKit/iOS Safari bug: it stays exactly where it should be and
+// stays clickable, but never actually paints (invisible-but-tappable
+// "ghost"). Reported on an iPhone; z-index and background fallbacks alone
+// didn't help since the element wasn't painting at all. Moved back to its
+// real parent in closeNavDropdowns() once closed.
+function openNavDropdownDetached(dropdown, homeParent, anchorBtn) {
+  if (!dropdown) return;
+  if (!dropdown._navHomeParent) dropdown._navHomeParent = homeParent;
+  document.body.appendChild(dropdown);
+  dropdown.classList.add("open");
+  positionNavDropdown(dropdown, anchorBtn);
+}
+
+// position:fixed positions relative to the viewport, not the trigger button
+// - computed here (not CSS top/left) since the dropdown can now be anywhere
+// under <body>. Closes on any scroll (below) rather than tracking position
+// live, since the trigger itself moves out from under it the moment the
+// page or the navbar scrolls.
 function positionNavDropdown(dropdown, anchorBtn) {
   if (!dropdown) return;
   const rect = anchorBtn.getBoundingClientRect();
@@ -740,9 +774,12 @@ function setActiveNavButton(page, tab) {
   });
 }
 
-// Click outside any navbar-item -> close whatever dropdown is open.
-document.addEventListener("mousedown", function (e) {
-  if (!e.target.closest(".navbar-item")) closeNavDropdowns();
+// Click outside any navbar-item (or the dropdown itself, which lives under
+// <body> - not under .navbar-item - while open, see toggleNavDropdown) ->
+// close whatever dropdown is open. pointerdown (not mousedown) for the same
+// iOS Safari touch-reliability reason as the combobox picker.
+document.addEventListener("pointerdown", function (e) {
+  if (!e.target.closest(".navbar-item, .navbar-dropdown")) closeNavDropdowns();
 });
 
 // A fixed-position dropdown doesn't move with whatever scrolled (the page,
