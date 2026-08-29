@@ -242,7 +242,7 @@ function dv2WireChartTooltip(el, buckets, view) {
   line.setAttribute("stroke-dasharray", "3,3");
   overlay.appendChild(line);
 
-  const dotColors = view === "channel" ? platformColors : ["#2563eb"];
+  const dotColors = view === "channel" ? platformColors : ["#6e90db"];
   const dots = dotColors.map((color) => {
     const c = document.createElementNS(svgNS, "circle");
     c.setAttribute("r", "4");
@@ -403,6 +403,28 @@ function dv2RevenueTicks(maxVal) {
     : Array.from({ length: Math.round(maxVal / step) + 1 }, (_, i) => i * step);
 }
 
+// Catmull-Rom -> cubic Bezier conversion (standard /6 tension constant) -
+// curves smoothly through every point instead of a straight-segment
+// polyline, without overshooting past the data like a looser spline would.
+function dv2SmoothLinePath(coords) {
+  if (!coords.length) return "";
+  if (coords.length === 1) return "M" + coords[0].x.toFixed(1) + " " + coords[0].y.toFixed(1);
+
+  let d = "M" + coords[0].x.toFixed(1) + " " + coords[0].y.toFixed(1);
+  for (let i = 0; i < coords.length - 1; i++) {
+    const p0 = coords[i - 1] || coords[i];
+    const p1 = coords[i];
+    const p2 = coords[i + 1];
+    const p3 = coords[i + 2] || p2;
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    d += " C" + cp1x.toFixed(1) + " " + cp1y.toFixed(1) + " " + cp2x.toFixed(1) + " " + cp2y.toFixed(1) + " " + p2.x.toFixed(1) + " " + p2.y.toFixed(1);
+  }
+  return d;
+}
+
 function dv2RevenueAxisSvg(maxVal, height, padding) {
   const chartH = height - padding.top - padding.bottom;
   const labels = dv2RevenueTicks(maxVal)
@@ -436,7 +458,7 @@ function dv2RevenueChartSvg(points) {
     value: p.value
   }));
 
-  const linePath = coords.map((c, i) => (i === 0 ? "M" : "L") + c.x.toFixed(1) + " " + c.y.toFixed(1)).join(" ");
+  const linePath = dv2SmoothLinePath(coords);
   const last = coords[coords.length - 1];
   const first = coords[0];
   const areaPath = linePath + " L" + last.x.toFixed(1) + " " + (padding.top + chartH) + " L" + first.x.toFixed(1) + " " + (padding.top + chartH) + " Z";
@@ -454,17 +476,14 @@ function dv2RevenueChartSvg(points) {
     .map((c) => '<text x="' + c.x.toFixed(1) + '" y="' + (height - 8) + '" font-size="10" fill="var(--color-text-muted)" text-anchor="middle">' + c.label + "</text>")
     .join("");
 
-  const dots = coords.map((c) => '<circle cx="' + c.x.toFixed(1) + '" cy="' + c.y.toFixed(1) + '" r="2.5" fill="#2563eb"><title>' + c.label + ": " + formatRupiah(c.value) + "</title></circle>").join("");
-
   return (
     '<div class="dv2-chart-row">' +
       dv2RevenueAxisSvg(maxVal, height, padding) +
       '<div class="dv2-chart-scroll">' +
         '<svg viewBox="0 0 ' + width + " " + height + '" style="width:' + width + "px; height:" + height + 'px;">' +
           gridLines +
-          '<path d="' + areaPath + '" fill="#2563eb1a" stroke="none"/>' +
-          '<path d="' + linePath + '" fill="none" stroke="#2563eb" stroke-width="2"/>' +
-          dots +
+          '<path d="' + areaPath + '" fill="#6e90db1a" stroke="none"/>' +
+          '<path d="' + linePath + '" fill="none" stroke="#6e90db" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
           xLabels +
         "</svg>" +
       "</div>" +
@@ -510,11 +529,9 @@ function dv2RevenueMultiChartSvg(buckets) {
   const lines = platforms
     .map((platform, pi) => {
       const color = platformColors[pi];
-      const path = buckets.map((b, i) => (i === 0 ? "M" : "L") + xOf(i).toFixed(1) + " " + yOf(b.byPlatform[platform] || 0).toFixed(1)).join(" ");
-      const dots = buckets
-        .map((b, i) => '<circle cx="' + xOf(i).toFixed(1) + '" cy="' + yOf(b.byPlatform[platform] || 0).toFixed(1) + '" r="2" fill="' + color + '"><title>' + platform + " - " + b.label + ": " + formatRupiah(b.byPlatform[platform] || 0) + "</title></circle>")
-        .join("");
-      return '<path d="' + path + '" fill="none" stroke="' + color + '" stroke-width="2"/>' + dots;
+      const coords = buckets.map((b, i) => ({ x: xOf(i), y: yOf(b.byPlatform[platform] || 0) }));
+      const path = dv2SmoothLinePath(coords);
+      return '<path d="' + path + '" fill="none" stroke="' + color + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
     })
     .join("");
 
@@ -545,11 +562,11 @@ function dv2RevenueMultiChartSvg(buckets) {
 // blue, GoFood = red); every other platform (GrabFood, Dine In, ...) falls
 // back to the shared donut palette, skipping blue/red so it never collides
 // with the fixed pair.
-const DV2_PLATFORM_COLORS = { "Online": "#2563eb", "GoFood": "#dc2626" };
+const DV2_PLATFORM_COLORS = { "Online": "#6e90db", "GoFood": "#d36f6f" };
 // Same palette as DV2_DONUT_COLORS below minus blue/red (already spoken for
 // above) - kept as a literal instead of filtering that array, since this
 // const runs at script-load time, before DV2_DONUT_COLORS is declared.
-const DV2_FALLBACK_LINE_COLORS = ["#16a34a", "#f59e0b", "#8b5cf6", "#0891b2", "#db2777", "#65a30d"];
+const DV2_FALLBACK_LINE_COLORS = ["#66b483", "#e1b160", "#a68de1", "#5eaabc", "#d26f9b", "#92b461"];
 
 function dv2ColorsForPlatforms(platforms) {
   let fallbackIdx = 0;
