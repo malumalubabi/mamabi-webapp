@@ -852,13 +852,12 @@ function customerCell(o, showAddress) {
     o.customerName +
     '<br><span style="color:var(--color-text-muted); font-size:12px;">' + (o.customerContact ? formatPhoneDisplay(o.customerContact) : "") + "</span>" +
     '<br><span style="color:var(--color-text-muted); font-size:12px;">' + o.orderCode + "</span>" +
-    // max-width capped so this line (the only structural difference from
-    // History's customerCell) can't stretch the column wider than what
-    // name/contact/order code alone would need - it just wraps instead,
-    // keeping Ongoing's Customer column sized the same as History's per
-    // explicit request, without hardcoding either table's column widths.
+    // No max-width here anymore - Ongoing's Customer column now has an
+    // explicit fixed width of its own (see renderOrdersTable's colgroup),
+    // so this line just wraps naturally within whatever that column width
+    // is, per explicit request - no separate cap needed.
     (showAddress && areaAddressText(o.customerArea, o.customerAddress)
-      ? '<br><span style="display:block; max-width:120px; color:var(--color-text-muted); font-size:12px;">' + areaAddressText(o.customerArea, o.customerAddress) + "</span>"
+      ? '<br><span style="color:var(--color-text-muted); font-size:12px;">' + areaAddressText(o.customerArea, o.customerAddress) + "</span>"
       : "")
   );
 }
@@ -939,8 +938,15 @@ function renderOrdersTable(wrap, orders, scope) {
         ? "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Fulfillment Type</th><th>Order Status</th><th>Notes</th></tr>"
         : "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Type</th><th>Status</th><th>Notes</th><th></th></tr>");
 
-  const colgroup = "";
-  const tableStyle = "";
+  // Ongoing only - Date and Customer get explicit (slightly narrower)
+  // widths, everything else in this table stays unconstrained (empty <col>,
+  // shares whatever space is left) - per explicit request. History is
+  // untouched, still fully auto-layout.
+  const isOngoingOnline = !_ordersIsPlatformMode && scope === "ongoing";
+  const colgroup = isOngoingOnline
+    ? '<colgroup><col style="width:90px;"><col style="width:170px;"><col><col><col><col><col><col></colgroup>'
+    : "";
+  const tableStyle = isOngoingOnline ? ' style="table-layout:fixed; width:auto;"' : "";
 
   // IDs suffixed by scope - Ongoing and History now render into separate
   // containers on the same page at once (not tab-swapped), so they can't
