@@ -64,7 +64,10 @@ export async function onRequestPost({ request, env }) {
     if (!validSignature) return new Response("Invalid signature", { status: 401 });
 
     const payload = JSON.parse(rawBody);
-    const eventType = payload.header && payload.header.event_type;
+    // Confirmed live against a real sandbox order (see webhook_logs) - the
+    // docs say "event_type" but the actual field GoBiz sends is
+    // "event_name".
+    const eventType = payload.header && payload.header.event_name;
     const body = payload.body || {};
 
     const supabase = getSupabase(env);
@@ -84,7 +87,7 @@ export async function onRequestPost({ request, env }) {
 }
 
 async function handleCancelled(supabase, brandId, body) {
-  const orderNumber = body.order && body.order.number;
+  const orderNumber = body.order && body.order.order_number;
   if (!orderNumber) return;
 
   const { error } = await supabase
@@ -96,8 +99,11 @@ async function handleCancelled(supabase, brandId, body) {
 }
 
 async function handleCreated(supabase, brandId, body) {
-  const orderNumber = body.order && body.order.number;
-  if (!orderNumber) throw new Error("gofood.order.created payload missing body.order.number");
+  // Confirmed live against a real sandbox order (see webhook_logs) - both
+  // order_number and order_items live under body.order, not top-level body
+  // as the docs' abbreviated example implied.
+  const orderNumber = body.order && body.order.order_number;
+  if (!orderNumber) throw new Error("gofood.order.created payload missing body.order.order_number");
 
   // Idempotency - GoBiz retries on any non-2xx (and possibly redelivers even
   // after a 200, per most webhook systems), so re-processing an
@@ -111,7 +117,7 @@ async function handleCreated(supabase, brandId, body) {
   if (existingErr) throw existingErr;
   if (existing) return;
 
-  const rawItems = Array.isArray(body.order_items) ? body.order_items : [];
+  const rawItems = Array.isArray(body.order.order_items) ? body.order.order_items : [];
   const externalIds = rawItems.map((it) => it.external_id).filter(Boolean);
 
   const { data: skus, error: skuErr } = await supabase
