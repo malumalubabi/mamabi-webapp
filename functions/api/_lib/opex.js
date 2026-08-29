@@ -67,8 +67,8 @@ export async function getOpexLinkMap(supabase, brandId) {
     };
   });
   batchesRes.data.forEach((b) => {
-    if (b.platform_fee_opex_code) map[b.platform_fee_opex_code] = { source: "Sales Batch", refCode: b.batch_code, paymentMethod: null };
-    if (b.marketing_fee_opex_code) map[b.marketing_fee_opex_code] = { source: "Sales Batch", refCode: b.batch_code, paymentMethod: null };
+    if (b.platform_fee_opex_code) map[b.platform_fee_opex_code] = { source: "Sales", refCode: b.batch_code, paymentMethod: null };
+    if (b.marketing_fee_opex_code) map[b.marketing_fee_opex_code] = { source: "Sales", refCode: b.batch_code, paymentMethod: null };
   });
   return map;
 }
