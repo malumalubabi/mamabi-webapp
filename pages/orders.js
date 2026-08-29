@@ -564,9 +564,9 @@ function buildEditOrderFormHtml(o) {
       // Editable (not readonly) - saving corrects the customer's own
       // area/address record too (see saveEditOrder()'s customer PATCH), per
       // explicit request.
-      '<div style="display:flex; justify-content:space-between; align-items:baseline; margin-top:8px;"><label>Area</label><span id="editOrderAreaUpdatedBadge" style="display:none; font-size:11px; color:var(--color-accent);">Update</span></div>' +
+      '<div style="display:flex; justify-content:space-between; align-items:baseline; margin-top:8px; width:220px;"><label>Area</label><span id="editOrderAreaUpdatedBadge" style="display:none; font-size:11px; color:var(--color-accent);">Update</span></div>' +
       '<input type="text" id="editOrderArea" value="' + (o.customerArea || "") + '" oninput="updateFieldUpdatedBadge(this)" style="margin-top:2px; width:220px; box-sizing:border-box;">' +
-      '<div style="display:flex; justify-content:space-between; align-items:baseline; margin-top:8px;"><label>Address</label><span id="editOrderAddressUpdatedBadge" style="display:none; font-size:11px; color:var(--color-accent);">Update</span></div>' +
+      '<div style="display:flex; justify-content:space-between; align-items:baseline; margin-top:8px; width:220px;"><label>Address</label><span id="editOrderAddressUpdatedBadge" style="display:none; font-size:11px; color:var(--color-accent);">Update</span></div>' +
       '<input type="text" id="editOrderAddress" value="' + (o.customerAddress || "") + '" oninput="updateFieldUpdatedBadge(this)" style="margin-top:2px; width:220px; box-sizing:border-box;">' +
     "</div><br>" +
 
