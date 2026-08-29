@@ -937,8 +937,17 @@ function renderOrdersTable(wrap, orders, scope) {
         ? "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Fulfillment Type</th><th>Order Status</th><th>Notes</th></tr>"
         : "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Type</th><th>Status</th><th>Notes</th><th></th></tr>");
 
+  // Same overall table width for both Online tables (Ongoing/History) -
+  // table-layout stays auto (not fixed), so content still drives each
+  // column's proportion, but both tables now share the same total budget
+  // to distribute it within, per explicit request. Doesn't guarantee every
+  // individual column lines up pixel-for-pixel (each table's own content
+  // differences still shift its own internal distribution - see the
+  // explanation given directly to the user about why two separate <table>
+  // elements can't otherwise match), but keeps their overall horizontal
+  // footprint consistent.
   const colgroup = "";
-  const tableStyle = "";
+  const tableStyle = !_ordersIsPlatformMode ? ' style="width:1100px;"' : "";
 
   // IDs suffixed by scope - Ongoing and History now render into separate
   // containers on the same page at once (not tab-swapped), so they can't
