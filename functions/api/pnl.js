@@ -50,7 +50,7 @@ function orderByConfigList(seen, configOrder) {
 }
 
 function emptyBucket() {
-  return { revenueByPlatform: {}, foodCost: 0, packagingCost: 0, opexByCategory: {}, sectionByCategory: {} };
+  return { revenueByPlatform: {}, foodCost: 0, packagingCost: 0, opexByCategory: {}, sectionByCategory: {}, otherIncomeByCategory: {} };
 }
 
 // Rolled-up Revenue/COGS/OPEX totals, cheap to compare instead of diffing
@@ -62,7 +62,8 @@ function bucketTotals(b) {
   return {
     revenue: Object.values(b.revenueByPlatform).reduce((s, v) => s + v, 0),
     cogs: b.foodCost + b.packagingCost,
-    opex: Object.values(b.opexByCategory).reduce((s, v) => s + v, 0)
+    opex: Object.values(b.opexByCategory).reduce((s, v) => s + v, 0),
+    otherIncome: Object.values(b.otherIncomeByCategory).reduce((s, v) => s + v, 0)
   };
 }
 
@@ -70,7 +71,8 @@ function bucketTotalsDiffer(liveBucket, frozenBucket) {
   const live = bucketTotals(liveBucket);
   const frozen = bucketTotals(frozenBucket);
   const EPS = 0.5; // rupiah - tolerate float rounding noise, not real drift
-  return Math.abs(live.revenue - frozen.revenue) > EPS || Math.abs(live.cogs - frozen.cogs) > EPS || Math.abs(live.opex - frozen.opex) > EPS;
+  return Math.abs(live.revenue - frozen.revenue) > EPS || Math.abs(live.cogs - frozen.cogs) > EPS ||
+    Math.abs(live.opex - frozen.opex) > EPS || Math.abs(live.otherIncome - frozen.otherIncome) > EPS;
 }
 
 // Amortized entries (amort=Yes, period=N) spread their accrued_expense
@@ -91,16 +93,27 @@ function addMonths(monthKey, n) {
 // recalculating a month always snapshots freshly-computed live numbers,
 // never the previous snapshot).
 export async function computeLiveMonthlyData(supabase, brandId) {
-  const [settingsRes, listsRes, opexRes, manualSales, onlineSales] = await Promise.all([
+  const [settingsRes, listsRes, opexRes, manualSales, onlineSales, deliveryFeeRes] = await Promise.all([
     supabase.from("settings").select("key, value").eq("brand_id", brandId).in("key", ["PnL Start Year", "PnL Start Month"]),
     supabase.from("settings_lists").select("list_name, value, meta").eq("brand_id", brandId).in("list_name", ["Sales Platform", "PnL Categories"]).order("sort_order"),
     supabase.from("opex_entries").select("entry_date, category, accrued_expense, period").eq("brand_id", brandId),
     getManualSalesRows(supabase, brandId),
-    getOnlineSalesRows(supabase, brandId)
+    getOnlineSalesRows(supabase, brandId),
+    // Delivery fee collected from the customer on completed Online Delivery
+    // orders - previously had no offsetting income anywhere in P&L at all,
+    // even though the matching driver payout IS booked as a real Logistic
+    // OPEX expense (see functions/api/_lib/opex.js's resyncDriverPayoutOpexGroup),
+    // which understated Net Profit by the full pass-through amount. Kept OUT
+    // of Revenue (would inflate Gross Margin % with non-sales cash) - a
+    // separate Other Income section instead, per explicit request. Online
+    // only - Platform Orders (GrabFood/GoFood) never carry a delivery_fee,
+    // their courier logistics aren't ours to account for either side.
+    supabase.from("orders").select("order_date, delivery_fee").eq("brand_id", brandId).eq("order_status", "Completed").eq("order_type", "Delivery").eq("platform", "Online")
   ]);
   if (settingsRes.error) throw settingsRes.error;
   if (listsRes.error) throw listsRes.error;
   if (opexRes.error) throw opexRes.error;
+  if (deliveryFeeRes.error) throw deliveryFeeRes.error;
 
   const settingsByKey = {};
   settingsRes.data.forEach((r) => { settingsByKey[r.key] = r.value; });
@@ -134,6 +147,15 @@ export async function computeLiveMonthlyData(supabase, brandId) {
     } else if (r.sku) {
       unpricedNames[r.sku] = r.productName || r.sku;
     }
+  });
+
+  deliveryFeeRes.data.forEach((r) => {
+    const fee = Number(r.delivery_fee) || 0;
+    if (fee <= 0) return;
+    const mk = String(r.order_date).slice(0, 7);
+    const b = buckets[mk];
+    if (!b) return;
+    b.otherIncomeByCategory["Delivery Fee Income"] = (b.otherIncomeByCategory["Delivery Fee Income"] || 0) + fee;
   });
 
   opexRes.data.forEach((r) => {
@@ -185,6 +207,7 @@ export async function onRequestGet({ env }) {
       else if (r.section === "COGS" && r.category === "Packaging Cost") b.packagingCost = amount;
       else if (r.section === "OPEX Fixed") { b.opexByCategory[r.category] = amount; b.sectionByCategory[r.category] = "Fixed"; }
       else if (r.section === "OPEX Variable") { b.opexByCategory[r.category] = amount; b.sectionByCategory[r.category] = "Variable"; }
+      else if (r.section === "Other Income") b.otherIncomeByCategory[r.category] = amount;
     });
     Object.keys(closedBuckets).forEach((mk) => {
       if (!buckets[mk]) return;
@@ -258,8 +281,21 @@ export async function onRequestGet({ env }) {
     const totalOpexByMonth = monthKeys.map((mk, i) => fixedCostByMonth[i] + variableCostByMonth[i]);
     line("Total OPEX", totalOpexByMonth, true);
 
+    // Pass-through cash (currently just delivery fee collected from the
+    // customer) that has a real offsetting expense elsewhere (Logistic
+    // OPEX's driver payout) but isn't sales revenue - kept out of the
+    // Revenue section entirely so Gross Margin % stays a pure sales figure,
+    // per explicit request. Only affects Net Profit, added back in below.
+    const seenOtherIncomeCategories = new Set();
+    monthKeys.forEach((mk) => Object.keys(buckets[mk].otherIncomeByCategory).forEach((c) => seenOtherIncomeCategories.add(c)));
+    const otherIncomeCategories = [...seenOtherIncomeCategories].sort();
+    header("Other Income");
+    otherIncomeCategories.forEach((c) => line(c, monthKeys.map((mk) => buckets[mk].otherIncomeByCategory[c] || 0)));
+    const otherIncomeByMonth = monthKeys.map((mk) => Object.values(buckets[mk].otherIncomeByCategory).reduce((s, v) => s + v, 0));
+    line("Total Other Income", otherIncomeByMonth, true);
+
     header("Profitability");
-    const netProfitByMonth = monthKeys.map((mk, i) => grossProfitByMonth[i] - totalOpexByMonth[i]);
+    const netProfitByMonth = monthKeys.map((mk, i) => grossProfitByMonth[i] - totalOpexByMonth[i] + otherIncomeByMonth[i]);
     const netMarginByMonth = monthKeys.map((mk, i) => (revenueByMonth[i] ? netProfitByMonth[i] / revenueByMonth[i] : 0));
     const payrollByMonth = monthKeys.map((mk) => buckets[mk].opexByCategory["Payroll"] || 0);
     const primeCostByMonth = monthKeys.map((mk, i) => totalCogsByMonth[i] + payrollByMonth[i]);

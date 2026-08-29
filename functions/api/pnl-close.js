@@ -34,6 +34,9 @@ export async function onRequestPost({ request, env }) {
       const section = categoryMetaMap[category] === "Fixed" ? "OPEX Fixed" : "OPEX Variable";
       rows.push({ brand_id: brandId, period_month: periodMonth, section: section, category: category, amount: amount, closed_at: closedAt });
     });
+    Object.entries(bucket.otherIncomeByCategory).forEach(([category, amount]) => {
+      rows.push({ brand_id: brandId, period_month: periodMonth, section: "Other Income", category: category, amount: amount, closed_at: closedAt });
+    });
 
     const { error: delErr } = await supabase.from("pnl_lines").delete().eq("brand_id", brandId).eq("period_month", periodMonth);
     if (delErr) throw delErr;
