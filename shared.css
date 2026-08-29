@@ -742,9 +742,9 @@ th {
 
 /* Stock Overview status colors - ported from the old app's
    04 Inventory/StockOverviewTable.html */
-.status-Safe { color: var(--color-text-muted); font-weight: bold; }
-.status-Low { color: var(--color-text-muted); font-weight: bold; }
-.status-Out { color: var(--color-text-muted); font-weight: bold; }
+.status-Safe { color: color-mix(in srgb, var(--color-success) 55%, gray 45%); font-weight: bold; }
+.status-Low { color: color-mix(in srgb, var(--color-warning) 55%, gray 45%); font-weight: bold; }
+.status-Out { color: color-mix(in srgb, var(--color-error) 55%, gray 45%); font-weight: bold; }
 
 /* Stock Opname checklist row lock state - ported from StockOpnameEntry.html */
 #opnameChecklistBody tr.done { background: #f0f7f0; }

@@ -154,7 +154,7 @@ function dv2StylesHtml() {
       ".dv2-badge-amber { background:#fef3c7; color:#92400e; }" +
       ".dv2-mini-card { cursor:pointer; }" +
       ".dv2-mini-label { font-size:12px; color:var(--color-text-muted); }" +
-      ".dv2-mini-value { font-size:18px; font-weight:bold; margin:4px 0 8px; font-family:\"Inter\", Arial, sans-serif; color:var(--color-text-muted); }" +
+      ".dv2-mini-value { font-size:18px; font-weight:bold; margin:4px 0 8px; font-family:\"Inter\", Arial, sans-serif; }" +
       ".dv2-mini-bar-track { background:var(--color-disabled-bg); border-radius:999px; height:6px; overflow:hidden; }" +
       ".dv2-mini-bar-fill { height:100%; border-radius:999px; }" +
     "</style>"
@@ -578,7 +578,7 @@ function dv2SortPlatforms(platforms) {
 
 // ---------- OpEx donut chart (inline SVG arcs, no library) ----------
 
-const DV2_DONUT_COLORS = ["#2563eb", "#16a34a", "#f59e0b", "#dc2626", "#8b5cf6", "#0891b2", "#db2777", "#65a30d"];
+const DV2_DONUT_COLORS = ["#4e70bb", "#469362", "#c09140", "#b34f4f", "#866cc1", "#3e899c", "#b24f7b", "#719341"];
 
 function dv2DonutSection(segments) {
   if (!segments.length) return "<p>No OpEx recorded yet this month.</p>";
@@ -625,7 +625,7 @@ function dv2DonutChartHtml(segments) {
       (seg, i) =>
         '<div style="display:flex; align-items:center; gap:8px; font-size:12px; margin:4px 0;">' +
           '<span style="width:10px; height:10px; border-radius:2px; background:' + DV2_DONUT_COLORS[i % DV2_DONUT_COLORS.length] + '; flex-shrink:0;"></span>' +
-          '<span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--color-text-muted);">' + seg.category + "</span>" +
+          '<span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + seg.category + "</span>" +
           '<span class="font-number" style="margin-left:auto; color:var(--color-text-muted); white-space:nowrap;">' + formatRupiah(seg.amount) + "</span>" +
         "</div>"
     )
@@ -702,7 +702,7 @@ function dv2UnpaidDriverPayoutCard(unpaidTotal, monthSplit) {
     "Unpaid Driver Payout",
     formatRupiah(unpaidTotal),
     ratio,
-    "#dc2626",
+    "#b34f4f",
     caption,
     "navigateTo('orders-payout')"
   );
@@ -719,7 +719,7 @@ function dv2StockAlertCard(items, totalTracked) {
     "Stock Alert",
     label,
     ratio,
-    "#f59e0b",
+    "#c09140",
     caption,
     count > 0 ? "navigateTo('inventory-stock?tab=overview&filter=low')" : null
   );
