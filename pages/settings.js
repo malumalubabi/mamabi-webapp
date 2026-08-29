@@ -71,7 +71,7 @@ function openManageGeneralSettingsModal() {
       "<label>" + row.key + "</label><br>" +
       '<input type="text" class="generalSettingInput" data-key="' + row.key.replace(/"/g, "&quot;") + '" value="' + row.value + '" style="width:100%;"><br><br>'
     ).join("") +
-    '<button id="saveGeneralSettingsBtn" onclick="saveAllGeneralSettings()">Save</button>' +
+    '<button id="saveGeneralSettingsBtn" class="btn-primary" onclick="saveAllGeneralSettings()">Save</button>' +
     '<span id="saveGeneralSettingsStatus" class="save-status"></span>'
   );
 }
@@ -187,7 +187,7 @@ function renderManageSettingsListModal() {
     (arranging ? "" :
       ('<div style="margin-bottom:12px; display:flex; align-items:center; gap:8px;">' +
         addFieldHtml +
-        '<button id="addSettingsListItemBtn" onclick="addSettingsListItem()">+ Add</button>' +
+        '<button id="addSettingsListItemBtn" class="btn-primary" onclick="addSettingsListItem()">+ Add</button>' +
         '<span id="addSettingsListItemStatus" class="save-status"></span>' +
       "</div>")
     ) +
@@ -217,9 +217,9 @@ function manageListRowHtml(value, index, arranging, total, metaMap, metaSpec) {
 
   const actionsCell = arranging
     ? ""
-    : ("<td>" +
-        '<button onclick="openEditSettingsListItem(\'' + escaped + '\')">Edit</button> ' +
-        '<button onclick="removeSettingsListItem(\'' + escaped + '\')">Remove</button>' +
+    : ('<td class="compact-cell">' +
+        '<button class="btn-compact" onclick="openEditSettingsListItem(\'' + escaped + '\')">Edit</button> ' +
+        '<button class="btn-compact" onclick="removeSettingsListItem(\'' + escaped + '\')">Remove</button>' +
       "</td>");
 
   return "<tr>" + moveCell + "<td>" + value + "</td>" + metaCell + actionsCell + "</tr>";
@@ -427,7 +427,7 @@ function renderSkuConfigModal() {
     '<div style="margin-bottom:8px; display:flex; align-items:center; gap:8px;">' +
       '<input type="text" id="newSkuCategoryValue" placeholder="New category"> ' +
       '<input type="text" id="newSkuCategoryCode" placeholder="Code (e.g. AROM)" style="width:110px; text-transform:uppercase;"> ' +
-      '<button id="addSkuCategoryBtn" onclick="addSkuConfigItem(\'' + catListName.replace(/'/g, "\\'") + '\', \'newSkuCategoryValue\', \'newSkuCategoryCode\', \'addSkuCategoryBtn\', \'addSkuCategoryStatus\')">+ Add</button>' +
+      '<button id="addSkuCategoryBtn" class="btn-primary" onclick="addSkuConfigItem(\'' + catListName.replace(/'/g, "\\'") + '\', \'newSkuCategoryValue\', \'newSkuCategoryCode\', \'addSkuCategoryBtn\', \'addSkuCategoryStatus\')">+ Add</button>' +
       '<span id="addSkuCategoryStatus" class="save-status"></span>' +
     "</div>" +
     '<table style="max-width:400px;"><thead><tr><th>Category</th><th>Code</th><th></th></tr></thead><tbody>' +
@@ -438,7 +438,7 @@ function renderSkuConfigModal() {
     '<div style="margin-bottom:8px; display:flex; align-items:center; gap:8px;">' +
       '<input type="text" id="newSkuUnitValue" placeholder="New unit"> ' +
       '<input type="text" id="newSkuUnitCode" placeholder="Code (e.g. g)" style="width:110px;"> ' +
-      '<button id="addSkuUnitBtn" onclick="addSkuConfigItem(\'SKU Unit Code\', \'newSkuUnitValue\', \'newSkuUnitCode\', \'addSkuUnitBtn\', \'addSkuUnitStatus\')">+ Add</button>' +
+      '<button id="addSkuUnitBtn" class="btn-primary" onclick="addSkuConfigItem(\'SKU Unit Code\', \'newSkuUnitValue\', \'newSkuUnitCode\', \'addSkuUnitBtn\', \'addSkuUnitStatus\')">+ Add</button>' +
       '<span id="addSkuUnitStatus" class="save-status"></span>' +
     "</div>" +
     '<table style="max-width:400px;"><thead><tr><th>Unit</th><th>Code</th><th></th></tr></thead><tbody>' +
@@ -452,7 +452,7 @@ function skuTypeCodeRowHtml(type) {
   return (
     "<tr><td>" + type + "</td>" +
     '<td><input type="text" class="skuTypeCodeInput" value="' + code + '" style="width:80px; text-transform:uppercase;"></td>' +
-    '<td><button onclick="saveSkuTypeCode(\'' + type + '\', this)">Save</button></td></tr>'
+    '<td class="compact-cell"><button class="btn-compact" onclick="saveSkuTypeCode(\'' + type + '\', this)">Save</button></td></tr>'
   );
 }
 
@@ -479,8 +479,8 @@ function skuConfigItemRowHtml(listName, value, code) {
   return (
     "<tr><td>" + value + "</td>" +
     '<td style="color:var(--color-text-muted); font-size:12px;">' + (code || "") + "</td>" +
-    '<td><button onclick="openEditSkuConfigItem(\'' + escapedList + '\', \'' + escapedValue + '\')">Edit</button> ' +
-    '<button onclick="removeSkuConfigItem(\'' + escapedList + '\', \'' + escapedValue + '\')">Remove</button></td></tr>'
+    '<td class="compact-cell"><button class="btn-compact" onclick="openEditSkuConfigItem(\'' + escapedList + '\', \'' + escapedValue + '\')">Edit</button> ' +
+    '<button class="btn-compact" onclick="removeSkuConfigItem(\'' + escapedList + '\', \'' + escapedValue + '\')">Remove</button></td></tr>'
   );
 }
 

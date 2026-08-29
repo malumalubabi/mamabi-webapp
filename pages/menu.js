@@ -74,7 +74,7 @@ function renderBatchTable(wrap, rows, scope) {
   const titleRow =
     '<div style="display:flex; justify-content:space-between; align-items:center;">' +
       "<h3>" + title + "</h3>" +
-      (scope === "ongoing" ? '<button onclick="openBatchModal()">+ Start New Batch</button>' : "") +
+      (scope === "ongoing" ? '<button class="btn-primary" onclick="openBatchModal()">+ Start New Batch</button>' : "") +
     "</div>";
 
   if (!rows.length) {
@@ -200,7 +200,7 @@ function scaledQtyViewHtml(raw) {
   return (
     '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">' +
       "<span>" + (raw === "" ? "" : raw) + "</span>" +
-      '<button onclick="startEditScaledQty(this)">Edit</button>' +
+      '<button class="btn-compact" onclick="startEditScaledQty(this)">Edit</button>' +
     "</div>"
   );
 }
@@ -209,8 +209,8 @@ function startEditScaledQty(btn) {
   const cell = btn.closest(".scaledQty");
   cell.innerHTML =
     '<input type="number" class="scaledQtyInput" min="0" step="any" value="' + cell.dataset.raw + '" style="width:70px;"> ' +
-    '<button onclick="saveScaledQty(this)">Save</button> ' +
-    '<button onclick="cancelEditScaledQty(this)">Cancel</button>';
+    '<button class="btn-compact btn-primary" onclick="saveScaledQty(this)">Save</button> ' +
+    '<button class="btn-compact" onclick="cancelEditScaledQty(this)">Cancel</button>';
 }
 
 function cancelEditScaledQty(btn) {
@@ -357,7 +357,7 @@ function startEditBatchQty() {
   section.innerHTML =
     "<label>Batch Size</label><br>" +
     '<input type="number" class="batchQtyInput" min="0" step="any" value="' + section.dataset.raw + '" style="width:100px;"> ' +
-    '<button class="saveBatchQtyBtn" onclick="saveBatchQty(this)">Save</button> ' +
+    '<button class="saveBatchQtyBtn btn-primary" onclick="saveBatchQty(this)">Save</button> ' +
     '<button onclick="cancelEditBatchQty()">Cancel</button>' +
     '<span class="save-status"></span>';
 }
@@ -422,7 +422,7 @@ function buildBatchFormHtml() {
       "<div><label>Status</label><br><select id=\"batchStatus\"><option>Ongoing</option><option>Done</option></select></div>" +
     "</div><br><br>" +
 
-    '<button id="saveBatchBtn" onclick="saveBatch()">Start Batch</button>' +
+    '<button id="saveBatchBtn" class="btn-primary" onclick="saveBatch()">Start Batch</button>' +
     '<span id="saveBatchStatus" class="save-status"></span><br><br>' +
 
     "<label>Consumption</label>" +
@@ -674,7 +674,7 @@ function pricingRowHtml(r, isFirst, isLast) {
       "<td>" + r.sku + "</td>" +
       "<td>" + r.name + "</td>" +
       '<td><span class="font-number">' + formatRupiah(r.sellingPrice) + "</span></td>" +
-      '<td><button onclick="openSellingPriceModal(\'' + r.sku + '\')">Edit</button></td>' +
+      '<td class="compact-cell"><button class="btn-compact" onclick="openSellingPriceModal(\'' + r.sku + '\')">Edit</button></td>' +
       '<td><span class="font-number">' + formatRupiah(r.foodCost) + "</span></td>" +
       '<td><span class="font-number">' + formatRupiah(r.packagingCost) + "</span></td>" +
       '<td><span class="font-number">' + formatRupiah(r.totalCogs) + "</span></td>" +
@@ -728,7 +728,7 @@ function openSellingPriceModal(sku) {
     "<p>" + (row ? row.name : "") + "</p>" +
     "<label>Selling Price</label><br>" +
     '<input type="text" id="editSellingPrice" inputmode="numeric" value="' + (row ? formatRupiah(row.sellingPrice) : "") + '" oninput="formatAmount(this)"><br><br>' +
-    '<button id="saveSellingPriceBtn" onclick="saveSellingPrice(\'' + sku + '\')">Save</button>' +
+    '<button id="saveSellingPriceBtn" class="btn-primary" onclick="saveSellingPrice(\'' + sku + '\')">Save</button>' +
     '<span id="saveSellingPriceStatus" class="save-status"></span>'
   );
 }
@@ -783,7 +783,7 @@ function platformPricingRowHtml(r, fee) {
       "<td>" + formatPercent(fee) + "</td>" +
       '<td><span class="font-number">' + formatRupiah(r.markupPrice) + "</span></td>" +
       '<td><span class="font-number">' + formatRupiah(r.platformSellingPrice) + "</span></td>" +
-      '<td><button onclick="openPlatformPriceModal(\'' + r.sku + '\')">Edit</button></td>' +
+      '<td class="compact-cell"><button class="btn-compact" onclick="openPlatformPriceModal(\'' + r.sku + '\')">Edit</button></td>' +
       "<td>" + formatPercent(r.baseGrossMarginPct) + "</td>" +
       "<td>" + formatPercent(r.platformGrossMarginPct) + " " + trendHtml + "</td>" +
     "</tr>"
@@ -797,7 +797,7 @@ function openPlatformPriceModal(sku) {
     "<p>" + (row ? row.name : "") + "</p>" +
     "<label>Platform Selling Price</label><br>" +
     '<input type="text" id="editPlatformPrice" inputmode="numeric" value="' + (row ? formatRupiah(row.platformSellingPrice) : "") + '" oninput="formatAmount(this)"><br><br>' +
-    '<button id="savePlatformPriceBtn" onclick="savePlatformPrice(\'' + sku + '\')">Save</button>' +
+    '<button id="savePlatformPriceBtn" class="btn-primary" onclick="savePlatformPrice(\'' + sku + '\')">Save</button>' +
     '<span id="savePlatformPriceStatus" class="save-status"></span>'
   );
 }
@@ -823,7 +823,7 @@ function openPlatformFeeModal() {
     "<h2>Edit Platform Fee</h2>" +
     "<label>Platform Fee (%)</label><br>" +
     '<input type="number" id="editPlatformFee" min="0" max="99" step="any" value="' + (_lastPlatformFee * 100) + '"><br><br>' +
-    '<button id="savePlatformFeeBtn" onclick="savePlatformFee()">Save</button>' +
+    '<button id="savePlatformFeeBtn" class="btn-primary" onclick="savePlatformFee()">Save</button>' +
     '<span id="savePlatformFeeStatus" class="save-status"></span>'
   );
 }
@@ -1001,7 +1001,7 @@ function renderManageCostingModal() {
     ? ""
     : (
         '<div style="margin-top:16px;">' +
-          '<button id="saveManageCostingBtn" onclick="saveManageCostingAll()">Save</button> ' +
+          '<button id="saveManageCostingBtn" class="btn-primary" onclick="saveManageCostingAll()">Save</button> ' +
           '<span id="manageCostingStatus" class="save-status"></span>' +
         "</div>"
       );
@@ -1054,7 +1054,7 @@ function manageCostingRowHtml(it, isFirst, isLast) {
 
   const actionsCell = _manageCostingArrangeMode
     ? ""
-    : '<td class="remove-cell"><button type="button" class="btn-remove" onclick="removeManageCostingRow(this)">Remove</button></td>';
+    : '<td class="compact-cell"><button type="button" class="btn-compact" onclick="removeManageCostingRow(this)">Remove</button></td>';
 
   return (
     "<tr" + (_manageCostingArrangeMode ? "" : ' data-line-id="' + it.lineId + '"') + ">" +
@@ -1138,7 +1138,7 @@ function addRecipeLineToCosting() {
     "<td>" + (item ? item.name : itemSku) + '<br><span style="color:var(--color-text-muted); font-size:12px;">' + itemSku + "</span></td>" +
     '<td><input type="number" class="lineQtyInput" min="0" step="any" value="' + qty + '" style="width:80px;" oninput="markManageCostingDirty()"></td>' +
     "<td>" + unit + "</td>" +
-    '<td class="remove-cell"><button type="button" class="btn-remove" onclick="removeManageCostingRow(this)">Remove</button></td>';
+    '<td class="compact-cell"><button type="button" class="btn-compact" onclick="removeManageCostingRow(this)">Remove</button></td>';
   tbody.appendChild(row);
 
   _addRecipeLineCombo.clear();

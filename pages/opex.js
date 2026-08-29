@@ -60,11 +60,9 @@ function buildOpexLogShellHtml() {
     '<div style="display:flex; justify-content:space-between; align-items:center;">' +
       "<h3>OpEx Log</h3>" +
       '<div style="display:flex; align-items:center; gap:10px;">' +
-        '<span id="opexSortBadge" style="color:var(--color-text-muted); font-size:12px;">Sort: ' + OPEX_SORT_LABELS[_opexSort] + "</span>" +
-        '<button onclick="openOpexSortModal()">Sort</button>' +
-        '<span id="opexFilterBadge" style="color:var(--color-text-muted); font-size:12px;">' + (_opexCategoryFilter.length ? _opexCategoryFilter.join(", ") : "All") + "</span>" +
-        '<button onclick="openOpexFilterModal()">Set Filter</button>' +
-        '<button onclick="openOpexEntryModal()">+ Add Expense</button>' +
+        '<span id="opexFilterSortBadge" style="color:var(--color-text-muted); font-size:12px;">' + (_opexCategoryFilter.length ? _opexCategoryFilter.join(", ") : "All") + " | " + OPEX_SORT_LABELS[_opexSort] + "</span>" +
+        '<button onclick="openOpexFilterSortModal()">Filter &amp; Sort</button>' +
+        '<button class="btn-primary" onclick="openOpexEntryModal()">+ Add Expense</button>' +
       "</div>" +
     "</div>" +
     '<div id="opexPaginationNav" class="pagination-nav"></div>' +
@@ -154,6 +152,9 @@ function renderOpexLogRows() {
   const tbody = document.getElementById("opexTbody");
   if (!tbody) return;
 
+  const badge = document.getElementById("opexFilterSortBadge");
+  if (badge) badge.textContent = (_opexCategoryFilter.length ? _opexCategoryFilter.join(", ") : "All") + " | " + OPEX_SORT_LABELS[_opexSort];
+
   const filtered = _opexCategoryFilter.length
     ? _lastOpexRows.filter((r) => _opexCategoryFilter.indexOf(r.category) !== -1)
     : _lastOpexRows;
@@ -166,8 +167,8 @@ function renderOpexLogRows() {
 function opexRowHtml(r) {
   const actionsCell = r.linkedFrom
     ? ('<td><span style="color:var(--color-text-muted); font-size:12px;">Auto-linked (' + r.linkedFrom + " " + r.linkedRef + ")</span></td>")
-    : ("<td><button onclick=\"openOpexEntryModal('" + r.opexCode + "')\">Edit</button> " +
-       "<button onclick=\"deleteOpexEntry('" + r.opexCode + "')\">Delete</button></td>");
+    : ('<td class="compact-cell"><button class="btn-compact" onclick="openOpexEntryModal(\'' + r.opexCode + '\')">Edit</button> ' +
+       '<button class="btn-compact" onclick="deleteOpexEntry(\'' + r.opexCode + '\')">Delete</button></td>');
 
   return (
     "<tr>" +
@@ -185,53 +186,38 @@ function opexRowHtml(r) {
   );
 }
 
-function openOpexFilterModal() {
+function openOpexFilterSortModal() {
+  const sortOptions = [
+    ["date-desc", "Date (Newest)"], ["date-asc", "Date (Oldest)"],
+    ["amount-desc", "Amount (High-Low)"], ["amount-asc", "Amount (Low-High)"],
+    ["category-asc", "Category (A-Z)"], ["category-desc", "Category (Z-A)"]
+  ];
   const checkboxes = _opexCategoryOptions.map((c) =>
     '<label style="display:block; margin:4px 0;">' +
       '<input type="checkbox" class="opexCategoryFilterCheck" value="' + c + '"' + (_opexCategoryFilter.indexOf(c) !== -1 ? " checked" : "") + "> " + c +
     "</label>"
   ).join("");
+  const sortRadios = sortOptions.map(([val, label]) =>
+    '<label style="display:block; margin:6px 0;"><input type="radio" name="opexSortOption" value="' + val + '"' + (_opexSort === val ? " checked" : "") + "> " + label + "</label>"
+  ).join("");
 
   openModal(
-    "<h2>Set Filter - Category</h2>" +
-    "<div>" + checkboxes + "</div>" +
+    "<h2>Filter &amp; Sort - OpEx Log</h2>" +
+    "<label>Category</label>" +
+    "<div>" + checkboxes + "</div><br>" +
+    "<label>Sort</label>" +
+    "<div>" + sortRadios + "</div>" +
     '<div style="margin-top:16px;">' +
-      '<button onclick="closeModal()">Cancel</button> ' +
-      '<button onclick="applyOpexFilter()">Apply Filter</button>' +
+      '<button class="btn-primary" onclick="applyOpexFilterSort()">Apply</button>' +
     "</div>"
   );
 }
 
-function applyOpexFilter() {
+function applyOpexFilterSort() {
   _opexCategoryFilter = Array.from(document.querySelectorAll(".opexCategoryFilterCheck:checked")).map((cb) => cb.value);
+  const selectedSort = document.querySelector('input[name="opexSortOption"]:checked');
+  if (selectedSort) _opexSort = selectedSort.value;
   closeModal();
-  const badge = document.getElementById("opexFilterBadge");
-  if (badge) badge.textContent = _opexCategoryFilter.length ? _opexCategoryFilter.join(", ") : "All";
-  renderOpexLogRows();
-}
-
-function openOpexSortModal() {
-  const options = [
-    ["date-desc", "Date (Newest)"], ["date-asc", "Date (Oldest)"],
-    ["amount-desc", "Amount (High-Low)"], ["amount-asc", "Amount (Low-High)"],
-    ["category-asc", "Category (A-Z)"], ["category-desc", "Category (Z-A)"]
-  ];
-  openModal(
-    "<h2>Sort OpEx Log</h2>" +
-    options.map(([val, label]) =>
-      '<label style="display:block; margin:6px 0;"><input type="radio" name="opexSortOption" value="' + val + '"' + (_opexSort === val ? " checked" : "") + "> " + label + "</label>"
-    ).join("") +
-    '<br><button onclick="applyOpexSort()">Apply</button>'
-  );
-}
-
-function applyOpexSort() {
-  const selected = document.querySelector('input[name="opexSortOption"]:checked');
-  if (!selected) return;
-  _opexSort = selected.value;
-  closeModal();
-  const badge = document.getElementById("opexSortBadge");
-  if (badge) badge.textContent = "Sort: " + OPEX_SORT_LABELS[_opexSort];
   renderOpexLogRows();
 }
 
@@ -274,7 +260,7 @@ function openOpexEntryModal(opexCode) {
       "<label>Period (months)</label><br>" +
       '<input type="number" id="opexPeriod" min="1" value="' + (row ? row.period : 1) + '"><br><br>' +
     "</div>" +
-    '<button id="saveOpexBtn" onclick="saveOpexEntry(' + (opexCode ? "'" + opexCode + "'" : "null") + ')">Save</button>' +
+    '<button id="saveOpexBtn" class="btn-primary" onclick="saveOpexEntry(' + (opexCode ? "'" + opexCode + "'" : "null") + ')">Save</button>' +
     '<span id="saveOpexStatus" class="save-status"></span>'
   );
 

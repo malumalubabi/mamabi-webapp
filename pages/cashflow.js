@@ -95,11 +95,9 @@ function buildCashflowLedgerShellHtml() {
         '<button id="cfTab-Cash" onclick="switchCashflowLedgerTab(\'Cash\')">Cash</button>' +
       "</div>" +
       '<div style="display:flex; align-items:center; gap:10px;">' +
-        '<span id="cashflowFilterBadge" style="color:var(--color-text-muted); font-size:12px;">' + (_cashflowLedgerCategoryFilter.length ? _cashflowLedgerCategoryFilter.join(", ") : "All") + "</span>" +
-        '<button onclick="openCashflowLogFilterModal()">Set Filter</button>' +
-        '<span id="cashflowLedgerSortBadge" style="color:var(--color-text-muted); font-size:12px;">Sort: ' + CASHFLOW_LEDGER_SORT_LABELS[_cashflowLedgerSort] + "</span>" +
-        '<button onclick="openCashflowLogSortModal()">Sort</button>' +
-        '<button onclick="openCashflowEntryModal()">+ Input Transaction</button>' +
+        '<span id="cashflowFilterSortBadge" style="color:var(--color-text-muted); font-size:12px;"></span>' +
+        '<button onclick="openCashflowLogFilterSortModal()">Filter &amp; Sort</button>' +
+        '<button class="btn-primary" onclick="openCashflowEntryModal()">+ Input Transaction</button>' +
       "</div>" +
     "</div>" +
     '<div id="cashflowLedgerPaginationNav" class="pagination-nav"></div>' +
@@ -144,8 +142,8 @@ function renderCashflowLedgerRows() {
   const tbody = document.getElementById("cashflowLedgerTbody");
   if (!tbody) return;
 
-  const sortBadge = document.getElementById("cashflowLedgerSortBadge");
-  if (sortBadge) sortBadge.textContent = "Sort: " + CASHFLOW_LEDGER_SORT_LABELS[_cashflowLedgerSort];
+  const badge = document.getElementById("cashflowFilterSortBadge");
+  if (badge) badge.textContent = (_cashflowLedgerCategoryFilter.length ? _cashflowLedgerCategoryFilter.join(", ") : "All") + " | " + CASHFLOW_LEDGER_SORT_LABELS[_cashflowLedgerSort];
 
   const filtered = _cashflowLedgerCategoryFilter.length
     ? _lastCashflowLedgerRows.filter((r) => _cashflowLedgerCategoryFilter.indexOf(r.category) !== -1)
@@ -160,47 +158,34 @@ function renderCashflowLedgerRows() {
   paginateTable("cashflowLedgerTbody", "cashflowLedgerPaginationNav", 20);
 }
 
-function openCashflowLogSortModal() {
-  const options = [["date-desc", "Date (Newest)"], ["date-asc", "Date (Oldest)"]];
-  openModal(
-    "<h2>Sort Cashflow Ledger</h2>" +
-    options.map(([val, label]) =>
-      '<label style="display:block; margin:6px 0;"><input type="radio" name="cashflowLedgerSortOption" value="' + val + '"' + (_cashflowLedgerSort === val ? " checked" : "") + "> " + label + "</label>"
-    ).join("") +
-    '<br><button onclick="applyCashflowLedgerSort()">Apply</button>'
-  );
-}
-
-function applyCashflowLedgerSort() {
-  const selected = document.querySelector('input[name="cashflowLedgerSortOption"]:checked');
-  if (!selected) return;
-  _cashflowLedgerSort = selected.value;
-  closeModal();
-  renderCashflowLedgerRows();
-}
-
-function openCashflowLogFilterModal() {
+function openCashflowLogFilterSortModal() {
+  const sortOptions = [["date-desc", "Date (Newest)"], ["date-asc", "Date (Oldest)"]];
   const checkboxes = (_cashflowCategoryOptions || []).map((c) =>
     '<label style="display:block; margin:4px 0;">' +
       '<input type="checkbox" class="cashflowCategoryFilterCheck" value="' + c + '"' + (_cashflowLedgerCategoryFilter.indexOf(c) !== -1 ? " checked" : "") + "> " + c +
     "</label>"
   ).join("");
+  const sortRadios = sortOptions.map(([val, label]) =>
+    '<label style="display:block; margin:6px 0;"><input type="radio" name="cashflowLedgerSortOption" value="' + val + '"' + (_cashflowLedgerSort === val ? " checked" : "") + "> " + label + "</label>"
+  ).join("");
 
   openModal(
-    "<h2>Set Filter - Category</h2>" +
-    "<div>" + checkboxes + "</div>" +
+    "<h2>Filter &amp; Sort - Cashflow Ledger</h2>" +
+    "<label>Category</label>" +
+    "<div>" + checkboxes + "</div><br>" +
+    "<label>Sort</label>" +
+    "<div>" + sortRadios + "</div>" +
     '<div style="margin-top:16px;">' +
-      '<button onclick="closeModal()">Cancel</button> ' +
-      '<button onclick="applyCashflowLedgerFilter()">Apply Filter</button>' +
+      '<button class="btn-primary" onclick="applyCashflowLedgerFilterSort()">Apply</button>' +
     "</div>"
   );
 }
 
-function applyCashflowLedgerFilter() {
+function applyCashflowLedgerFilterSort() {
   _cashflowLedgerCategoryFilter = Array.from(document.querySelectorAll(".cashflowCategoryFilterCheck:checked")).map((cb) => cb.value);
+  const selectedSort = document.querySelector('input[name="cashflowLedgerSortOption"]:checked');
+  if (selectedSort) _cashflowLedgerSort = selectedSort.value;
   closeModal();
-  const badge = document.getElementById("cashflowFilterBadge");
-  if (badge) badge.textContent = _cashflowLedgerCategoryFilter.length ? _cashflowLedgerCategoryFilter.join(", ") : "All";
   renderCashflowLedgerRows();
 }
 
@@ -261,7 +246,7 @@ function buildCashflowFormHtml() {
     '<button type="button" onclick="addCashflowRow()">+ Add Entry</button>' +
     "<br><br>" +
 
-    '<button id="saveCashflowBtn" onclick="saveCashflow()">Save</button>' +
+    '<button id="saveCashflowBtn" class="btn-primary" onclick="saveCashflow()">Save</button>' +
     '<span id="saveCashflowStatus" class="save-status"></span>'
   );
 }
@@ -287,7 +272,7 @@ function addCashflowRow() {
     '<td><input type="text" class="cfAmount" inputmode="numeric" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this)"></td>' +
     '<td><select class="cfCategory" style="width:100%; box-sizing:border-box;" onchange="onCashflowCategoryChange(this)"></select><input type="hidden" class="cfType"></td>' +
     '<td><input type="text" class="cfNotes" style="width:100%; box-sizing:border-box;"></td>' +
-    '<td class="remove-cell"><button type="button" class="btn-remove" onclick="removeCashflowRow(this)">Remove</button></td>';
+    '<td class="compact-cell"><button type="button" class="btn-compact" onclick="removeCashflowRow(this)">Remove</button></td>';
   wrap.appendChild(row);
 
   // Free-text combobox - pick a Description used before (for consistency

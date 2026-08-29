@@ -136,7 +136,7 @@ function renderSkuTable(wrap) {
           '<span id="skuFilterBadge" style="color:var(--color-text-muted); font-size:12px;">' + (_skuCategoryFilter.length ? _skuCategoryFilter.join(", ") : "All Categories") + "</span>" +
           '<button onclick="openSkuFilterModal()">Set Filter</button>'
         ) +
-        '<button onclick="openSkuModal(null)">+ Add SKU</button>' +
+        '<button class="btn-primary" onclick="openSkuModal(null)">+ Add SKU</button>' +
       "</div>" +
     "</div>" +
     '<div id="skuPaginationNav" class="pagination-nav"></div>' +
@@ -199,8 +199,8 @@ function skuRowHtml(r, isFirst, isLast) {
       "<td>" + r.unit + "</td>" +
       "<td>" + r.status + "</td>" +
       (_skuArrangeMode ? "" :
-        ('<td><button onclick="openSkuModal(\'' + r.sku + '\')">Edit</button> ' +
-        '<button onclick="deleteSku(\'' + r.sku + '\')">Delete</button></td>')
+        ('<td class="compact-cell"><button class="btn-compact" onclick="openSkuModal(\'' + r.sku + '\')">Edit</button> ' +
+        '<button class="btn-compact" onclick="deleteSku(\'' + r.sku + '\')">Delete</button></td>')
       ) +
     "</tr>"
   );
@@ -324,7 +324,7 @@ async function openSkuModal(sku) {
     "</select><br><br>" +
     "<label>Status</label><br>" +
     '<select id="skuStatus">' + skuStatusOptionsHtml(itemType, row ? row.status : null) + "</select><br><br>" +
-    '<button id="saveSkuBtn" onclick="saveSku(' + (sku ? "'" + sku + "'" : "null") + ')">Save</button>' +
+    '<button id="saveSkuBtn" class="btn-primary" onclick="saveSku(' + (sku ? "'" + sku + "'" : "null") + ')">Save</button>' +
     '<span id="saveSkuStatus" class="save-status"></span>'
   );
 
@@ -420,11 +420,9 @@ async function renderSupplierSection(wrap) {
     '<div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0;">' +
       "<h3>Supplier List</h3>" +
       '<div style="display:flex; align-items:center; gap:10px;">' +
-        '<span id="supplierFilterBadge" style="color:var(--color-text-muted); font-size:12px;">' + (_supplierStatusFilter.length ? _supplierStatusFilter.join(", ") : "All Statuses") + "</span>" +
-        '<button onclick="openSupplierFilterModal()">Set Filter</button>' +
-        '<span id="supplierSortBadge" style="color:var(--color-text-muted); font-size:12px;">Sort: ' + ENTITY_SORT_LABELS[_supplierSort] + "</span>" +
-        '<button onclick="openSupplierSortModal()">Sort</button>' +
-        '<button onclick="openSupplierModal(null)">+ Add Supplier</button>' +
+        '<span id="supplierFilterSortBadge" style="color:var(--color-text-muted); font-size:12px;"></span>' +
+        '<button onclick="openSupplierFilterSortModal()">Filter &amp; Sort</button>' +
+        '<button class="btn-primary" onclick="openSupplierModal(null)">+ Add Supplier</button>' +
       "</div>" +
     "</div>" +
     '<div id="supplierPaginationNav" class="pagination-nav"></div>' +
@@ -441,10 +439,8 @@ async function renderSupplierSection(wrap) {
 }
 
 function renderSupplierTable() {
-  const sortBadge = document.getElementById("supplierSortBadge");
-  if (sortBadge) sortBadge.textContent = "Sort: " + ENTITY_SORT_LABELS[_supplierSort];
-  const filterBadge = document.getElementById("supplierFilterBadge");
-  if (filterBadge) filterBadge.textContent = _supplierStatusFilter.length ? _supplierStatusFilter.join(", ") : "All Statuses";
+  const badge = document.getElementById("supplierFilterSortBadge");
+  if (badge) badge.textContent = (_supplierStatusFilter.length ? _supplierStatusFilter.join(", ") : "All Statuses") + " | " + ENTITY_SORT_LABELS[_supplierSort];
 
   const tbody = document.getElementById("supplierTbody");
   if (!tbody) return;
@@ -455,42 +451,32 @@ function renderSupplierTable() {
   enableDragScroll(document.getElementById("supplierScrollWrap"));
 }
 
-function openSupplierFilterModal() {
-  openModal(
-    "<h2>Set Filter - Status</h2>" +
-    "<div>" + statusFilterCheckboxesHtml("supplierStatusFilterCheck", _supplierStatusFilter) + "</div>" +
-    '<div style="margin-top:16px;">' +
-      '<button onclick="closeModal()">Cancel</button> ' +
-      '<button onclick="applySupplierFilter()">Apply Filter</button>' +
-    "</div>"
-  );
-}
-
-function applySupplierFilter() {
-  _supplierStatusFilter = Array.from(document.querySelectorAll(".supplierStatusFilterCheck:checked")).map((cb) => cb.value);
-  closeModal();
-  renderSupplierTable();
-}
-
-function openSupplierSortModal() {
-  const options = [
+function openSupplierFilterSortModal() {
+  const sortOptions = [
     ["name-asc", "Name (A-Z)"], ["name-desc", "Name (Z-A)"],
     ["code-asc", "Code (small-large)"], ["code-desc", "Code (large-small)"],
     ["status-active-first", "Status (Active-Inactive)"], ["status-inactive-first", "Status (Inactive-Active)"]
   ];
+  const sortRadios = sortOptions.map(([val, label]) =>
+    '<label style="display:block; margin:6px 0;"><input type="radio" name="supplierSortOption" value="' + val + '"' + (_supplierSort === val ? " checked" : "") + "> " + label + "</label>"
+  ).join("");
+
   openModal(
-    "<h2>Sort Supplier List</h2>" +
-    options.map(([val, label]) =>
-      '<label style="display:block; margin:6px 0;"><input type="radio" name="supplierSortOption" value="' + val + '"' + (_supplierSort === val ? " checked" : "") + "> " + label + "</label>"
-    ).join("") +
-    '<br><button onclick="applySupplierSort()">Apply</button>'
+    "<h2>Filter &amp; Sort - Supplier List</h2>" +
+    "<label>Status</label>" +
+    "<div>" + statusFilterCheckboxesHtml("supplierStatusFilterCheck", _supplierStatusFilter) + "</div><br>" +
+    "<label>Sort</label>" +
+    "<div>" + sortRadios + "</div>" +
+    '<div style="margin-top:16px;">' +
+      '<button class="btn-primary" onclick="applySupplierFilterSort()">Apply</button>' +
+    "</div>"
   );
 }
 
-function applySupplierSort() {
-  const selected = document.querySelector('input[name="supplierSortOption"]:checked');
-  if (!selected) return;
-  _supplierSort = selected.value;
+function applySupplierFilterSort() {
+  _supplierStatusFilter = Array.from(document.querySelectorAll(".supplierStatusFilterCheck:checked")).map((cb) => cb.value);
+  const selectedSort = document.querySelector('input[name="supplierSortOption"]:checked');
+  if (selectedSort) _supplierSort = selectedSort.value;
   closeModal();
   renderSupplierTable();
 }
@@ -505,8 +491,8 @@ function supplierRowHtml(r) {
       "<td>" + (r.address || "") + "</td>" +
       "<td>" + (r.notes || "") + "</td>" +
       "<td>" + (r.is_active ? "Active" : "Inactive") + "</td>" +
-      '<td><button onclick="openSupplierModal(\'' + r.supplier_code + '\')">Edit</button> ' +
-      '<button onclick="deleteSupplier(\'' + r.supplier_code + '\')">Delete</button></td>' +
+      '<td class="compact-cell"><button class="btn-compact" onclick="openSupplierModal(\'' + r.supplier_code + '\')">Edit</button> ' +
+      '<button class="btn-compact" onclick="deleteSupplier(\'' + r.supplier_code + '\')">Delete</button></td>' +
     "</tr>"
   );
 }
@@ -530,7 +516,7 @@ function openSupplierModal(code) {
       ? ('<label style="font-weight:normal;"><input type="checkbox" id="supplierActive"' + (row.is_active ? " checked" : "") + '> Active</label><br><br>')
       : ""
     ) +
-    '<button id="saveSupplierBtn" onclick="saveSupplier(' + (code ? "'" + code + "'" : "null") + ')">Save</button>' +
+    '<button id="saveSupplierBtn" class="btn-primary" onclick="saveSupplier(' + (code ? "'" + code + "'" : "null") + ')">Save</button>' +
     '<span id="saveSupplierStatus" class="save-status"></span>'
   );
 }
@@ -580,11 +566,9 @@ async function renderCustomerSection(wrap) {
     '<div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0;">' +
       "<h3>Customer List</h3>" +
       '<div style="display:flex; align-items:center; gap:10px;">' +
-        '<span id="customerFilterBadge" style="color:var(--color-text-muted); font-size:12px;">' + (_customerStatusFilter.length ? _customerStatusFilter.join(", ") : "All Statuses") + "</span>" +
-        '<button onclick="openCustomerFilterModal()">Set Filter</button>' +
-        '<span id="customerSortBadge" style="color:var(--color-text-muted); font-size:12px;">Sort: ' + ENTITY_SORT_LABELS[_customerSort] + "</span>" +
-        '<button onclick="openCustomerSortModal()">Sort</button>' +
-        '<button onclick="openCustomerModal(null)">+ Add Customer</button>' +
+        '<span id="customerFilterSortBadge" style="color:var(--color-text-muted); font-size:12px;"></span>' +
+        '<button onclick="openCustomerFilterSortModal()">Filter &amp; Sort</button>' +
+        '<button class="btn-primary" onclick="openCustomerModal(null)">+ Add Customer</button>' +
       "</div>" +
     "</div>" +
     '<div id="customerPaginationNav" class="pagination-nav"></div>' +
@@ -601,10 +585,8 @@ async function renderCustomerSection(wrap) {
 }
 
 function renderCustomerTable() {
-  const sortBadge = document.getElementById("customerSortBadge");
-  if (sortBadge) sortBadge.textContent = "Sort: " + ENTITY_SORT_LABELS[_customerSort];
-  const filterBadge = document.getElementById("customerFilterBadge");
-  if (filterBadge) filterBadge.textContent = _customerStatusFilter.length ? _customerStatusFilter.join(", ") : "All Statuses";
+  const badge = document.getElementById("customerFilterSortBadge");
+  if (badge) badge.textContent = (_customerStatusFilter.length ? _customerStatusFilter.join(", ") : "All Statuses") + " | " + ENTITY_SORT_LABELS[_customerSort];
 
   const tbody = document.getElementById("customerTbody");
   if (!tbody) return;
@@ -615,42 +597,32 @@ function renderCustomerTable() {
   enableDragScroll(document.getElementById("customerScrollWrap"));
 }
 
-function openCustomerFilterModal() {
-  openModal(
-    "<h2>Set Filter - Status</h2>" +
-    "<div>" + statusFilterCheckboxesHtml("customerStatusFilterCheck", _customerStatusFilter) + "</div>" +
-    '<div style="margin-top:16px;">' +
-      '<button onclick="closeModal()">Cancel</button> ' +
-      '<button onclick="applyCustomerFilter()">Apply Filter</button>' +
-    "</div>"
-  );
-}
-
-function applyCustomerFilter() {
-  _customerStatusFilter = Array.from(document.querySelectorAll(".customerStatusFilterCheck:checked")).map((cb) => cb.value);
-  closeModal();
-  renderCustomerTable();
-}
-
-function openCustomerSortModal() {
-  const options = [
+function openCustomerFilterSortModal() {
+  const sortOptions = [
     ["name-asc", "Name (A-Z)"], ["name-desc", "Name (Z-A)"],
     ["code-asc", "Code (small-large)"], ["code-desc", "Code (large-small)"],
     ["status-active-first", "Status (Active-Inactive)"], ["status-inactive-first", "Status (Inactive-Active)"]
   ];
+  const sortRadios = sortOptions.map(([val, label]) =>
+    '<label style="display:block; margin:6px 0;"><input type="radio" name="customerSortOption" value="' + val + '"' + (_customerSort === val ? " checked" : "") + "> " + label + "</label>"
+  ).join("");
+
   openModal(
-    "<h2>Sort Customer List</h2>" +
-    options.map(([val, label]) =>
-      '<label style="display:block; margin:6px 0;"><input type="radio" name="customerSortOption" value="' + val + '"' + (_customerSort === val ? " checked" : "") + "> " + label + "</label>"
-    ).join("") +
-    '<br><button onclick="applyCustomerSort()">Apply</button>'
+    "<h2>Filter &amp; Sort - Customer List</h2>" +
+    "<label>Status</label>" +
+    "<div>" + statusFilterCheckboxesHtml("customerStatusFilterCheck", _customerStatusFilter) + "</div><br>" +
+    "<label>Sort</label>" +
+    "<div>" + sortRadios + "</div>" +
+    '<div style="margin-top:16px;">' +
+      '<button class="btn-primary" onclick="applyCustomerFilterSort()">Apply</button>' +
+    "</div>"
   );
 }
 
-function applyCustomerSort() {
-  const selected = document.querySelector('input[name="customerSortOption"]:checked');
-  if (!selected) return;
-  _customerSort = selected.value;
+function applyCustomerFilterSort() {
+  _customerStatusFilter = Array.from(document.querySelectorAll(".customerStatusFilterCheck:checked")).map((cb) => cb.value);
+  const selectedSort = document.querySelector('input[name="customerSortOption"]:checked');
+  if (selectedSort) _customerSort = selectedSort.value;
   closeModal();
   renderCustomerTable();
 }
@@ -665,8 +637,8 @@ function customerRowHtml(r) {
       "<td>" + (r.address || "") + "</td>" +
       "<td>" + (r.notes || "") + "</td>" +
       "<td>" + (r.is_active ? "Active" : "Inactive") + "</td>" +
-      '<td><button onclick="openCustomerModal(\'' + r.customer_code + '\')">Edit</button> ' +
-      '<button onclick="deleteCustomer(\'' + r.customer_code + '\')">Delete</button></td>' +
+      '<td class="compact-cell"><button class="btn-compact" onclick="openCustomerModal(\'' + r.customer_code + '\')">Edit</button> ' +
+      '<button class="btn-compact" onclick="deleteCustomer(\'' + r.customer_code + '\')">Delete</button></td>' +
     "</tr>"
   );
 }
@@ -690,7 +662,7 @@ function openCustomerModal(code) {
       ? ('<label style="font-weight:normal;"><input type="checkbox" id="customerActive"' + (row.is_active ? " checked" : "") + '> Active</label><br><br>')
       : ""
     ) +
-    '<button id="saveCustomerBtn" onclick="saveCustomer(' + (code ? "'" + code + "'" : "null") + ')">Save</button>' +
+    '<button id="saveCustomerBtn" class="btn-primary" onclick="saveCustomer(' + (code ? "'" + code + "'" : "null") + ')">Save</button>' +
     '<span id="saveCustomerStatus" class="save-status"></span>'
   );
 }
@@ -748,11 +720,9 @@ async function renderStaffSection(wrap) {
     '<div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0; flex-wrap:wrap; gap:8px;">' +
       "<h3>Staff List</h3>" +
       '<div style="display:flex; align-items:center; gap:10px;">' +
-        '<span id="staffFilterBadge" style="color:var(--color-text-muted); font-size:12px;">All</span>' +
-        '<button onclick="openStaffFilterModal()">Set Filter</button>' +
-        '<span id="staffSortBadge" style="color:var(--color-text-muted); font-size:12px;">Sort: ' + STAFF_SORT_LABELS[_staffSort] + "</span>" +
-        '<button onclick="openStaffSortModal()">Sort</button>' +
-        '<button onclick="openStaffModal(null)">+ Add Staff</button>' +
+        '<span id="staffFilterSortBadge" style="color:var(--color-text-muted); font-size:12px;"></span>' +
+        '<button onclick="openStaffFilterSortModal()">Filter &amp; Sort</button>' +
+        '<button class="btn-primary" onclick="openStaffModal(null)">+ Add Staff</button>' +
       "</div>" +
     "</div>" +
     '<div id="staffPaginationNav" class="pagination-nav"></div>' +
@@ -786,13 +756,11 @@ function filterStaffRows(rows) {
 }
 
 function renderStaffTable() {
-  const filterBadge = document.getElementById("staffFilterBadge");
-  if (filterBadge) {
+  const badge = document.getElementById("staffFilterSortBadge");
+  if (badge) {
     const parts = [].concat(_staffRoleFilter, _staffStatusFilter);
-    filterBadge.textContent = parts.length ? parts.join(", ") : "All";
+    badge.textContent = (parts.length ? parts.join(", ") : "All") + " | " + STAFF_SORT_LABELS[_staffSort];
   }
-  const sortBadge = document.getElementById("staffSortBadge");
-  if (sortBadge) sortBadge.textContent = "Sort: " + STAFF_SORT_LABELS[_staffSort];
 
   const tbody = document.getElementById("staffTbody");
   if (!tbody) return;
@@ -802,46 +770,34 @@ function renderStaffTable() {
   enableDragScroll(document.getElementById("staffScrollWrap"));
 }
 
-function openStaffFilterModal() {
+function openStaffFilterSortModal() {
   const roleChecks = _staffRoleOptions.map((r) =>
     '<label style="display:block; margin:4px 0;"><input type="checkbox" class="staffRoleFilterCheck" value="' + r + '"' + (_staffRoleFilter.indexOf(r) !== -1 ? " checked" : "") + "> " + r + "</label>"
   ).join("");
+  const sortOptions = [["role-priority", "Role Priority (default)"], ["name-asc", "Name (A-Z)"], ["name-desc", "Name (Z-A)"]];
+  const sortRadios = sortOptions.map(([val, label]) =>
+    '<label style="display:block; margin:6px 0;"><input type="radio" name="staffSortOption" value="' + val + '"' + (_staffSort === val ? " checked" : "") + "> " + label + "</label>"
+  ).join("");
 
   openModal(
-    "<h2>Set Filter</h2>" +
+    "<h2>Filter &amp; Sort - Staff List</h2>" +
     "<label>Role</label>" +
     "<div>" + roleChecks + "</div><br>" +
     "<label>Status</label>" +
-    "<div>" + statusFilterCheckboxesHtml("staffStatusFilterCheck", _staffStatusFilter) + "</div>" +
+    "<div>" + statusFilterCheckboxesHtml("staffStatusFilterCheck", _staffStatusFilter) + "</div><br>" +
+    "<label>Sort</label>" +
+    "<div>" + sortRadios + "</div>" +
     '<div style="margin-top:16px;">' +
-      '<button onclick="closeModal()">Cancel</button> ' +
-      '<button onclick="applyStaffFilter()">Apply Filter</button>' +
+      '<button class="btn-primary" onclick="applyStaffFilterSort()">Apply</button>' +
     "</div>"
   );
 }
 
-function applyStaffFilter() {
+function applyStaffFilterSort() {
   _staffRoleFilter = Array.from(document.querySelectorAll(".staffRoleFilterCheck:checked")).map((cb) => cb.value);
   _staffStatusFilter = Array.from(document.querySelectorAll(".staffStatusFilterCheck:checked")).map((cb) => cb.value);
-  closeModal();
-  renderStaffTable();
-}
-
-function openStaffSortModal() {
-  const options = [["role-priority", "Role Priority (default)"], ["name-asc", "Name (A-Z)"], ["name-desc", "Name (Z-A)"]];
-  openModal(
-    "<h2>Sort Staff List</h2>" +
-    options.map(([val, label]) =>
-      '<label style="display:block; margin:6px 0;"><input type="radio" name="staffSortOption" value="' + val + '"' + (_staffSort === val ? " checked" : "") + "> " + label + "</label>"
-    ).join("") +
-    '<br><button onclick="applyStaffSort()">Apply</button>'
-  );
-}
-
-function applyStaffSort() {
-  const selected = document.querySelector('input[name="staffSortOption"]:checked');
-  if (!selected) return;
-  _staffSort = selected.value;
+  const selectedSort = document.querySelector('input[name="staffSortOption"]:checked');
+  if (selectedSort) _staffSort = selectedSort.value;
   closeModal();
   renderStaffTable();
 }
@@ -876,8 +832,8 @@ function staffRowHtml(r) {
       "<td>" + (r.roles || []).join(", ") + "</td>" +
       "<td>" + formatPhoneDisplay(r.contact) + "</td>" +
       "<td>" + (r.is_active ? "Active" : "Inactive") + "</td>" +
-      '<td><button onclick="openStaffModal(\'' + r.staff_code + '\')">Edit</button> ' +
-      '<button onclick="deleteStaff(\'' + r.staff_code + '\')">Delete</button></td>' +
+      '<td class="compact-cell"><button class="btn-compact" onclick="openStaffModal(\'' + r.staff_code + '\')">Edit</button> ' +
+      '<button class="btn-compact" onclick="deleteStaff(\'' + r.staff_code + '\')">Delete</button></td>' +
     "</tr>"
   );
 }
@@ -907,7 +863,7 @@ function openStaffModal(code) {
       ? ('<label style="font-weight:normal;"><input type="checkbox" id="staffActive"' + (row.is_active ? " checked" : "") + '> Active</label><br><br>')
       : ""
     ) +
-    '<button id="saveStaffBtn" onclick="saveStaff(' + (code ? "'" + code + "'" : "null") + ')">Save</button>' +
+    '<button id="saveStaffBtn" class="btn-primary" onclick="saveStaff(' + (code ? "'" + code + "'" : "null") + ')">Save</button>' +
     '<span id="saveStaffStatus" class="save-status"></span>'
   );
 }

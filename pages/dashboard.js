@@ -139,9 +139,7 @@ function dv2StylesHtml() {
       ".dv2-card h4 { color:var(--color-text-primary); }" +
       ".dv2-quick-actions button { display:block; width:100%; box-sizing:border-box; text-align:left; padding:12px; margin-bottom:8px; border-radius:8px; border:1px solid var(--color-border-on-card); background:var(--color-accent-tint); color:var(--color-text-primary); cursor:pointer; }" +
       ".dv2-quick-actions button:last-child { margin-bottom:0; }" +
-      // filter:none cancels shared.css's generic button:hover{filter:brightness(1.2)},
-      // which would otherwise wash this pink tint 20% toward white on hover.
-      ".dv2-quick-actions button:hover { filter:none; background:var(--color-accent); }" +
+      ".dv2-quick-actions button:hover { background:var(--color-accent); }" +
       ".dv2-txn-row { display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--color-border-on-card); }" +
       ".dv2-txn-row:last-child { border-bottom:none; }" +
       ".dv2-txn-avatar { width:36px; height:36px; border-radius:50%; background:var(--color-accent-tint); color:var(--color-text-primary); display:flex; align-items:center; justify-content:center; font-weight:600; flex-shrink:0; }" +

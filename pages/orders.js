@@ -117,7 +117,7 @@ function buildOrderFormHtml() {
     "<label>Notes</label><br>" +
     '<input type="text" id="orderNotes" style="width:400px;"><br><br>' +
 
-    '<button id="saveOrderBtn" onclick="saveOrder()">Save Order</button>' +
+    '<button id="saveOrderBtn" class="btn-primary" onclick="saveOrder()">Save Order</button>' +
     '<span id="saveOrderStatus" class="save-status"></span>'
   );
 }
@@ -212,7 +212,7 @@ function addOrderItemRow() {
     '<td><input type="number" class="qty" min="1" style="width:100%; box-sizing:border-box;" oninput="updateOrderRowTotal(this.closest(\'.order-item-row\'))"></td>' +
     '<td><input type="text" class="unitPrice" inputmode="numeric" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this); updateOrderRowTotal(this.closest(\'.order-item-row\'))"></td>' +
     '<td><input type="text" class="lineTotal" readonly style="width:100%; box-sizing:border-box; background:var(--color-disabled-bg);"></td>' +
-    '<td class="remove-cell"><button type="button" class="btn-remove" onclick="removeOrderItemRow(this)">Remove</button></td>';
+    '<td class="compact-cell"><button type="button" class="btn-compact" onclick="removeOrderItemRow(this)">Remove</button></td>';
   wrap.appendChild(row);
 
   // Product uses "Active"/"Inactive" (not "Available"/"Unavailable" like
@@ -408,7 +408,7 @@ function renderOrdersTable(wrap, orders, scope) {
   const titleRow =
     '<div style="display:flex; justify-content:space-between; align-items:center;">' +
       "<h3>" + title + "</h3>" +
-      (scope === "ongoing" ? '<button onclick="openOrderModal()">+ New Order</button>' : "") +
+      (scope === "ongoing" ? '<button class="btn-primary" onclick="openOrderModal()">+ New Order</button>' : "") +
     "</div>";
 
   if (!orders.length) {
@@ -610,7 +610,7 @@ function unpaidPayoutRowHtml(o) {
       "<td>" + o.customerName + "</td>" +
       '<td><span class="font-number">' + formatRupiah(o.deliveryFee) + "</span></td>" +
       "<td>" + o.orderCode + "</td>" +
-      '<td><button onclick="openPayoutEditModal(\'' + o.orderCode + '\')">Edit</button></td>' +
+      '<td class="compact-cell"><button class="btn-compact" onclick="openPayoutEditModal(\'' + o.orderCode + '\')">Edit</button></td>' +
     "</tr>"
   );
 }
@@ -629,7 +629,7 @@ function openPayoutEditModal(orderCode) {
     '<input type="text" id="editPayoutFee" inputmode="numeric" value="' + formatRupiah(order.deliveryFee) + '" oninput="formatAmount(this)"><br><br>' +
     "<label>Driver</label><br>" +
     '<select id="editPayoutDriver">' + driverSelectOptionsHtml(order) + "</select><br><br>" +
-    '<button id="savePayoutEditBtn" onclick="savePayoutEditModal(\'' + orderCode + '\')">Save</button>' +
+    '<button id="savePayoutEditBtn" class="btn-primary" onclick="savePayoutEditModal(\'' + orderCode + '\')">Save</button>' +
     '<span id="savePayoutEditStatus" class="save-status"></span>'
   );
 }
@@ -743,9 +743,9 @@ function payoutHistoryRowHtml(o) {
       "</td>" +
       "<td>" + o.orderCode + "</td>" +
       "<td>" +
-        '<button class="payoutEditBtn" onclick="startEditPayout(this)">Edit</button>' +
-        '<button class="payoutSaveBtn" onclick="savePayoutEdit(this)" style="display:none;">Save</button> ' +
-        '<button class="payoutCancelBtn" onclick="cancelEditPayout()" style="display:none;">Cancel</button>' +
+        '<button class="payoutEditBtn btn-compact" onclick="startEditPayout(this)">Edit</button>' +
+        '<button class="payoutSaveBtn btn-compact btn-primary" onclick="savePayoutEdit(this)" style="display:none;">Save</button> ' +
+        '<button class="payoutCancelBtn btn-compact" onclick="cancelEditPayout()" style="display:none;">Cancel</button>' +
       "</td>" +
     "</tr>"
   );
@@ -833,7 +833,7 @@ function ongoingRowHtml(o) {
       "<td>" + paymentHtml + "</td>" +
       "<td>" + statusHtml + "</td>" +
       "<td>" + (o.notes || "") + "</td>" +
-      '<td class="orderActions" data-order="' + o.orderCode + '">' + actions + "</td>" +
+      '<td class="orderActions" style="text-align:left;" data-order="' + o.orderCode + '">' + actions + "</td>" +
     "</tr>"
   );
 }

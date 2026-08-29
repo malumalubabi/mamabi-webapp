@@ -17,29 +17,34 @@
    Do not use --color-text-on-dark for text INSIDE a card (or vice versa) -
    swapping the pair drops contrast to ~1.5:1, close to unreadable. */
 :root {
-  --color-bg-page: #05334A;       /* Deep Space Blue - page background */
-  --color-panel-bg: #F0E4CC;      /* Papaya Whip, ~5% darker - each page's main panel (#content), sits between page bg and cards */
-  --color-card-bg: #FCF0D6;       /* Papaya Whip - cards/controls INSIDE a panel (.tile, .dv2-card, .modal-box, dropdowns, select) - kept brighter than the panel for depth */
-  --color-field-bg: #FEF8EB;      /* Papaya Whip pushed toward white - editable fields (input/textarea/select/combobox), the lightest of the three so a form control never disappears into its card */
-  --color-text-on-dark: #EBBF93;  /* Soft Blush Rose - text on the dark page bg, outside cards */
-  --color-text-primary: #05334A;  /* Deep Space Blue - main text INSIDE a card */
-  --color-text-muted: #A65A5F;    /* Soft Blush Rose Dark - secondary/muted text inside a card (~4.4:1 - keep >=12-13px) */
-  --color-accent: #F7B7BC;        /* Soft Blush Rose Light - accents/highlights */
+  /* "Muted pastel 2-tone" palette (replaces the earlier Deep Space Blue /
+     Papaya Whip scheme) - same two-layer model, new hues. */
+  --color-bg-page: #1B2833;       /* header/navbar background */
+  --color-panel-bg: #F2E9DC;      /* each page's main panel (#content), sits between page bg and cards */
+  --color-card-bg: #FBF6EE;       /* cards/controls/table rows INSIDE a panel (.tile, .dv2-card, .modal-box, dropdowns, select) - kept brighter than the panel for depth */
+  --color-field-bg: #FCF8F2;      /* editable fields (input/textarea/select/combobox), lightest of the three so a form control never disappears into its card. Flat hex, not color-mix() - unlike the gradients below, this has no earlier-declared fallback to catch an unsupported-color-mix() browser, so a computed value here isn't safe. */
+  --color-text-on-dark: #E88F93;  /* text on the dark page bg, outside cards - nav items (Dashboard/Orders/...), body/footer text */
+  --color-text-primary: #1B2833;  /* main text INSIDE a card */
+  --color-text-muted: #8A7F76;    /* secondary/muted text inside a card (SKU codes, captions, ...) */
+  --color-accent: #B98289;        /* accent/active-tab/primary-button fill, and ghost-button borders */
+  --color-header-title: #FEB5A6;  /* header's "MaluMaluBabi" */
+  --color-header-subtitle: #9C6E6E; /* header's "WebApp" suffix */
 
-  /* Derived alpha variants of the three colors above (not new hues) - for
-     subtle borders/dividers/disabled-field washes that need to sit quietly
-     on top of a page-bg or card-bg without introducing another color. */
-  --color-border-on-card: rgba(5, 51, 74, 0.15);
-  --color-border-strong: rgba(5, 51, 74, 0.35); /* form-control outlines (combobox) - needs more visible affordance than a card divider */
-  --color-border-on-dark: rgba(235, 191, 147, 0.35);
-  --color-accent-tint: rgba(247, 183, 188, 0.25);
-  --color-muted-tint: rgba(166, 90, 95, 0.15); /* Soft Blush Rose Dark, faint - hover wash on in-page tab strips */
-  --color-disabled-bg: rgba(5, 51, 74, 0.08);
+  /* Derived alpha variants of the base colors above (not new hues) - for
+     subtle dividers/disabled-field washes that need to sit quietly on top
+     of a page-bg or card-bg without introducing another color. */
+  --color-border-on-card: #E4D9C9;
+  --color-border-on-dark: rgba(232, 143, 147, 0.35);
+  --color-accent-tint: rgba(185, 130, 137, 0.25);
+  --color-muted-tint: rgba(138, 127, 118, 0.15); /* faint - hover wash on in-page tab strips */
+  --color-disabled-bg: rgba(27, 40, 51, 0.08);
 
   /* Semantic status tokens - one canonical hex per meaning instead of the
      several near-duplicate greens/reds that had drifted in independently
      (save-status.success was #2e7d32, .status-Safe was #1a7f37, menu.js's
-     margin-trend-up was #16a34a - all "success", all slightly different). */
+     margin-trend-up was #16a34a - all "success", all slightly different).
+     Independent of the brand palette above, so the pastel swap doesn't
+     touch these. */
   --color-success: #1a7f37;
   --color-warning: #b08800;
   --color-error: #cf222e;
@@ -49,13 +54,11 @@
      kept subtle (3-5% shade shift) so it reads as gentle depth, not an
      obvious skeuomorphic effect. color-mix() computes each gradient's
      lighter/darker stop live from the palette tokens above, so there's no
-     second hardcoded hex to keep in sync by hand if a base color changes. */
+     second hardcoded hex to keep in sync by hand if a base color changes -
+     this is also why the palette swap above needed no changes here. */
   --gradient-page-bg: linear-gradient(to bottom, var(--color-bg-page), color-mix(in srgb, var(--color-bg-page) 50%, black 50%));
   --gradient-panel-bg: linear-gradient(to bottom, var(--color-panel-bg), color-mix(in srgb, var(--color-panel-bg) 96%, black 4%));
   --gradient-card-bg: linear-gradient(to bottom, var(--color-card-bg), color-mix(in srgb, var(--color-card-bg) 96%, black 4%));
-  /* Diagonal, dark (top-left) to light (bottom-right) - two close shades of
-     the same primary-button blue, not a second color. */
-  --gradient-btn-primary: linear-gradient(135deg, var(--color-bg-page), color-mix(in srgb, var(--color-bg-page) 92%, white 8%));
 }
 
 body {
@@ -83,11 +86,9 @@ header {
   padding: 16px 16px 8px;
 }
 header h2 {
-  /* --color-text-on-dark (#EBBF93) reads as a muted tan next to the nav's
-     rose-dark labels - switched to --color-accent (#F7B7BC), the brighter
-     Soft Blush Rose Light, so the title is unmistakably pink rather than
-     blending into the same warm-cream family as Papaya Whip. */
-  color: var(--color-accent);
+  /* Base/fallback - .brand-name below reads its own color from this
+     (--color-header-title), .brand-suffix overrides to its own. */
+  color: var(--color-header-title);
   /* Quicksand (index.html's Google Fonts link) - scoped to just this
      title, not applied app-wide; Arial stays the fallback/default
      everywhere else including every other heading. */
@@ -95,7 +96,10 @@ header h2 {
   letter-spacing: 0.08em;
 }
 header h2 .brand-suffix {
-  opacity: 0.6;
+  /* Its own dedicated muted tone (--color-header-subtitle), not an opacity
+     wash of the title color - the two aren't just light/dark variants of
+     the same hue in this palette. */
+  color: var(--color-header-subtitle);
 }
 header h2 .brand-name {
   /* Quicksand's heaviest cut is 700 (Bold) - there's no 800/900 weight to
@@ -157,28 +161,34 @@ h3, h4 {
 /* ---------- Buttons ----------
    Plain-type selector on purpose (specificity 0-0-1) - every more specific
    button rule elsewhere (navbar/tabs/.modal-close/.dv2-quick-actions/...)
-   already has a class or ID and wins over this automatically, so this only
-   reaches ordinary unclassed <button>s - the vast majority across every
-   module (Save, Add Item, Remove, filter triggers, ...). Filter-based hover/
-   active feedback (not a second hardcoded color) keeps it to the palette. */
+   already has a class or ID and wins over this automatically.
+
+   DEFAULT = secondary/ghost, not solid fill. Most buttons in this app are
+   one of several equally-weighted actions on a page or in a row (Set
+   Filter, Sort, per-row Edit/Remove, Prev/Next, Cancel) - solid-filling
+   all of them made every action look equally urgent, which is the opposite
+   of true. Exactly one primary action per section/modal (a page's own
+   "+ Add X", a modal's Save) opts into the solid look via class="btn-
+   primary" instead - see below. Border is --color-accent (not a neutral
+   gray/border tone) per explicit request - a ghost button still reads as
+   "on brand", not just a disabled-looking outline. */
 button {
   display: inline-block;
   padding: 8px 16px;
-  border: none;
+  border: 1px solid var(--color-accent);
   border-radius: 10px;
-  background: var(--color-bg-page);
-  background: var(--gradient-btn-primary);
-  color: var(--color-card-bg);
+  background: transparent;
+  color: var(--color-text-primary);
   font: inherit;
   font-size: 14px;
   cursor: pointer;
-  transition: filter 0.15s ease, opacity 0.15s ease;
+  transition: filter 0.15s ease, opacity 0.15s ease, background 0.15s ease;
 }
 button:hover {
-  filter: brightness(1.2);
+  background: var(--color-accent-tint);
 }
 button:active {
-  filter: brightness(0.88);
+  filter: brightness(0.92);
 }
 button:disabled {
   opacity: 0.5;
@@ -186,17 +196,21 @@ button:disabled {
   filter: none;
 }
 
-/* Opt-in secondary/outline look (e.g. a "Cancel" next to a primary "Save") -
-   not applied automatically since no page currently marks a button as
-   secondary; available for pages to adopt via class="btn-secondary". */
-button.btn-secondary {
-  background: transparent;
-  color: var(--color-text-primary);
-  border: 1px solid var(--color-border-strong);
+/* Solid Deep Space Blue fill - the ONE primary action per section/modal.
+   Flat (not a gradient) so it's pixel-identical to the header/navbar's own
+   Deep Space Blue rather than a lighter-shifted variant that read as a
+   separate, more-black-looking tone next to it. */
+button.btn-primary {
+  background: var(--color-bg-page);
+  border-color: var(--color-bg-page);
+  color: var(--color-card-bg);
 }
-button.btn-secondary:hover {
-  background: var(--color-accent-tint);
-  filter: none;
+button.btn-primary:hover {
+  background: var(--color-bg-page);
+  filter: brightness(1.2);
+}
+button.btn-primary:active {
+  filter: brightness(0.88);
 }
 
 /* Per-row "Remove" button in item-row tables/lists (Input Sales, Edit Sales
@@ -204,15 +218,20 @@ button.btn-secondary:hover {
    button's padding/font-size made "Remove" wider than any reasonably-sized
    last column, overflowing past the table edge under table-layout:fixed.
    Same gradient/color as every other button, just compact. */
-button.btn-remove {
+/* Compact per-row table action button (Remove, Edit, Delete, ...) - was
+   named .btn-remove (first used only for Remove), now applied to every
+   repeated-per-row action across the app per explicit request: a full-size
+   button (padding:8px 16px) looked heavy repeated down a whole column. */
+button.btn-compact {
   padding: 4px 10px;
   font-size: 12px;
 }
-/* The table/td rule below gives every cell 8px 12px padding - fine for text,
-   but it ate into the Remove column's already-tight fixed width and pushed
-   .btn-remove past the table edge anyway. Cut this one cell's padding down
-   instead of widening the column at the expense of the columns beside it. */
-td.remove-cell {
+/* The table/td rule below gives every cell 8px 12px padding - fine for
+   text, but it ate into an actions column's already-tight fixed width and
+   pushed .btn-compact past the table edge anyway. Cut this one cell's
+   padding down instead of widening the column at the expense of the
+   columns beside it. */
+td.compact-cell {
   padding: 6px 4px;
   text-align: center;
 }
@@ -278,7 +297,7 @@ select {
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23A65A5F' fill='none' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238A7F76' fill='none' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 10px center;
 }
@@ -381,16 +400,15 @@ th {
 #navbar > .navbar-item {
   flex-shrink: 0;
 }
-/* --color-text-on-dark (#EBBF93) reads as tan/papaya-whip-ish, not pink -
-   same reason the title uses --color-accent instead (see header h2). Nav
-   items use it too so the whole bar reads as a consistent, clearly pink
-   "pink minimalist" look, at full contrast (not dimmed). */
+/* Nav item text (Dashboard/Orders/...) is --color-text-on-dark, the
+   palette's dedicated "text on the dark bar" tone - at full contrast (not
+   dimmed), same as body/footer text on the same background. */
 #navbar > button {
   padding: 8px 12px 5px;
   border: none;
   border-bottom: 3px solid transparent;
   background: none;
-  color: var(--color-accent);
+  color: var(--color-text-on-dark);
   cursor: pointer;
   font: inherit;
 }
@@ -406,7 +424,7 @@ th {
   border: none;
   border-bottom: 3px solid transparent;
   background: none;
-  color: var(--color-accent);
+  color: var(--color-text-on-dark);
   cursor: pointer;
   font: inherit;
 }
@@ -522,24 +540,12 @@ th {
   border-radius: 8px 8px 0 0;
   border-bottom-color: var(--color-text-muted);
 }
-/* :hover on an already-active item still matches the generic button:hover
-   filter (a different property than background, so it applies regardless
-   of specificity) - without filter:none it brightens the pink wash 20%
-   toward white on hover. */
-#navbar > [data-page].navbar-active:hover,
-.navbar-item > button.navbar-active:hover {
-  filter: none;
-}
 .navbar-dropdown [data-page].navbar-active,
 .navbar-subitem > button.navbar-active {
   font-weight: bold;
   background: var(--color-accent-tint);
   border-left: 3px solid var(--color-text-muted);
   padding-left: 9px; /* 12px minus the 3px stripe, keeps text aligned with inactive rows */
-}
-.navbar-dropdown [data-page].navbar-active:hover,
-.navbar-subitem > button.navbar-active:hover {
-  filter: none;
 }
 
 /* Simple tab strip used inside a module page (e.g. Inventory's
@@ -561,14 +567,8 @@ th {
   cursor: pointer;
   font: inherit;
 }
-/* filter:none cancels the generic button:hover{filter:brightness(1.2)}
-   (shared.css's plain-type button rule still matches these, since filter
-   is a separate property from the background set here - without this it
-   washes the tint 20% brighter, toward white, on top of whatever's set
-   below). */
 .tabs button:hover {
   background: var(--color-muted-tint);
-  filter: none;
 }
 .tabs button.tab-active {
   border-color: var(--color-border-on-card);
@@ -582,9 +582,10 @@ th {
   /* Solid blend of --color-card-bg + --color-accent (not the alpha
      --color-accent-tint) - the active tab's background is already opaque,
      so a translucent tint would just reveal the panel color behind it
-     instead of shifting warmer/pinker. */
-  background: #FAD9CC;
-  filter: none;
+     instead of shifting warmer/pinker. Pre-computed (80/20 mix), not
+     color-mix() - this rule has no earlier-declared fallback line to catch
+     an unsupported-color-mix() browser the way the gradients above do. */
+  background: #EEDFDA;
 }
 
 /* Stat tiles (Dashboard) */

@@ -136,46 +136,35 @@ function salesLogChannelOptions() {
   return _salesLookups.salesPlatforms;
 }
 
-function openSalesLogFilterModal() {
+// Same as Stock Overview's applyOverviewFilter() - re-renders from the
+// already-fetched _lastSalesRows, no re-fetch needed just to change filters/sort.
+function openSalesLogFilterSortModal() {
+  const sortOptions = [["date-desc", "Date (Newest)"], ["date-asc", "Date (Oldest)"]];
   const checkboxes = salesLogChannelOptions().map((c) =>
     '<label style="display:block; margin:4px 0;">' +
       '<input type="checkbox" class="salesLogChannelCheck" value="' + c + '"' + (_salesLogChannelFilter.indexOf(c) !== -1 ? " checked" : "") + "> " + c +
     "</label>"
   ).join("");
+  const sortRadios = sortOptions.map(([val, label]) =>
+    '<label style="display:block; margin:6px 0;"><input type="radio" name="salesLogSortOption" value="' + val + '"' + (_salesLogSort === val ? " checked" : "") + "> " + label + "</label>"
+  ).join("");
 
   openModal(
-    "<h2>Set Filter - Channel</h2>" +
-    "<div>" + checkboxes + "</div>" +
+    "<h2>Filter &amp; Sort - Sales Log</h2>" +
+    "<label>Channel</label>" +
+    "<div>" + checkboxes + "</div><br>" +
+    "<label>Sort</label>" +
+    "<div>" + sortRadios + "</div>" +
     '<div style="margin-top:16px;">' +
-      '<button onclick="closeModal()">Cancel</button> ' +
-      '<button onclick="applySalesLogChannelFilter()">Apply Filter</button>' +
+      '<button class="btn-primary" onclick="applySalesLogFilterSort()">Apply</button>' +
     "</div>"
   );
 }
 
-// Same as Stock Overview's applyOverviewFilter() - re-renders from the
-// already-fetched _lastSalesRows, no re-fetch needed just to change filters.
-function applySalesLogChannelFilter() {
+function applySalesLogFilterSort() {
   _salesLogChannelFilter = Array.from(document.querySelectorAll(".salesLogChannelCheck:checked")).map((cb) => cb.value);
-  closeModal();
-  renderSalesLogTab(document.getElementById("salesLogWrap"));
-}
-
-function openSalesLogSortModal() {
-  const options = [["date-desc", "Date (Newest)"], ["date-asc", "Date (Oldest)"]];
-  openModal(
-    "<h2>Sort Sales Log</h2>" +
-    options.map(([val, label]) =>
-      '<label style="display:block; margin:6px 0;"><input type="radio" name="salesLogSortOption" value="' + val + '"' + (_salesLogSort === val ? " checked" : "") + "> " + label + "</label>"
-    ).join("") +
-    '<br><button onclick="applySalesLogSort()">Apply</button>'
-  );
-}
-
-function applySalesLogSort() {
-  const selected = document.querySelector('input[name="salesLogSortOption"]:checked');
-  if (!selected) return;
-  _salesLogSort = selected.value;
+  const selectedSort = document.querySelector('input[name="salesLogSortOption"]:checked');
+  if (selectedSort) _salesLogSort = selectedSort.value;
   closeModal();
   renderSalesLogTab(document.getElementById("salesLogWrap"));
 }
@@ -221,11 +210,9 @@ function renderSalesLogTab(wrap) {
     '<div style="display:flex; justify-content:space-between; align-items:center;">' +
       "<h3>Sales Log</h3>" +
       '<div style="display:flex; align-items:center; gap:10px;">' +
-        '<span id="salesLogFilterBadge" style="color:var(--color-text-muted); font-size:12px;">All</span>' +
-        '<button onclick="openSalesLogFilterModal()">Set Filter</button>' +
-        '<span id="salesLogSortBadge" style="color:var(--color-text-muted); font-size:12px;">Sort: ' + SALES_LOG_SORT_LABELS[_salesLogSort] + "</span>" +
-        '<button onclick="openSalesLogSortModal()">Sort</button>' +
-        '<button onclick="openSalesEntryModal()">+ Input Sales</button>' +
+        '<span id="salesLogFilterSortBadge" style="color:var(--color-text-muted); font-size:12px;"></span>' +
+        '<button onclick="openSalesLogFilterSortModal()">Filter &amp; Sort</button>' +
+        '<button class="btn-primary" onclick="openSalesEntryModal()">+ Input Sales</button>' +
       "</div>" +
     "</div>" +
     '<div id="salesPaginationNav" class="pagination-nav"></div>' +
@@ -247,8 +234,8 @@ function renderSalesLogTab(wrap) {
         "</div>"
       : "<p>No sales match this filter.</p>");
 
-  const badge = document.getElementById("salesLogFilterBadge");
-  if (badge) badge.textContent = _salesLogChannelFilter.length ? _salesLogChannelFilter.join(", ") : "All";
+  const badge = document.getElementById("salesLogFilterSortBadge");
+  if (badge) badge.textContent = (_salesLogChannelFilter.length ? _salesLogChannelFilter.join(", ") : "All") + " | " + SALES_LOG_SORT_LABELS[_salesLogSort];
 
   if (rows.length) {
     paginateGroupedTable("salesLogTbody", "salesPaginationNav", 20);
@@ -290,9 +277,9 @@ function salesRowHtml(r) {
   // deliveryCell/orderIdCell (not just its contents) so a multi-line batch
   // doesn't leave a trail of empty bordered cells down every other row.
   const batchActions = isManual
-    ? '<button onclick="openSalesBatchModal(\'' + r.refId + '\')">Edit</button>'
+    ? '<button class="btn-compact" onclick="openSalesBatchModal(\'' + r.refId + '\')">Edit</button>'
     : "";
-  const actionsCell = groupStart ? "<td" + rowspanAttr + ' class="colActions">' + batchActions + "</td>" : "";
+  const actionsCell = groupStart ? "<td" + rowspanAttr + ' class="colActions compact-cell">' + batchActions + "</td>" : "";
 
   // Notes is a batch/order-level note (cascaded onto every line at save
   // time, not something that ever varies line-to-line within one group) -
@@ -413,7 +400,7 @@ async function openSalesEntryModal() {
     "<label>Notes</label><br>" +
     '<input type="text" id="saleNotes"><br><br>' +
 
-    '<button id="saveSaleBtn" onclick="saveSalesBatch()">Save</button>' +
+    '<button id="saveSaleBtn" class="btn-primary" onclick="saveSalesBatch()">Save</button>' +
     '<span id="saveSaleStatus" class="save-status"></span>'
   );
 
@@ -447,7 +434,7 @@ function addSaleItemRow() {
     '<td><input type="number" class="qty" min="1" style="width:100%; box-sizing:border-box;" oninput="updateSaleRowTotal(this.closest(\'.sale-item-row\'))"></td>' +
     '<td><input type="text" class="sellingPrice" inputmode="numeric" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this); updateSaleRowTotal(this.closest(\'.sale-item-row\'))"></td>' +
     '<td><input type="text" class="total" readonly style="width:100%; box-sizing:border-box; background:var(--color-disabled-bg);"></td>' +
-    '<td class="remove-cell"><button type="button" class="btn-remove" onclick="removeSaleItemRow(this)">Remove</button></td>';
+    '<td class="compact-cell"><button type="button" class="btn-compact" onclick="removeSaleItemRow(this)">Remove</button></td>';
   wrap.appendChild(row);
 
   const options = salesProductOptions();
@@ -608,7 +595,7 @@ function openSalesBatchModal(batchCode) {
 
     '<div style="display:flex; justify-content:space-between; align-items:center;">' +
       "<div>" +
-        '<button id="saveBatchEditBtn" onclick="saveSalesBatchEdit(\'' + batchCode + '\')">Save</button> ' +
+        '<button id="saveBatchEditBtn" class="btn-primary" onclick="saveSalesBatchEdit(\'' + batchCode + '\')">Save</button> ' +
         '<span id="saveBatchEditStatus" class="save-status"></span>' +
       "</div>" +
       '<button type="button" style="color:#b00020;" onclick="deleteSalesBatchFromModal(\'' + batchCode + '\')">Delete Batch</button>' +
@@ -632,7 +619,7 @@ function addBatchEditItemRow(existingRow) {
     '<td><input type="number" class="qty" min="1" value="' + (existingRow ? existingRow.qty : "") + '" style="width:100%; box-sizing:border-box;" oninput="updateBatchEditRowTotal(this.closest(\'.batch-edit-row\'))"></td>' +
     '<td><input type="text" class="sellingPrice" inputmode="numeric" value="' + (existingRow ? formatRupiah(existingRow.sellingPrice) : "") + '" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this); updateBatchEditRowTotal(this.closest(\'.batch-edit-row\'))"></td>' +
     '<td><input type="text" class="total" readonly style="width:100%; box-sizing:border-box; background:var(--color-disabled-bg);"></td>' +
-    '<td class="remove-cell"><button type="button" class="btn-remove" onclick="removeBatchEditItemRow(this)">Remove</button></td>';
+    '<td class="compact-cell"><button type="button" class="btn-compact" onclick="removeBatchEditItemRow(this)">Remove</button></td>';
   wrap.appendChild(row);
 
   const options = salesProductOptions();
