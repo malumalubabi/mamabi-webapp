@@ -141,8 +141,11 @@ function buildOrderFormHtml() {
         "</label>" +
       "</div>" +
       '<div><label>Contact</label><br><input type="text" id="orderContact" readonly style="background:var(--color-disabled-bg); width:100%; box-sizing:border-box;"></div>' +
-      '<div><label>Area</label><br><input type="text" id="orderArea" readonly style="background:var(--color-disabled-bg); width:100%; box-sizing:border-box;"></div>' +
-      '<div><label>Address</label><br><input type="text" id="orderAddress" readonly style="background:var(--color-disabled-bg); width:100%; box-sizing:border-box;"></div>' +
+      // Editable (not readonly) - saving corrects the customer's own
+      // area/address record too (see saveOrder()'s customer PATCH), per
+      // explicit request.
+      '<div><label>Area</label><br><input type="text" id="orderArea" style="width:100%; box-sizing:border-box;"></div>' +
+      '<div><label>Address</label><br><input type="text" id="orderAddress" style="width:100%; box-sizing:border-box;"></div>' +
       '<div id="newCustomerFieldsWrap" style="visibility:hidden; display:contents;">' +
         '<div><label>Name</label><br><input type="text" id="newCustomerName" style="width:100%; box-sizing:border-box;"></div>' +
         '<div><label>Contact</label><br><input type="text" id="newCustomerContact" style="width:100%; box-sizing:border-box;"></div>' +
@@ -452,6 +455,25 @@ async function saveOrder() {
     if (!document.getElementById("orderDate").value) throw new Error("Please select an order date");
     if (!document.getElementById("deliveryDate").value) throw new Error("Please select a fulfillment date");
 
+    // Area/Address are editable now (not readonly) - saving here corrects
+    // the customer's own record too, per explicit request. Skipped for a
+    // brand-new customer - its area/address were already set correctly by
+    // the POST above.
+    if (!isNewCustomer) {
+      const customer = _ordersLookups.customers.find((c) => c.id === customerId);
+      if (customer) {
+        await api("customers/" + encodeURIComponent(customer.customer_code), {
+          method: "PATCH",
+          body: {
+            area: document.getElementById("orderArea").value.trim() || null,
+            address: document.getElementById("orderAddress").value.trim() || null
+          }
+        });
+        customer.area = document.getElementById("orderArea").value.trim() || null;
+        customer.address = document.getElementById("orderAddress").value.trim() || null;
+      }
+    }
+
     const items = collectOrderItems();
     if (!items.length) throw new Error("Add at least one product");
 
@@ -518,10 +540,13 @@ function buildEditOrderFormHtml(o) {
       '<input type="text" value="' + o.customerName + '" readonly style="background:var(--color-disabled-bg); width:220px; box-sizing:border-box;">' +
       '<label style="display:block; margin-top:8px;">Contact</label>' +
       '<input type="text" value="' + (o.customerContact ? formatPhoneDisplay(o.customerContact) : "") + '" readonly style="background:var(--color-disabled-bg); margin-top:2px; width:220px; box-sizing:border-box;">' +
+      // Editable (not readonly) - saving corrects the customer's own
+      // area/address record too (see saveEditOrder()'s customer PATCH), per
+      // explicit request.
       '<label style="display:block; margin-top:8px;">Area</label>' +
-      '<input type="text" value="' + (o.customerArea || "") + '" readonly style="background:var(--color-disabled-bg); margin-top:2px; width:220px; box-sizing:border-box;">' +
+      '<input type="text" id="editOrderArea" value="' + (o.customerArea || "") + '" style="margin-top:2px; width:220px; box-sizing:border-box;">' +
       '<label style="display:block; margin-top:8px;">Address</label>' +
-      '<input type="text" value="' + (o.customerAddress || "") + '" readonly style="background:var(--color-disabled-bg); margin-top:2px; width:220px; box-sizing:border-box;">' +
+      '<input type="text" id="editOrderAddress" value="' + (o.customerAddress || "") + '" style="margin-top:2px; width:220px; box-sizing:border-box;">' +
     "</div><br>" +
 
     '<table style="table-layout:fixed; width:auto;">' +
@@ -581,6 +606,19 @@ function saveEditOrder(orderCode) {
       deliveryFee: orderType === "Delivery" ? parseAmount(document.getElementById("orderDeliveryFee").value) : 0,
       notes: document.getElementById("orderNotes").value || null
     };
+
+    // Area/Address are editable now (not readonly) - saving here corrects
+    // the customer's own record too, per explicit request.
+    const o = _ordersByCode[orderCode];
+    if (o && o.customerCode) {
+      await api("customers/" + encodeURIComponent(o.customerCode), {
+        method: "PATCH",
+        body: {
+          area: document.getElementById("editOrderArea").value.trim() || null,
+          address: document.getElementById("editOrderAddress").value.trim() || null
+        }
+      });
+    }
 
     await api("orders/" + encodeURIComponent(orderCode), { method: "PATCH", body: payload });
     closeModal();
