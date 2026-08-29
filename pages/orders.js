@@ -939,21 +939,8 @@ function renderOrdersTable(wrap, orders, scope) {
         ? "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Fulfillment Type</th><th>Order Status</th><th>Notes</th></tr>"
         : "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Type</th><th>Status</th><th>Notes</th><th></th></tr>");
 
-  // Two separate <table> elements can never auto-sync column widths with
-  // each other - auto-layout only ever considers rows within its OWN
-  // table, there's no cross-table mechanism for it. Matching pixel widths
-  // on just these 4 columns (Date/Customer/Items/Total) is the only way to
-  // actually guarantee Ongoing and History line up, per explicit request -
-  // the <col>s for each table's OWN remaining columns (Type/Status/Notes/
-  // Actions, or Fulfillment Type/Order Status/Notes) are left unspecified,
-  // so table-layout:fixed still lets them share whatever space is left
-  // rather than being pinned to arbitrary numbers too.
-  const isOnline = !_ordersIsPlatformMode;
-  const ONLINE_SHARED_COLS = '<col style="width:120px;"><col style="width:220px;"><col style="width:280px;"><col style="width:120px;">'; // Date, Customer, Items, Total
-  const colgroup = isOnline
-    ? "<colgroup>" + ONLINE_SHARED_COLS + (scope === "ongoing" ? "<col><col><col><col>" : "<col><col><col>") + "</colgroup>"
-    : "";
-  const tableStyle = isOnline ? ' style="table-layout:fixed; width:auto;"' : "";
+  const colgroup = "";
+  const tableStyle = "";
 
   // IDs suffixed by scope - Ongoing and History now render into separate
   // containers on the same page at once (not tab-swapped), so they can't
