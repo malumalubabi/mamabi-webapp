@@ -1,7 +1,6 @@
 // GoFood order webhook receiver (Direct Integration, Auto Accept) - GoBiz
-// calls this whenever a subscribed event fires (see notification-subscriptions
-// registration, not yet wired up - this endpoint just needs to exist and be
-// reachable first). Only 2 event types are acted on:
+// calls this whenever a subscribed event fires (see gobiz/subscribe-webhook.js
+// for the exact list registered). Two event types get real handling:
 //   - gofood.order.created: the order already has full item/price/customer
 //     data, and Auto Accept means GoBiz has already accepted it on our
 //     behalf (see _lib/gobiz.js's outlet-link comment) - so this is the
@@ -9,9 +8,13 @@
 //     "accept" API call needed.
 //   - gofood.order.cancelled: keeps our copy in sync if the CONSUMER cancels
 //     (rare, but possible in the window right after auto-accept).
-// Every other subscribed event (merchant_accepted, driver_otw_pickup, etc.)
-// just gets a 200 OK with no action - they're either redundant with what we
-// already know, or not something our schema tracks.
+// Every other subscribed lifecycle event (merchant_accepted,
+// driver_otw_pickup, driver_arrived, placed, completed) doesn't change
+// anything on the order row itself - it's just appended to
+// order_status_events (order_id, event_name, occurred_at) as a display-only
+// timeline, per explicit request (Platform Orders' Status column shows when
+// the order came in and any subsequent status notifications with their
+// time).
 //
 // Every incoming order line's external_id is one of OUR sku_items.sku codes
 // - set via gobiz/sync-menu.js's catalog push, which is what makes this
@@ -68,6 +71,7 @@ export async function onRequestPost({ request, env }) {
     // docs say "event_type" but the actual field GoBiz sends is
     // "event_name".
     const eventType = payload.header && payload.header.event_name;
+    const eventTimestamp = (payload.header && payload.header.timestamp) || new Date().toISOString();
     const body = payload.body || {};
 
     const supabase = getSupabase(env);
@@ -75,15 +79,51 @@ export async function onRequestPost({ request, env }) {
 
     if (eventType === "gofood.order.cancelled") {
       await handleCancelled(supabase, brandId, body);
+      await logStatusEvent(supabase, brandId, body, eventType, eventTimestamp);
     } else if (eventType === "gofood.order.created") {
-      await handleCreated(supabase, brandId, body);
+      await handleCreated(supabase, brandId, body, eventTimestamp);
+    } else if (LIFECYCLE_EVENTS.has(eventType)) {
+      await logStatusEvent(supabase, brandId, body, eventType, eventTimestamp);
     }
-    // Any other event: acknowledged, no action.
+    // Any other, unrecognized event: acknowledged, no action.
 
     return new Response("OK", { status: 200 });
   } catch (err) {
     return errorResponse(err);
   }
+}
+
+// Purely informational lifecycle events - logged to order_status_events for
+// the Platform Orders Status column timeline, no effect on the order row
+// itself (fulfillment/order_status only ever change via handleCreated,
+// handleCancelled, or our own Mark Picked Up action).
+const LIFECYCLE_EVENTS = new Set([
+  "gofood.order.merchant_accepted",
+  "gofood.order.driver_otw_pickup",
+  "gofood.order.driver_arrived",
+  "gofood.order.placed",
+  "gofood.order.completed"
+]);
+
+async function logStatusEvent(supabase, brandId, body, eventType, eventTimestamp) {
+  const orderNumber = body.order && body.order.order_number;
+  if (!orderNumber) return;
+
+  const { data: order, error: orderErr } = await supabase
+    .from("orders")
+    .select("id")
+    .eq("brand_id", brandId)
+    .eq("platform_order_id", orderNumber)
+    .maybeSingle();
+  if (orderErr) throw orderErr;
+  if (!order) return; // event arrived before/without a matching order - nothing to attach it to
+
+  const { error } = await supabase.from("order_status_events").insert({
+    order_id: order.id,
+    event_name: eventType,
+    occurred_at: eventTimestamp
+  });
+  if (error) throw error;
 }
 
 async function handleCancelled(supabase, brandId, body) {
@@ -98,7 +138,7 @@ async function handleCancelled(supabase, brandId, body) {
   if (error) throw error;
 }
 
-async function handleCreated(supabase, brandId, body) {
+async function handleCreated(supabase, brandId, body, eventTimestamp) {
   // Confirmed live against a real sandbox order (see webhook_logs) - both
   // order_number and order_items live under body.order, not top-level body
   // as the docs' abbreviated example implied.
@@ -175,6 +215,15 @@ async function handleCreated(supabase, brandId, body) {
     platform_fulfillment_type: fulfillmentType,
     platform_service_fee: (body.order && Number(body.order.takeaway_charges)) || 0,
     platform_customer_name: (body.customer && body.customer.name) || null,
+    // Raw capture, defensive - every real sandbox order so far has sent an
+    // empty array (no promo has actually been triggered yet to see its
+    // populated shape), but the field exists in the payload
+    // (body.order.applied_promotions) and per-item body.order.order_items[].sku_promo_id
+    // - stored as-is rather than parsed into a specific structure we'd be
+    // guessing at, so nothing is lost once a real promo'd order arrives.
+    platform_promotions: (body.order && Array.isArray(body.order.applied_promotions) && body.order.applied_promotions.length)
+      ? body.order.applied_promotions
+      : null,
     notes: null
   };
 
@@ -184,6 +233,12 @@ async function handleCreated(supabase, brandId, body) {
     .select("id, order_code")
     .single();
   if (orderErr) throw orderErr;
+
+  await supabase.from("order_status_events").insert({
+    order_id: order.id,
+    event_name: "gofood.order.created",
+    occurred_at: eventTimestamp
+  });
 
   const resolver = await buildCostResolver(supabase, brandId);
   const itemRows = [];

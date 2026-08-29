@@ -939,6 +939,35 @@ function platformOrderTotal(o) {
   return o.items.reduce((s, it) => s + it.lineTotal, 0) + o.platformServiceFee;
 }
 
+function formatTimeHM(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+}
+
+// Friendly labels for the GoFood lifecycle events logged to
+// order_status_events (see functions/api/webhooks/gofood.js's
+// LIFECYCLE_EVENTS) - shown as a timeline under Status, per explicit
+// request ("keterangan jam masuknya order... beserta timenya").
+const PLATFORM_EVENT_LABELS = {
+  "gofood.order.created": "Order Created",
+  "gofood.order.merchant_accepted": "Accepted",
+  "gofood.order.driver_otw_pickup": "Driver On The Way",
+  "gofood.order.driver_arrived": "Driver Arrived",
+  "gofood.order.placed": "Handed to Driver",
+  "gofood.order.completed": "Completed",
+  "gofood.order.cancelled": "Cancelled"
+};
+
+function platformStatusEventsHtml(o) {
+  if (!o.statusEvents || !o.statusEvents.length) return "";
+  return (
+    '<div style="font-size:11px; color:var(--color-text-muted); margin-top:4px;">' +
+      o.statusEvents.map((e) => (PLATFORM_EVENT_LABELS[e.event] || e.event) + " " + formatTimeHM(e.occurredAt)).join("<br>") +
+    "</div>"
+  );
+}
+
 function platformDateCell(o) {
   return (
     "<div>" + o.orderDate + "</div>" +
@@ -973,7 +1002,7 @@ function platformItemsCell(o) {
           "<div>" + it.name + "</div>" +
           '<span class="font-number" style="color:var(--color-text-muted); font-size:12px;">' + formatRupiah(it.unitPrice) + "</span>" +
         "</div>" +
-        '<div style="color:var(--color-text-muted);">x' + it.qty + "</div>" +
+        '<div style="color:var(--color-text-muted);"><strong>x&nbsp;' + it.qty + "</strong></div>" +
         '<div style="color:#C2703D; font-size:12px;">' + (it.notes || "") + "</div>"
       );
     })
@@ -987,17 +1016,24 @@ function platformTotalCell(o) {
     '<span class="font-number" style="font-weight:bold;">' + formatRupiah(platformOrderTotal(o)) + "</span>" +
     '<div style="font-size:11px; color:var(--color-text-muted); margin-top:2px;">' +
       "Items: " + formatRupiah(itemsSubtotal) +
-      // GoFood's own "takeaway_charges" field - a packaging/takeaway service
-      // charge on pickup-style orders, NOT delivery/ongkir (GoFood never
-      // sends us a delivery fee at all - see functions/api/webhooks/gofood.js).
-      (o.platformServiceFee > 0 ? "<br>Takeaway Charge: " + formatRupiah(o.platformServiceFee) : "") +
+      // GoFood's own "takeaway_charges" field - a merchant-configured
+      // packaging fee on pickup-style orders ("Restaurant Takeaway Fee" in
+      // GoFood's own consumer-facing terms), NOT delivery/ongkir (GoFood
+      // never sends us a delivery fee at all - see functions/api/webhooks/gofood.js).
+      // Not guaranteed on every order - depends on the outlet's own portal
+      // settings, hence the >0 guard rather than always showing this line.
+      (o.platformServiceFee > 0 ? "<br>Takeaway Fee: " + formatRupiah(o.platformServiceFee) : "") +
+      // Raw capture only for now (functions/api/webhooks/gofood.js) - no
+      // real promo'd order has been seen yet to know the field shape well
+      // enough to break down the discount amount here.
+      (o.platformPromotions ? "<br>🏷️ Promo Applied" : "") +
     "</div>"
   );
 }
 
 function platformOngoingRowHtml(o) {
   const fulfillmentDone = o.fulfillmentStatus !== "Pending";
-  const statusHtml = fulfillmentDone ? o.fulfillmentStatus : "Preparing";
+  const statusHtml = (fulfillmentDone ? o.fulfillmentStatus : "Preparing") + platformStatusEventsHtml(o);
 
   return (
     "<tr>" +
@@ -1025,7 +1061,7 @@ function platformHistoryRowHtml(o) {
       "<td style=\"min-width:280px;\">" + platformItemsCell(o) + "</td>" +
       "<td>" + platformTotalCell(o) + "</td>" +
       "<td>" + (o.notes || "") + "</td>" +
-      "<td>" + statusLabel + statusSub + "</td>" +
+      "<td>" + statusLabel + statusSub + platformStatusEventsHtml(o) + "</td>" +
     "</tr>"
   );
 }

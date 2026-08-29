@@ -18,10 +18,11 @@ export function isOrderDone(o) {
 const ORDER_SELECT =
   "order_code, order_date, delivery_date, order_type, order_status, fulfillment_status, " +
   "payment_status, payment_method, delivery_fee, driver_staff_id, driver_name_raw, driver_payout, " +
-  "driver_payout_status, driver_payout_method, driver_payout_opex_code, notes, platform, " +
-  "platform_order_id, platform_pin, platform_fulfillment_type, platform_service_fee, platform_customer_name, " +
+  "driver_payout_status, driver_payout_method, driver_payout_opex_code, notes, platform, created_at, " +
+  "platform_order_id, platform_pin, platform_fulfillment_type, platform_service_fee, platform_customer_name, platform_promotions, " +
   "customers(name, contact), staff(name), " +
-  "order_items(qty, unit_price, line_total, food_cost_snapshot, packaging_cost_snapshot, notes, sku_items(sku, name))";
+  "order_items(qty, unit_price, line_total, food_cost_snapshot, packaging_cost_snapshot, notes, sku_items(sku, name)), " +
+  "order_status_events(event_name, occurred_at)";
 
 export async function onRequestGet({ request, env }) {
   try {
@@ -195,10 +196,19 @@ function shapeOrder(o) {
     driverPayoutOpexCode: o.driver_payout_opex_code,
     notes: o.notes,
     platform: o.platform,
+    createdAt: o.created_at,
     platformOrderId: o.platform_order_id,
     platformPin: o.platform_pin,
     platformFulfillmentType: o.platform_fulfillment_type,
     platformServiceFee: Number(o.platform_service_fee) || 0,
+    platformPromotions: o.platform_promotions,
+    // Sorted chronologically here (not left to the client) - the "created"
+    // event isn't always guaranteed to be first if events ever arrive
+    // out of order (webhook delivery isn't ordered), and the Status column
+    // timeline needs to read top-to-bottom correctly regardless.
+    statusEvents: (o.order_status_events || [])
+      .map((e) => ({ event: e.event_name, occurredAt: e.occurred_at }))
+      .sort((a, b) => new Date(a.occurredAt) - new Date(b.occurredAt)),
     customerName: o.customers ? o.customers.name : (o.platform_customer_name || ""),
     customerContact: o.customers ? o.customers.contact : "",
     items: (o.order_items || []).map((it) => ({
