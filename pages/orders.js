@@ -129,43 +129,41 @@ function buildOrderFormHtml() {
     '<button type="button" onclick="addOrderItemRow()">+ Add Item</button>' +
     '<div style="margin-top:8px; font-weight:bold;">Total: <span id="orderGrandTotal" class="font-number">Rp 0</span></div><br>' +
 
-    // Fixed equal-ish widths on every field here (not shrink-to-content) so
-    // toggling Delivery Fee/Driver's visibility via onOrderTypeChange()
-    // never resizes anything, including Fulfillment Type itself - and
-    // align-items:flex-start (top-aligned by label) instead of flex-end,
-    // since the combobox's extra wrapper div (vs. a plain <input>) doesn't
-    // reliably match a flex-end baseline the same way a native control does.
-    '<div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start;">' +
-      '<div style="width:160px;">' +
+    // One shared CSS Grid across BOTH rows (not two separate flex rows) -
+    // grid-template-columns applies to every row placed into it, so column 1
+    // (Type/Status) and column 2 (Fee/Payment) are ALWAYS the same width in
+    // both rows by construction, regardless of content (a <select>'s options
+    // changing length - e.g. "Delivered" vs "Picked Up" - can no longer
+    // resize its box independently of the row below it, which is what was
+    // still "off" with the previous per-row-fixed-width flex attempt).
+    '<div style="display:grid; grid-template-columns:160px 160px 180px; gap:16px 20px;">' +
+      '<div>' +
         "<label>Fulfillment Type</label><br>" +
         '<select id="orderType" onchange="onOrderTypeChange()" style="width:100%;">' +
           "<option>Delivery</option><option>Takeaway</option>" +
         "</select>" +
       "</div>" +
-      '<div id="orderDeliveryFeeWrap" style="width:160px;">' +
+      '<div id="orderDeliveryFeeWrap">' +
         "<label>Delivery Fee</label><br>" +
         '<input type="text" id="orderDeliveryFee" inputmode="numeric" oninput="formatAmount(this)" style="width:100%; box-sizing:border-box;">' +
       "</div>" +
-      '<div id="orderDriverWrap" style="width:180px;">' +
+      '<div id="orderDriverWrap">' +
         "<label>Driver</label><br>" +
         '<div id="orderDriverCombo" style="width:100%;"></div>' +
       "</div>" +
-    "</div><br>" +
-
-    '<div style="display:flex; gap:20px; flex-wrap:wrap;">' +
       "<div>" +
         "<label>Fulfillment Status</label><br>" +
-        '<select id="orderFulfillmentStatus"></select>' +
+        '<select id="orderFulfillmentStatus" style="width:100%;"></select>' +
       "</div>" +
       "<div>" +
         "<label>Payment Status</label><br>" +
-        '<select id="orderPaymentStatus" onchange="onOrderPaymentStatusChange()">' +
+        '<select id="orderPaymentStatus" onchange="onOrderPaymentStatusChange()" style="width:100%;">' +
           "<option>Unpaid</option><option>Paid</option>" +
         "</select>" +
       "</div>" +
       '<div id="orderMethodWrap" style="display:none;">' +
         "<label>Method</label><br>" +
-        '<select id="orderMethod"></select>' +
+        '<select id="orderMethod" style="width:100%;"></select>' +
       "</div>" +
     "</div><br>" +
 
@@ -236,8 +234,13 @@ function toggleNewCustomer() {
 function onOrderTypeChange() {
   const orderType = document.getElementById("orderType").value;
   const isDelivery = orderType === "Delivery";
-  document.getElementById("orderDeliveryFeeWrap").style.display = isDelivery ? "" : "none";
-  document.getElementById("orderDriverWrap").style.display = isDelivery ? "" : "none";
+  // visibility (not display) - keeps each field's grid cell reserved, so
+  // switching Takeaway<->Delivery only hides/shows Fee and Driver in place
+  // rather than the whole grid reflowing (Fulfillment Status/Payment
+  // Status/Method shifting up to fill the now-empty cells), per explicit
+  // request.
+  document.getElementById("orderDeliveryFeeWrap").style.visibility = isDelivery ? "" : "hidden";
+  document.getElementById("orderDriverWrap").style.visibility = isDelivery ? "" : "hidden";
   if (!isDelivery) {
     document.getElementById("orderDeliveryFee").value = "";
     _driverCombo.clear();
@@ -483,6 +486,52 @@ function applyOrdersHistoryFilter() {
 // either (only used internally as the row's reference); kept that way here.
 function orderTotal(o) {
   return o.items.reduce((s, it) => s + it.lineTotal, 0) + o.deliveryFee;
+}
+
+// "Copy Order Form" (Online Orders only) - a plain-text order summary
+// formatted for pasting straight into a WA chat with the customer, matching
+// an exact template given by explicit request. Built fresh from the order's
+// current data every time the button is clicked, not stored anywhere.
+function buildOrderFormText(o) {
+  const address = o.orderType === "Takeaway" ? "ambil sendiri" : (o.customerAddress || "");
+
+  // Same digit-normalization as shared.js's formatPhoneDisplay (country
+  // code stripped, 0-prefixed) but WITHOUT the dash-grouping it adds for
+  // on-screen display - the WA form template wants plain digits.
+  const countryCode = _generalSettings.phoneCountryCode || "62";
+  let waDigits = String(o.customerContact || "").replace(/\D/g, "");
+  if (waDigits.indexOf(countryCode) === 0) waDigits = "0" + waDigits.slice(countryCode.length);
+  else if (waDigits && waDigits.indexOf("0") !== 0) waDigits = "0" + waDigits;
+
+  const itemLines = o.items.map((it, i) => (i + 1) + ". " + it.name + " (" + it.qty + ") " + Math.round(it.unitPrice / 1000) + "k").join("\n");
+
+  return (
+    "📝 FORM ORDER\n\n" +
+    "Nama Lengkap: " + o.customerName + "\n" +
+    "No. WA: " + waDigits + "\n" +
+    "Alamat: " + address + "\n\n" +
+    "Pesanan:\n\n" +
+    itemLines + "\n\n\n" +
+    "TOTAL : " + orderTotal(o).toLocaleString("id-ID") + "\n\n" +
+    "Metode Bayar: " + (o.paymentMethod || "") + "\n\n" +
+    "Catatan: " + (o.notes || "")
+  );
+}
+
+function copyOrderFormText(btn, orderCode) {
+  const o = _ordersByCode[orderCode];
+  if (!o) return;
+  const text = buildOrderFormText(o);
+  const originalLabel = btn.textContent;
+
+  navigator.clipboard.writeText(text).then(function () {
+    btn.textContent = "Copied!";
+    setTimeout(function () { btn.textContent = originalLabel; }, 1500);
+  }).catch(function () {
+    // Clipboard API can be blocked (permissions, non-HTTPS context) - fall
+    // back to showing the text directly so it's never a dead end.
+    alert("Couldn't copy automatically. Here's the text:\n\n" + text);
+  });
 }
 
 function dateCell(o) {
@@ -987,7 +1036,13 @@ function ongoingRowHtml(o) {
 
   const paymentHtml = o.paymentStatus + (o.paymentStatus === "Paid" && o.paymentMethod ? '<br><span style="font-size:12px; color:var(--color-text-muted);">' + o.paymentMethod + "</span>" : "");
 
-  const actions = orderActionsHtml(o);
+  // Copy Order Form - Online Orders only (a manually-placed order from a
+  // customer chatting over WA), not shared via orderActionsHtml so it never
+  // shows up on Platform Orders' ongoing rows (those customers ordered
+  // through the GoFood app itself, not WA - there's no "form" to send them).
+  const actions =
+    '<button style="font-size:12px;" onclick="copyOrderFormText(this, \'' + o.orderCode + '\')">Copy Order Form</button><br>' +
+    orderActionsHtml(o);
 
   return (
     "<tr>" +
