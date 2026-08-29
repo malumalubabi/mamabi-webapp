@@ -73,6 +73,7 @@ registerPage("dashboard", async function (content) {
     "</div>";
 
   dv2RenderRevenueChart();
+  dv2WireDonutTooltip(data.opexByCategoryThisMonth);
 });
 
 let _dv2Data = null;
@@ -635,7 +636,10 @@ function dv2DonutChartHtml(segments) {
       const sweep = Math.min(frac * 360, 359.999); // exact 360 degenerates the arc math
       const path = dv2DonutSegmentPath(cx, cy, rOuter, rInner, angle, angle + sweep);
       angle += sweep;
-      return '<path d="' + path + '" fill="' + DV2_DONUT_COLORS[i % DV2_DONUT_COLORS.length] + '"><title>' + seg.category + ": " + formatRupiah(seg.amount) + "</title></path>";
+      // No native <title> - dv2WireDonutTooltip (called after render, same
+      // pattern as the Revenue Flow chart's dv2WireChartTooltip) drives a
+      // styled .dv2-chart-tooltip div instead, keyed off data-idx.
+      return '<path d="' + path + '" fill="' + DV2_DONUT_COLORS[i % DV2_DONUT_COLORS.length] + '" data-idx="' + i + '" style="cursor:pointer;"></path>';
     })
     .join("");
 
@@ -651,11 +655,55 @@ function dv2DonutChartHtml(segments) {
     .join("");
 
   return (
-    '<div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">' +
+    '<div id="dv2DonutChartWrap" style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; position:relative;">' +
       '<svg viewBox="0 0 ' + size + " " + size + '" style="width:130px; height:130px; flex-shrink:0;">' + paths + "</svg>" +
       '<div style="flex:1; min-width:120px;">' + legend + "</div>" +
+      '<div class="dv2-chart-tooltip"></div>' +
     "</div>"
   );
+}
+
+// Mirrors dv2WireChartTooltip's positioning logic - each donut <path> is
+// its own DOM element (unlike the line chart's continuous SVG path), so
+// hover detection is just per-element mousemove/mouseleave, no coordinate
+// math needed to figure out which segment the cursor is over.
+function dv2WireDonutTooltip(segments) {
+  const wrap = document.getElementById("dv2DonutChartWrap");
+  if (!wrap) return;
+  const tooltip = wrap.querySelector(".dv2-chart-tooltip");
+  const svg = wrap.querySelector("svg");
+  if (!tooltip || !svg) return;
+
+  const total = segments.reduce((s, x) => s + x.amount, 0) || 1;
+
+  function position(e) {
+    const wrapRect = wrap.getBoundingClientRect();
+    const tooltipWidth = tooltip.offsetWidth || 140;
+    let left = e.clientX - wrapRect.left + 14;
+    if (left + tooltipWidth > wrapRect.width) left = e.clientX - wrapRect.left - tooltipWidth - 14;
+    tooltip.style.left = left + "px";
+    tooltip.style.top = (e.clientY - wrapRect.top - 10) + "px";
+  }
+
+  svg.querySelectorAll("path").forEach((path) => {
+    const seg = segments[Number(path.dataset.idx)];
+    if (!seg) return;
+    const color = path.getAttribute("fill");
+    const frac = seg.amount / total;
+    const html =
+      '<div class="dv2-tt-row"><span class="dv2-tt-dot" style="background:' + color + ';"></span>' +
+        seg.category + ": <span class=\"font-number\">" + formatRupiah(seg.amount) + "</span> (" + (frac * 100).toFixed(1) + "%)" +
+      "</div>";
+
+    path.addEventListener("mousemove", function (e) {
+      tooltip.innerHTML = html;
+      tooltip.style.display = "block";
+      position(e);
+    });
+    path.addEventListener("mouseleave", function () {
+      tooltip.style.display = "none";
+    });
+  });
 }
 
 // ---------- Orders Needing Action, transaction-history style ----------
