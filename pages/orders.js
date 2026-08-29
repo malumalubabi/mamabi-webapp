@@ -951,8 +951,8 @@ function platformCustomerCell(o) {
   return (
     o.customerName +
     '<br><span style="color:var(--color-text-muted); font-size:12px;">' + o.orderCode + "</span>" +
-    "<br>" + (o.platformOrderId || "") +
-    (o.platformPin ? "<br>PIN: " + o.platformPin : "")
+    "<br><strong>" + (o.platformOrderId || "") + "</strong>" +
+    (o.platformPin ? "<br><strong>PIN: " + o.platformPin + "</strong>" : "")
   );
 }
 
@@ -961,20 +961,24 @@ function platformCustomerCell(o) {
 // so it stands out from the rest of the row - independent per item, not
 // pooled into one block, since two items in the same order can carry
 // unrelated notes.
+// 3 sub-columns (item+price / qty / notes), each left-aligned and lined up
+// across every item via one shared CSS grid - not 3 separate flex rows per
+// item, which would let each item's qty/notes drift to a different
+// horizontal position depending on how long that item's name happens to be.
 function platformItemsCell(o) {
-  return o.items
+  const cellsHtml = o.items
     .map(function (it) {
       return (
-        '<div style="padding:1px 0;">' +
-          '<div style="display:flex; justify-content:space-between; gap:8px;">' +
-            "<span>" + it.name + ' <span style="color:var(--color-text-muted);">x' + it.qty + "</span></span>" +
-            (it.notes ? '<span style="color:#C2703D; font-size:12px; white-space:nowrap;">' + it.notes + "</span>" : "") +
-          "</div>" +
+        "<div>" +
+          "<div>" + it.name + "</div>" +
           '<span class="font-number" style="color:var(--color-text-muted); font-size:12px;">' + formatRupiah(it.unitPrice) + "</span>" +
-        "</div>"
+        "</div>" +
+        '<div style="color:var(--color-text-muted);">x' + it.qty + "</div>" +
+        '<div style="color:#C2703D; font-size:12px;">' + (it.notes || "") + "</div>"
       );
     })
     .join("");
+  return '<div style="display:grid; grid-template-columns:1fr auto 1fr; column-gap:10px; row-gap:6px; align-items:start; text-align:left;">' + cellsHtml + "</div>";
 }
 
 function platformTotalCell(o) {
@@ -983,7 +987,10 @@ function platformTotalCell(o) {
     '<span class="font-number" style="font-weight:bold;">' + formatRupiah(platformOrderTotal(o)) + "</span>" +
     '<div style="font-size:11px; color:var(--color-text-muted); margin-top:2px;">' +
       "Items: " + formatRupiah(itemsSubtotal) +
-      (o.platformServiceFee > 0 ? "<br>Service Fee: " + formatRupiah(o.platformServiceFee) : "") +
+      // GoFood's own "takeaway_charges" field - a packaging/takeaway service
+      // charge on pickup-style orders, NOT delivery/ongkir (GoFood never
+      // sends us a delivery fee at all - see functions/api/webhooks/gofood.js).
+      (o.platformServiceFee > 0 ? "<br>Takeaway Charge: " + formatRupiah(o.platformServiceFee) : "") +
     "</div>"
   );
 }
