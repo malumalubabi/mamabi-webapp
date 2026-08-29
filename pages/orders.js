@@ -1,21 +1,51 @@
-// Manage Orders (Ongoing + History, stacked on one page) and Driver Payout
-// are two separate top-level pages/nav entries now - Driver Payout used to
-// be a 3rd tab here, but it's a genuinely different workflow (cash-tracking
-// across ALL delivery orders regardless of Ongoing/History) so it gets its
-// own route, per explicit request. See registerPage("orders-payout", ...)
-// further down.
+// Orders is split into 3 top-level pages/nav entries by platform: Online
+// Orders (this route, "orders" - manual New Order + Mark Paid/Delivered/
+// Cancel, platform="Online"), Platform Orders ("orders-platform" - GrabFood/
+// GoFood, arriving via webhook once built, no manual New Order button here),
+// and (future) Dine-In. Driver Payout is a 4th, separate top-level page -
+// it's a genuinely different workflow (cash-tracking across ALL delivery
+// orders regardless of Ongoing/History/platform) so it gets its own route,
+// per explicit request. See registerPage("orders-payout", ...) further down.
+// All 3 order pages share the same Ongoing/History table rendering below
+// (renderOrdersTable etc.) - only the platform filter and the New Order
+// button's visibility differ, tracked in _ordersCurrentPlatformFilter/
+// _ordersShowNewOrderBtn since loadOrdersData() is also re-called (with no
+// args) after every row action (Mark Paid, Cancel, etc.) from whichever page
+// is currently active.
 registerPage("orders", renderOrdersPage);
+registerPage("orders-platform", renderPlatformOrdersPage);
 
 let _ordersLookups = null;
 let _customerCombo = null;
 let _driverCombo = null;
 let _ordersByCode = {}; // last-rendered Ongoing/History rows, keyed by order_code - lets the Mark Paid modal show order details without a re-fetch
+let _ordersCurrentPlatformFilter = "Online";
+let _ordersShowNewOrderBtn = true;
 
 async function renderOrdersPage(content) {
   await ensureOrdersLookups();
+  _ordersCurrentPlatformFilter = "Online";
+  _ordersShowNewOrderBtn = true;
 
   content.innerHTML =
-    "<h2>Manage Orders</h2>" +
+    "<h2>Online Orders</h2>" +
+    '<div id="ordersOngoingWrap"><p>Loading...</p></div>' +
+    '<div id="ordersHistoryWrap" style="margin-top:28px;"></div>';
+  await loadOrdersData();
+}
+
+// GrabFood/GoFood orders arrive via platform webhook (once built), not the
+// New Order form - so no "+ New Order" button here, unlike Online Orders.
+// Row actions (Mark Paid/Delivered/Cancel) are shared with Online Orders
+// since a platform order still needs the same status tracking once it's in
+// our system.
+async function renderPlatformOrdersPage(content) {
+  await ensureOrdersLookups();
+  _ordersCurrentPlatformFilter = "GrabFood,GoFood";
+  _ordersShowNewOrderBtn = false;
+
+  content.innerHTML =
+    "<h2>Platform Orders</h2>" +
     '<div id="ordersOngoingWrap"><p>Loading...</p></div>' +
     '<div id="ordersHistoryWrap" style="margin-top:28px;"></div>';
   await loadOrdersData();
@@ -338,7 +368,11 @@ async function saveOrder() {
 // switch), same pattern as pages/sales.js's Summary/Log and pages/menu.js's
 // Ongoing Batches/Batch History.
 async function loadOrdersData() {
-  const [ongoing, history] = await Promise.all([api("orders?scope=ongoing"), api("orders?scope=history")]);
+  const platformQuery = _ordersCurrentPlatformFilter ? "&platform=" + encodeURIComponent(_ordersCurrentPlatformFilter) : "";
+  const [ongoing, history] = await Promise.all([
+    api("orders?scope=ongoing" + platformQuery),
+    api("orders?scope=history" + platformQuery)
+  ]);
   if (!document.getElementById("ordersOngoingWrap")) return;
 
   // Reset once here (not inside renderOrdersTable) - it's called twice now,
@@ -408,7 +442,7 @@ function renderOrdersTable(wrap, orders, scope) {
   const titleRow =
     '<div style="display:flex; justify-content:space-between; align-items:center;">' +
       "<h3>" + title + "</h3>" +
-      (scope === "ongoing" ? '<button class="btn-primary" onclick="openOrderModal()">+ New Order</button>' : "") +
+      (scope === "ongoing" && _ordersShowNewOrderBtn ? '<button class="btn-primary" onclick="openOrderModal()">+ New Order</button>' : "") +
     "</div>";
 
   if (!orders.length) {
@@ -443,6 +477,16 @@ function renderOrdersTable(wrap, orders, scope) {
 
   paginateTable(tbodyId, paginationId, 20);
   enableDragScroll(document.getElementById(scrollWrapId));
+}
+
+// Dine-In is a placeholder for now, deferred until the user builds it out
+// ("nanti kalau ada dine in tinggal ditambahin page baru lagi") - just the
+// nav entry + Coming Soon so the final 3-way Platform/Online/Dine-In split
+// is visible now, no backend/data model yet.
+registerPage("orders-dinein", renderDineInPage);
+
+function renderDineInPage(content) {
+  content.innerHTML = "<h2>Dine-In</h2><p>Coming soon.</p>";
 }
 
 // ================================================================

@@ -49,7 +49,7 @@ export async function getOnlineSalesRows(supabase, brandId) {
   const { data, error } = await supabase
     .from("orders")
     .select(
-      "order_code, order_date, order_type, order_status, payment_status, fulfillment_status, delivery_fee, " +
+      "order_code, order_date, order_type, order_status, payment_status, fulfillment_status, delivery_fee, platform, " +
       "order_items(qty, unit_price, line_total, food_cost_snapshot, packaging_cost_snapshot, sku_items(sku, name))"
     )
     .eq("brand_id", brandId);
@@ -69,7 +69,11 @@ export async function getOnlineSalesRows(supabase, brandId) {
         groupKey: "order:" + o.order_code,
         refId: o.order_code,
         date: o.order_date,
-        platform: "Online",
+        // Was hardcoded "Online" - orders.platform now distinguishes actual
+        // Online (manual New Order) from GrabFood/GoFood (platform-API
+        // orders), so Sales Log/P&L split them correctly instead of every
+        // order counting as Online revenue.
+        platform: o.platform || "Online",
         sku: it.sku_items ? it.sku_items.sku : "",
         productName: it.sku_items ? it.sku_items.name : "",
         qty: Number(it.qty),

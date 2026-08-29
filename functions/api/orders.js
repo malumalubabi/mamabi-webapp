@@ -18,7 +18,7 @@ export function isOrderDone(o) {
 const ORDER_SELECT =
   "order_code, order_date, delivery_date, order_type, order_status, fulfillment_status, " +
   "payment_status, payment_method, delivery_fee, driver_staff_id, driver_name_raw, driver_payout, " +
-  "driver_payout_status, driver_payout_method, driver_payout_opex_code, notes, " +
+  "driver_payout_status, driver_payout_method, driver_payout_opex_code, notes, platform, " +
   "customers(name, contact), staff(name), " +
   "order_items(qty, unit_price, line_total, food_cost_snapshot, packaging_cost_snapshot, sku_items(sku, name))";
 
@@ -29,12 +29,20 @@ export async function onRequestGet({ request, env }) {
 
     const url = new URL(request.url);
     const scope = url.searchParams.get("scope") || "ongoing";
+    // Online Orders page passes "Online"; Platform Orders page passes
+    // "GrabFood,GoFood" - comma-separated so a future Dine-In page can
+    // reuse this same param instead of a new one-off filter.
+    const platformParam = url.searchParams.get("platform");
+    const platforms = platformParam ? platformParam.split(",") : null;
 
-    const { data, error } = await supabase
+    let query = supabase
       .from("orders")
       .select(ORDER_SELECT)
-      .eq("brand_id", brandId)
-      .order("order_code", { ascending: false });
+      .eq("brand_id", brandId);
+    if (platforms) query = query.in("platform", platforms);
+    query = query.order("order_code", { ascending: false });
+
+    const { data, error } = await query;
     if (error) throw error;
 
     const shaped = data.map(shapeOrder);
@@ -94,7 +102,8 @@ export async function onRequestPost({ request, env }) {
       delivery_fee: deliveryFee,
       driver_staff_id: body.driverStaffId || null,
       driver_name_raw: driverNameRaw,
-      notes: body.notes || null
+      notes: body.notes || null,
+      platform: body.platform || "Online"
     };
     if (isGrabExpress) {
       insertRow.driver_payout_status = "Paid";
@@ -184,6 +193,7 @@ function shapeOrder(o) {
     driverPayoutMethod: o.driver_payout_method,
     driverPayoutOpexCode: o.driver_payout_opex_code,
     notes: o.notes,
+    platform: o.platform,
     customerName: o.customers ? o.customers.name : "",
     customerContact: o.customers ? o.customers.contact : "",
     items: (o.order_items || []).map((it) => ({

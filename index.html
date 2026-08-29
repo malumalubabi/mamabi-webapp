@@ -47,7 +47,9 @@
     <div class="navbar-item">
       <button onclick="toggleNavDropdown(this)">Orders &#9662;</button>
       <div class="navbar-dropdown">
-        <button data-page="orders" onclick="navigateTo('orders'); closeNavDropdowns();">Manage Orders</button>
+        <button data-page="orders-platform" onclick="navigateTo('orders-platform'); closeNavDropdowns();">Platform Orders</button>
+        <button data-page="orders" onclick="navigateTo('orders'); closeNavDropdowns();">Online Orders</button>
+        <button data-page="orders-dinein" onclick="navigateTo('orders-dinein'); closeNavDropdowns();">Dine-In</button>
         <button data-page="orders-payout" onclick="navigateTo('orders-payout'); closeNavDropdowns();">Driver Payout</button>
       </div>
     </div>
