@@ -1059,13 +1059,13 @@ function savePayoutEdit(btn) {
 function orderActionsHtml(o) {
   const fulfillmentDone = o.fulfillmentStatus !== "Pending";
   return (
-    (o.paymentStatus !== "Paid" ? '<button style="font-size:12px;" onclick="startMarkOrderPaid(\'' + o.orderCode + '\')">Mark Paid</button><br>' : "") +
-    (!fulfillmentDone ? '<button style="font-size:12px;" onclick="markOrderDeliveryStatus(this, \'' + o.orderCode + '\', \'' + o.orderType + '\')">' + (o.orderType === "Takeaway" ? "Mark Picked Up" : "Mark Delivered") + "</button><br>" : "") +
+    (o.paymentStatus !== "Paid" ? '<button style="font-size:12px; text-align:left;" onclick="startMarkOrderPaid(\'' + o.orderCode + '\')">Mark Paid</button><br>' : "") +
+    (!fulfillmentDone ? '<button style="font-size:12px; text-align:left;" onclick="markOrderDeliveryStatus(this, \'' + o.orderCode + '\', \'' + o.orderType + '\')">' + (o.orderType === "Takeaway" ? "Mark Picked Up" : "Mark Delivered") + "</button><br>" : "") +
     // Extra top margin so Cancel sits visibly apart from Mark Paid/Mark
     // Delivered above it - those two get used often, Cancel rarely, so a
     // slip of the mouse shouldn't land on it. Label spelled out
     // ("Cancel Order") since a bare "Cancel" reads as "cancel this action".
-    '<button style="font-size:12px; margin-top:10px;" onclick="markOrderCancelled(\'' + o.orderCode + '\')">Cancel Order</button>'
+    '<button style="font-size:12px; text-align:left; margin-top:10px;" onclick="markOrderCancelled(\'' + o.orderCode + '\')">Cancel Order</button>'
   );
 }
 
@@ -1077,12 +1077,13 @@ function ongoingRowHtml(o) {
 
   const paymentHtml = o.paymentStatus + (o.paymentStatus === "Paid" && o.paymentMethod ? '<br><span style="font-size:12px; color:var(--color-text-muted);">' + o.paymentMethod + "</span>" : "");
 
-  // Copy Order Form - Online Orders only (a manually-placed order from a
-  // customer chatting over WA), not shared via orderActionsHtml so it never
-  // shows up on Platform Orders' ongoing rows (those customers ordered
-  // through the GoFood app itself, not WA - there's no "form" to send them).
+  // Copy Form - Online Orders only (a manually-placed order from a customer
+  // chatting over WA), not shared via orderActionsHtml so it never shows up
+  // on Platform Orders' ongoing rows (those customers ordered through the
+  // GoFood app itself, not WA - there's no "form" to send them). Extra
+  // bottom margin separates it from the Mark Paid/etc buttons below it.
   const actions =
-    '<button style="font-size:12px;" onclick="copyOrderFormText(this, \'' + o.orderCode + '\')">Copy Order Form</button><br>' +
+    '<button style="font-size:12px; text-align:left; margin-bottom:10px;" onclick="copyOrderFormText(this, \'' + o.orderCode + '\')">Copy Form</button><br>' +
     orderActionsHtml(o);
 
   return (
