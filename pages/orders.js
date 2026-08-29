@@ -921,11 +921,16 @@ function renderOrdersTable(wrap, orders, scope) {
     ? orders.map(scope === "history" ? platformHistoryRowHtml : platformOngoingRowHtml).join("")
     : orders.map(scope === "history" ? historyRowHtml : ongoingRowHtml).join("");
 
-  // Online Ongoing only gets explicit column widths (Customer narrower,
-  // Items wider, Payment+Status merged into one Status column showing
-  // payment on top/order status below - see ongoingRowHtml) - per explicit
-  // request. History/Platform tables are unchanged, still auto-layout.
-  const isOnlineOngoing = !_ordersIsPlatformMode && scope === "ongoing";
+  // Online (Ongoing and History, not Platform) gets explicit column
+  // widths - Customer narrower, Items wider, Payment+Status merged into one
+  // Status column on Ongoing (see ongoingRowHtml) - per explicit request.
+  // Date/Customer/Items/Total share the EXACT same widths across both
+  // tables (ONLINE_SHARED_COL_WIDTHS below), so they line up visually
+  // whether you're looking at Ongoing or History; each table's own
+  // remaining columns get their own widths after that.
+  const isOnline = !_ordersIsPlatformMode;
+  const isOnlineOngoing = isOnline && scope === "ongoing";
+  const isOnlineHistory = isOnline && scope === "history";
 
   const head = _ordersIsPlatformMode
     ? (scope === "history"
@@ -940,10 +945,13 @@ function renderOrdersTable(wrap, orders, scope) {
   // colgroup) is required for these to actually take effect, not just be
   // treated as ratios - see the table{width:100%} stretch bug fixed
   // earlier this session (Purchase Log/Sales/Cashflow tables).
+  const ONLINE_SHARED_COLS = '<col style="width:100px;"><col style="width:160px;"><col style="width:300px;"><col style="width:100px;">'; // Date, Customer, Items, Total
   const colgroup = isOnlineOngoing
-    ? '<colgroup><col style="width:100px;"><col style="width:160px;"><col style="width:300px;"><col style="width:100px;"><col style="width:90px;"><col style="width:120px;"><col style="width:130px;"><col style="width:150px;"></colgroup>'
-    : "";
-  const tableStyle = isOnlineOngoing ? ' style="table-layout:fixed; width:auto;"' : "";
+    ? "<colgroup>" + ONLINE_SHARED_COLS + '<col style="width:90px;"><col style="width:120px;"><col style="width:130px;"><col style="width:150px;"></colgroup>' // Type, Status, Notes, Actions
+    : isOnlineHistory
+      ? "<colgroup>" + ONLINE_SHARED_COLS + '<col style="width:90px;"><col style="width:120px;"><col style="width:150px;"></colgroup>' // Fulfillment Type, Order Status, Notes
+      : "";
+  const tableStyle = isOnline ? ' style="table-layout:fixed; width:auto;"' : "";
 
   // IDs suffixed by scope - Ongoing and History now render into separate
   // containers on the same page at once (not tab-swapped), so they can't
