@@ -47,6 +47,19 @@ export async function onRequestPost({ request, env }) {
   try {
     const rawBody = await request.text();
     const signature = request.headers.get("X-Go-Signature") || request.headers.get("x-go-signature");
+
+    // TEMPORARY diagnostic - logs every incoming call (valid or not) since
+    // we have no other way to see Cloudflare Pages Function logs right now.
+    // Remove once a real GoFood order has been confirmed to land correctly.
+    try {
+      const supabase = getSupabase(env);
+      const headersObj = {};
+      request.headers.forEach((v, k) => { headersObj[k] = v; });
+      await supabase.from("webhook_logs").insert({ source: "gofood", headers: headersObj, body: rawBody });
+    } catch (logErr) {
+      console.error("webhook_logs insert failed", logErr);
+    }
+
     const validSignature = await verifySignature(env, rawBody, signature);
     if (!validSignature) return new Response("Invalid signature", { status: 401 });
 
