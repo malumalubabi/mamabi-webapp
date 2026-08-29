@@ -97,7 +97,7 @@ function buildOrderFormHtml() {
         "</div>" +
       "</div>" +
       "<div>" +
-        "<label>Delivery Date</label><br>" +
+        "<label>Fulfillment Date</label><br>" +
         '<div style="display:flex; align-items:center; gap:8px;">' +
           '<input type="checkbox" id="deliveryToday" onchange="setDeliveryToday()">' +
           '<label for="deliveryToday">Today</label>' +
@@ -106,28 +106,38 @@ function buildOrderFormHtml() {
       "</div>" +
     "</div><br>" +
 
-    // Customer combo never hides/moves anymore, even in New Customer mode -
-    // just visually locked (dimmed, non-interactive) via toggleNewCustomer()
-    // so the checkbox and everything after it stays in place too, instead of
-    // reflowing left into the combo's old spot. New Customer's own fields
-    // (was just a single name input) sit to the right of the checkbox.
-    "<div>" +
-      "<label>Customer</label><br>" +
-      '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">' +
-        '<div id="orderCustomerCombo" style="min-width:220px;"></div>' +
-        '<label style="display:flex; align-items:center; gap:4px; font-weight:normal;">' +
-          '<input type="checkbox" id="newCustomerToggle" onchange="toggleNewCustomer()">' +
-          "New Customer" +
-        "</label>" +
-        '<div id="newCustomerFieldsWrap" style="display:none; gap:10px; flex-wrap:wrap; align-items:flex-end;">' +
-          '<div><label style="font-size:12px;">Name</label><br><input type="text" id="newCustomerName" style="width:140px; box-sizing:border-box;"></div>' +
-          '<div><label style="font-size:12px;">Contact</label><br><input type="text" id="newCustomerContact" style="width:140px; box-sizing:border-box;"></div>' +
-          '<div><label style="font-size:12px;">Area</label><br><div id="newCustomerAreaCombo" style="width:140px;"></div></div>' +
-          '<div><label style="font-size:12px;">Address</label><br><input type="text" id="newCustomerAddress" style="width:200px; box-sizing:border-box;"></div>' +
+    // 2 fixed columns - Customer/Contact/Address (existing customer, locked
+    // via toggleNewCustomer() rather than hidden when New Customer is
+    // checked) on the left, New Customer's own Name/Contact/Area/Address
+    // stacked on the right. The right column's box is always present
+    // (visibility, not display, toggled in toggleNewCustomer()) so neither
+    // column ever shifts when the checkbox is (un)checked, per explicit
+    // request.
+    '<div style="display:flex; gap:30px; flex-wrap:wrap;">' +
+      "<div>" +
+        "<label>Customer</label><br>" +
+        '<div style="display:flex; align-items:center; gap:10px;">' +
+          '<div id="orderCustomerCombo" style="min-width:220px;"></div>' +
+          '<label style="display:flex; align-items:center; gap:4px; font-weight:normal;">' +
+            '<input type="checkbox" id="newCustomerToggle" onchange="toggleNewCustomer()">' +
+            "New Customer" +
+          "</label>" +
         "</div>" +
+        '<label style="display:block; margin-top:8px;">Contact</label>' +
+        '<input type="text" id="orderContact" readonly style="background:var(--color-disabled-bg); margin-top:2px; width:220px; box-sizing:border-box;">' +
+        '<label style="display:block; margin-top:8px;">Address</label>' +
+        '<input type="text" id="orderAddress" readonly style="background:var(--color-disabled-bg); margin-top:2px; width:220px; box-sizing:border-box;">' +
       "</div>" +
-      '<label style="display:block; margin-top:8px;">Contact</label>' +
-      '<input type="text" id="orderContact" readonly style="background:var(--color-disabled-bg); margin-top:2px;">' +
+      '<div id="newCustomerFieldsWrap" style="visibility:hidden;">' +
+        "<label>Name</label><br>" +
+        '<input type="text" id="newCustomerName" style="width:180px; box-sizing:border-box;">' +
+        '<label style="display:block; margin-top:8px;">Contact</label>' +
+        '<input type="text" id="newCustomerContact" style="width:180px; box-sizing:border-box; margin-top:2px;">' +
+        '<label style="display:block; margin-top:8px;">Area</label><br>' +
+        '<div id="newCustomerAreaCombo" style="width:180px; margin-top:2px;"></div>' +
+        '<label style="display:block; margin-top:8px;">Address</label>' +
+        '<input type="text" id="newCustomerAddress" style="width:180px; box-sizing:border-box; margin-top:2px;">' +
+      "</div>" +
     "</div><br>" +
 
     // One header row for the whole list (not per-item field labels), same
@@ -192,12 +202,13 @@ function initOrderForm(lookups) {
   const customerContainer = document.getElementById("orderCustomerCombo");
   _customerCombo = createCombobox(
     customerContainer,
-    lookups.customers.map((c) => ({ value: c.id, label: c.name, sub: c.area || c.contact || "" })),
+    lookups.customers.map((c) => ({ value: c.id, label: c.name, sub: c.contact || "" })),
     {
       placeholder: "Select customer...",
       onSelect: function (value, item) {
         const c = lookups.customers.find((x) => x.id === value);
         document.getElementById("orderContact").value = c && c.contact ? formatPhoneDisplay(c.contact) : "";
+        document.getElementById("orderAddress").value = c ? areaAddressText(c.area, c.address) : "";
       }
     }
   );
@@ -247,10 +258,11 @@ function toggleNewCustomer() {
   const comboEl = document.getElementById("orderCustomerCombo");
   comboEl.style.pointerEvents = isNew ? "none" : "";
   comboEl.style.opacity = isNew ? "0.5" : "";
-  document.getElementById("newCustomerFieldsWrap").style.display = isNew ? "flex" : "none";
+  document.getElementById("newCustomerFieldsWrap").style.visibility = isNew ? "" : "hidden";
   if (isNew) {
     _customerCombo.clear();
     document.getElementById("orderContact").value = "";
+    document.getElementById("orderAddress").value = "";
   } else {
     document.getElementById("newCustomerName").value = "";
     document.getElementById("newCustomerContact").value = "";
@@ -425,6 +437,7 @@ async function saveOrder() {
     }
     if (!customerId) throw new Error("Please select or add a customer");
     if (!document.getElementById("orderDate").value) throw new Error("Please select an order date");
+    if (!document.getElementById("deliveryDate").value) throw new Error("Please select a fulfillment date");
 
     const items = collectOrderItems();
     if (!items.length) throw new Error("Add at least one product");
@@ -478,7 +491,7 @@ function buildEditOrderFormHtml(o) {
         '<input type="text" value="' + o.orderDate + '" readonly style="background:var(--color-disabled-bg); width:150px; box-sizing:border-box;">' +
       "</div>" +
       "<div>" +
-        "<label>Delivery Date</label><br>" +
+        "<label>Fulfillment Date</label><br>" +
         '<div style="display:flex; align-items:center; gap:8px;">' +
           '<input type="checkbox" id="deliveryToday" onchange="setDeliveryToday()">' +
           '<label for="deliveryToday">Today</label>' +
@@ -490,6 +503,10 @@ function buildEditOrderFormHtml(o) {
     "<div>" +
       "<label>Customer</label><br>" +
       '<input type="text" value="' + o.customerName + '" readonly style="background:var(--color-disabled-bg); width:220px; box-sizing:border-box;">' +
+      '<label style="display:block; margin-top:8px;">Contact</label>' +
+      '<input type="text" value="' + (o.customerContact ? formatPhoneDisplay(o.customerContact) : "") + '" readonly style="background:var(--color-disabled-bg); margin-top:2px; width:220px; box-sizing:border-box;">' +
+      '<label style="display:block; margin-top:8px;">Address</label>' +
+      '<input type="text" value="' + areaAddressText(o.customerArea, o.customerAddress) + '" readonly style="background:var(--color-disabled-bg); margin-top:2px; width:220px; box-sizing:border-box;">' +
     "</div><br>" +
 
     '<table style="table-layout:fixed; width:auto;">' +
@@ -536,6 +553,8 @@ function saveEditOrder(orderCode) {
   const statusEl = document.getElementById("saveOrderStatus");
 
   withSaveStatus(btn, statusEl, "Order", async function () {
+    if (!document.getElementById("deliveryDate").value) throw new Error("Please select a fulfillment date");
+
     const items = collectOrderItems();
     if (!items.length) throw new Error("Add at least one product");
 
@@ -741,11 +760,25 @@ function dateCell(o) {
   );
 }
 
-function customerCell(o) {
+// "{area} - {address}" - shared everywhere this combined display is used
+// (Ongoing Orders' customerCell, New Order's readonly Address field). Falls
+// back to whichever half is actually present if only one is set.
+function areaAddressText(area, address) {
+  if (area && address) return area + " - " + address;
+  return area || address || "";
+}
+
+// showAddress - Ongoing Orders only (per explicit request), appended below
+// the Order ID line - History rows don't get it (customerCell(o) with no
+// second arg, as historyRowHtml already calls it).
+function customerCell(o, showAddress) {
   return (
     o.customerName +
     '<br><span style="color:var(--color-text-muted); font-size:12px;">' + (o.customerContact ? formatPhoneDisplay(o.customerContact) : "") + "</span>" +
-    '<br><span style="color:var(--color-text-muted); font-size:12px;">' + o.orderCode + "</span>"
+    '<br><span style="color:var(--color-text-muted); font-size:12px;">' + o.orderCode + "</span>" +
+    (showAddress && areaAddressText(o.customerArea, o.customerAddress)
+      ? '<br><span style="color:var(--color-text-muted); font-size:12px;">' + areaAddressText(o.customerArea, o.customerAddress) + "</span>"
+      : "")
   );
 }
 
@@ -1257,7 +1290,7 @@ function ongoingRowHtml(o) {
   return (
     "<tr>" +
       "<td>" + dateCell(o) + "</td>" +
-      "<td>" + customerCell(o) + "</td>" +
+      "<td>" + customerCell(o, true) + "</td>" +
       "<td>" + itemsCell(o) + "</td>" +
       '<td><span class="font-number">' + formatRupiah(orderTotal(o)) + "</span></td>" +
       "<td>" + typeCell(o) + "</td>" +

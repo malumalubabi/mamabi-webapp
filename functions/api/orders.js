@@ -20,7 +20,7 @@ const ORDER_SELECT =
   "payment_status, payment_method, delivery_fee, driver_staff_id, driver_name_raw, driver_payout, " +
   "driver_payout_status, driver_payout_method, driver_payout_opex_code, notes, platform, created_at, " +
   "platform_order_id, platform_pin, platform_fulfillment_type, platform_service_fee, platform_customer_name, platform_promotions, " +
-  "customers(name, contact, address), staff(name), " +
+  "customers(name, contact, address, area), staff(name), " +
   "order_items(id, qty, unit_price, line_total, food_cost_snapshot, packaging_cost_snapshot, notes, sku_id, sku_items(sku, name)), " +
   "order_status_events(event_name, occurred_at)";
 
@@ -212,6 +212,7 @@ function shapeOrder(o) {
     customerName: o.customers ? o.customers.name : (o.platform_customer_name || ""),
     customerContact: o.customers ? o.customers.contact : "",
     customerAddress: o.customers ? o.customers.address : "",
+    customerArea: o.customers ? o.customers.area : "",
     items: (o.order_items || []).map((it) => ({
       lineId: it.id,
       skuId: it.sku_id,

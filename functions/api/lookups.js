@@ -17,7 +17,7 @@ export async function onRequestGet({ env }) {
     const brandId = await getBrandId(supabase);
 
     const [customers, skus, suppliers, staff, paymentMethods, salesPlatforms] = await Promise.all([
-      supabase.from("customers").select("id, customer_code, name, contact, area").eq("brand_id", brandId).order("name"),
+      supabase.from("customers").select("id, customer_code, name, contact, area, address").eq("brand_id", brandId).order("name"),
       supabase.from("sku_items").select("id, sku, name, unit, item_type, category, min_stock, base_yield_qty, selling_price, platform_selling_price, status").eq("brand_id", brandId).order("sku"),
       supabase.from("suppliers").select("id, supplier_code, name").eq("brand_id", brandId).order("name"),
       supabase.from("staff").select("id, name, roles").eq("brand_id", brandId).eq("is_active", true).order("name"),
