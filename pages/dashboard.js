@@ -389,12 +389,26 @@ const DV2_AXIS_WIDTH = 46;
 // so the value labels stay visible while the chart itself scrolls
 // horizontally - per explicit request. top/bottom must match whatever
 // padding the accompanying chart SVG uses so the gridline heights line up.
+// Rp 500K increments (was 3 fixed fractions = effectively 1M steps) - per
+// explicit request for finer gridline granularity. Falls back to just
+// [0, maxVal] if maxVal itself is under one step, so a small-revenue day
+// never ends up with only a "0" tick and nothing marking the top of the
+// chart. Shared by the axis labels AND both chart bodies' gridlines (single
+// + per-channel) so all three can never drift out of alignment with
+// each other.
+function dv2RevenueTicks(maxVal) {
+  const step = 500000;
+  return maxVal < step
+    ? [0, maxVal]
+    : Array.from({ length: Math.round(maxVal / step) + 1 }, (_, i) => i * step);
+}
+
 function dv2RevenueAxisSvg(maxVal, height, padding) {
   const chartH = height - padding.top - padding.bottom;
-  const labels = [0, 0.5, 1]
-    .map((frac) => {
-      const y = padding.top + chartH - frac * chartH;
-      return '<text x="' + (DV2_AXIS_WIDTH - 6) + '" y="' + (y + 4).toFixed(1) + '" font-size="10" fill="var(--color-text-muted)" text-anchor="end">' + dv2FormatRupiahShort(frac * maxVal) + "</text>";
+  const labels = dv2RevenueTicks(maxVal)
+    .map((v) => {
+      const y = padding.top + chartH - (v / maxVal) * chartH;
+      return '<text x="' + (DV2_AXIS_WIDTH - 6) + '" y="' + (y + 4).toFixed(1) + '" font-size="10" fill="var(--color-text-muted)" text-anchor="end">' + dv2FormatRupiahShort(v) + "</text>";
     })
     .join("");
   // width AND height both pinned inline to the viewBox's own dimensions
@@ -427,9 +441,9 @@ function dv2RevenueChartSvg(points) {
   const first = coords[0];
   const areaPath = linePath + " L" + last.x.toFixed(1) + " " + (padding.top + chartH) + " L" + first.x.toFixed(1) + " " + (padding.top + chartH) + " Z";
 
-  const gridLines = [0, 0.5, 1]
-    .map((frac) => {
-      const y = padding.top + chartH - frac * chartH;
+  const gridLines = dv2RevenueTicks(maxVal)
+    .map((v) => {
+      const y = padding.top + chartH - (v / maxVal) * chartH;
       return '<line x1="' + padding.left + '" y1="' + y.toFixed(1) + '" x2="' + (width - padding.right) + '" y2="' + y.toFixed(1) + '" stroke="var(--color-border-on-card)" stroke-width="1"/>';
     })
     .join("");
@@ -477,9 +491,9 @@ function dv2RevenueMultiChartSvg(buckets) {
   const xOf = (i) => padding.left + i * stepX;
   const yOf = (v) => padding.top + chartH - (v / maxVal) * chartH;
 
-  const gridLines = [0, 0.5, 1]
-    .map((frac) => {
-      const y = padding.top + chartH - frac * chartH;
+  const gridLines = dv2RevenueTicks(maxVal)
+    .map((v) => {
+      const y = padding.top + chartH - (v / maxVal) * chartH;
       return '<line x1="' + padding.left + '" y1="' + y.toFixed(1) + '" x2="' + (width - padding.right) + '" y2="' + y.toFixed(1) + '" stroke="var(--color-border-on-card)" stroke-width="1"/>';
     })
     .join("");
