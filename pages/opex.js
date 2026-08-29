@@ -166,7 +166,7 @@ function renderOpexLogRows() {
 
 function opexRowHtml(r) {
   const actionsCell = r.linkedFrom
-    ? ('<td><span style="color:var(--color-text-muted); font-size:12px;">Auto-linked (' + r.linkedFrom + " " + r.linkedRef + ")</span></td>")
+    ? ('<td><span style="color:var(--color-text-muted); font-size:12px;">Auto-linked (' + r.linkedFrom + ")</span></td>")
     : ('<td class="compact-cell"><button class="btn-compact" onclick="openOpexEntryModal(\'' + r.opexCode + '\')">Edit</button> ' +
        '<button class="btn-compact" onclick="deleteOpexEntry(\'' + r.opexCode + '\')">Delete</button></td>');
 
