@@ -729,7 +729,7 @@ th {
 }
 .pagination-info {
   flex: 0 0 170px;
-  text-align: left;
+  text-align: center;
   font-size: 12px;
   color: var(--color-text-muted);
 }
