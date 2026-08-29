@@ -154,7 +154,7 @@ function dv2StylesHtml() {
       ".dv2-badge-amber { background:#fef3c7; color:#92400e; }" +
       ".dv2-mini-card { cursor:pointer; }" +
       ".dv2-mini-label { font-size:12px; color:var(--color-text-muted); }" +
-      ".dv2-mini-value { font-size:18px; font-weight:bold; margin:4px 0 8px; font-family:\"Inter\", Arial, sans-serif; }" +
+      ".dv2-mini-value { font-size:18px; font-weight:bold; margin:4px 0 8px; font-family:\"Inter\", Arial, sans-serif; color:var(--color-text-muted); }" +
       ".dv2-mini-bar-track { background:var(--color-disabled-bg); border-radius:999px; height:6px; overflow:hidden; }" +
       ".dv2-mini-bar-fill { height:100%; border-radius:999px; }" +
     "</style>"
@@ -625,7 +625,7 @@ function dv2DonutChartHtml(segments) {
       (seg, i) =>
         '<div style="display:flex; align-items:center; gap:8px; font-size:12px; margin:4px 0;">' +
           '<span style="width:10px; height:10px; border-radius:2px; background:' + DV2_DONUT_COLORS[i % DV2_DONUT_COLORS.length] + '; flex-shrink:0;"></span>' +
-          '<span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + seg.category + "</span>" +
+          '<span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--color-text-muted);">' + seg.category + "</span>" +
           '<span class="font-number" style="margin-left:auto; color:var(--color-text-muted); white-space:nowrap;">' + formatRupiah(seg.amount) + "</span>" +
         "</div>"
     )
