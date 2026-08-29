@@ -852,12 +852,11 @@ function customerCell(o, showAddress) {
     o.customerName +
     '<br><span style="color:var(--color-text-muted); font-size:12px;">' + (o.customerContact ? formatPhoneDisplay(o.customerContact) : "") + "</span>" +
     '<br><span style="color:var(--color-text-muted); font-size:12px;">' + o.orderCode + "</span>" +
-    // No max-width here anymore - Ongoing's Customer column now has an
-    // explicit fixed width of its own (see renderOrdersTable's colgroup),
-    // so this line just wraps naturally within whatever that column width
-    // is, per explicit request - no separate cap needed.
+    // max-width caps this line specifically (not the column itself, which
+    // stays plain auto-layout) so it wraps instead of stretching Customer
+    // wider - per explicit request.
     (showAddress && areaAddressText(o.customerArea, o.customerAddress)
-      ? '<br><span style="color:var(--color-text-muted); font-size:12px;">' + areaAddressText(o.customerArea, o.customerAddress) + "</span>"
+      ? '<br><span style="display:block; max-width:100px; color:var(--color-text-muted); font-size:12px;">' + areaAddressText(o.customerArea, o.customerAddress) + "</span>"
       : "")
   );
 }
