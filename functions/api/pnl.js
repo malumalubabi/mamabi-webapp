@@ -274,7 +274,7 @@ export async function onRequestGet({ env }) {
     // one thing that must stay correct even if a category's Fixed/Variable
     // meta gets reclassified after some months were already closed. See the
     // file-level comment.
-    header("OPEX", true);
+    header("OPEX", true, true);
     header("Fixed Cost");
     fixedCategories.forEach((c) => line(c, monthKeys.map((mk) => buckets[mk].opexByCategory[c] || 0)));
     const fixedCostByMonth = monthKeys.map((mk) =>
