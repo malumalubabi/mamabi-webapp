@@ -724,12 +724,21 @@ th {
 .pagination-nav {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   margin-top: 8px;
 }
 .pagination-info {
+  flex: 1;
+  text-align: center;
   font-size: 12px;
   color: var(--color-text-muted);
+}
+.pagination-btn {
+  flex: 0 0 56px;
+  padding: 2px 6px;
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 /* Stock Overview status colors - ported from the old app's

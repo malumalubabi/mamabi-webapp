@@ -492,6 +492,7 @@ function paginateTable(tbodyId, navId, pageSize) {
 
     const prev = document.createElement("button");
     prev.type = "button";
+    prev.className = "pagination-btn";
     prev.textContent = "Prev";
     prev.disabled = page <= 1;
     prev.onclick = function () { page--; show(); };
@@ -502,6 +503,7 @@ function paginateTable(tbodyId, navId, pageSize) {
 
     const next = document.createElement("button");
     next.type = "button";
+    next.className = "pagination-btn";
     next.textContent = "Next";
     next.disabled = page >= totalPages;
     next.onclick = function () { page++; show(); };
@@ -569,6 +571,7 @@ function paginateGroupedTable(tbodyId, navId, targetPageSize) {
 
     const prev = document.createElement("button");
     prev.type = "button";
+    prev.className = "pagination-btn";
     prev.textContent = "Prev";
     prev.disabled = page <= 1;
     prev.onclick = function () { page--; show(); };
@@ -579,6 +582,7 @@ function paginateGroupedTable(tbodyId, navId, targetPageSize) {
 
     const next = document.createElement("button");
     next.type = "button";
+    next.className = "pagination-btn";
     next.textContent = "Next";
     next.disabled = page >= totalPages;
     next.onclick = function () { page++; show(); };
