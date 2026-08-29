@@ -236,15 +236,22 @@ export async function onRequestGet({ env }) {
     const variableCategories = orderByConfigList(new Set([...seenCategories].filter((c) => categoryMetaMap[c] !== "Fixed")), categoryOrder);
 
     const rows = [];
-    const header = (label) => rows.push({ label: label, values: null });
+    // isMain flags the top-level category headers (Revenue/COGS/OPEX/Other
+    // Income/Profitability/Benchmark Check) for distinct styling, vs. plain
+    // sub-headers like "Fixed Cost"/"Variable Cost" nested under OPEX or
+    // "Gross Profit" (a derived subtotal, not a category of its own line
+    // items) - per explicit request. groupBreakBefore marks Profitability
+    // specifically, so the frontend can add visual spacing setting it apart
+    // from the Revenue-through-Other-Income data group above it.
+    const header = (label, isMain, groupBreakBefore) => rows.push({ label: label, values: null, isMain: !!isMain, groupBreakBefore: !!groupBreakBefore });
     const line = (label, values, bold) => rows.push({ label: label, values: values, bold: !!bold });
 
     const revenueByMonth = monthKeys.map((mk) => platforms.reduce((sum, p) => sum + (buckets[mk].revenueByPlatform[p] || 0), 0));
-    header("Revenue");
+    header("Revenue", true);
     platforms.forEach((p) => line(p, monthKeys.map((mk) => buckets[mk].revenueByPlatform[p] || 0)));
     line("Total Revenue", revenueByMonth, true);
 
-    header("COGS");
+    header("COGS", true);
     const foodCostByMonth = monthKeys.map((mk) => buckets[mk].foodCost);
     const packagingCostByMonth = monthKeys.map((mk) => buckets[mk].packagingCost);
     const totalCogsByMonth = monthKeys.map((mk, i) => foodCostByMonth[i] + packagingCostByMonth[i]);
@@ -263,7 +270,7 @@ export async function onRequestGet({ env }) {
     // one thing that must stay correct even if a category's Fixed/Variable
     // meta gets reclassified after some months were already closed. See the
     // file-level comment.
-    header("OPEX");
+    header("OPEX", true);
     header("Fixed Cost");
     fixedCategories.forEach((c) => line(c, monthKeys.map((mk) => buckets[mk].opexByCategory[c] || 0)));
     const fixedCostByMonth = monthKeys.map((mk) =>
@@ -289,12 +296,12 @@ export async function onRequestGet({ env }) {
     const seenOtherIncomeCategories = new Set();
     monthKeys.forEach((mk) => Object.keys(buckets[mk].otherIncomeByCategory).forEach((c) => seenOtherIncomeCategories.add(c)));
     const otherIncomeCategories = [...seenOtherIncomeCategories].sort();
-    header("Other Income");
+    header("Other Income", true);
     otherIncomeCategories.forEach((c) => line(c, monthKeys.map((mk) => buckets[mk].otherIncomeByCategory[c] || 0)));
     const otherIncomeByMonth = monthKeys.map((mk) => Object.values(buckets[mk].otherIncomeByCategory).reduce((s, v) => s + v, 0));
     line("Total Other Income", otherIncomeByMonth, true);
 
-    header("Profitability");
+    header("Profitability", true, true);
     const netProfitByMonth = monthKeys.map((mk, i) => grossProfitByMonth[i] - totalOpexByMonth[i] + otherIncomeByMonth[i]);
     const netMarginByMonth = monthKeys.map((mk, i) => (revenueByMonth[i] ? netProfitByMonth[i] / revenueByMonth[i] : 0));
     const payrollByMonth = monthKeys.map((mk) => buckets[mk].opexByCategory["Payroll"] || 0);
@@ -306,7 +313,7 @@ export async function onRequestGet({ env }) {
     line("Prime Cost (COGS+Payroll)", primeCostByMonth);
     line("Prime Cost %", primeCostPctByMonth);
 
-    header("Benchmark Check");
+    header("Benchmark Check", true);
     line("Gross Margin % (>" + (BENCHMARKS.grossMargin * 100) + "%)", grossMarginByMonth.map((v) => (v >= BENCHMARKS.grossMargin ? "OK" : "Below Target")));
     line("Net Margin % (>" + (BENCHMARKS.netMargin * 100) + "%)", netMarginByMonth.map((v) => (v >= BENCHMARKS.netMargin ? "OK" : "Below Target")));
     line("Prime Cost % (<" + (BENCHMARKS.primeCostPct * 100) + "%)", primeCostPctByMonth.map((v) => (v <= BENCHMARKS.primeCostPct ? "OK" : "Above Target")));

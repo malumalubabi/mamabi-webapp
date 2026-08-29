@@ -99,7 +99,24 @@ function formatPnlClosedDate(iso) {
 function pnlRowHtml(r) {
   const colspan = 1 + _lastPnlData.months.length;
   if (r.values === null) {
-    return '<tr><td colspan="' + colspan + '"><strong>' + r.label + "</strong></td></tr>";
+    // Main category headers (Revenue/COGS/OPEX/Other Income/Profitability/
+    // Benchmark Check) get a distinct tinted/accented treatment so they read
+    // as section dividers - plain sub-headers ("Fixed Cost"/"Variable Cost"
+    // under OPEX, "Gross Profit" as a derived subtotal) stay as before.
+    // Profitability additionally gets extra top spacing (groupBreakBefore),
+    // setting the Revenue-through-Other-Income data group apart from it.
+    // background/border go on the <td>, not the <tr> - table rows don't
+    // reliably render either property across browsers, only cells do.
+    const cellStyle = r.isMain
+      ? 'padding:6px 8px; background:var(--color-accent-tint); border-left:3px solid var(--color-accent);'
+      : "padding:6px 8px;";
+    const label = r.isMain
+      ? '<strong style="text-transform:uppercase; letter-spacing:0.5px; font-size:13px;">' + r.label + "</strong>"
+      : "<strong>" + r.label + "</strong>";
+    return (
+      (r.groupBreakBefore ? '<tr><td colspan="' + colspan + '" style="padding-top:20px; border:none;"></td></tr>' : "") +
+      '<tr><td colspan="' + colspan + '" style="' + cellStyle + '">' + label + "</td></tr>"
+    );
   }
   const cells = r.values.map((v) => "<td>" + formatPnlValue(r.label, v) + "</td>").join("");
   return "<tr" + (r.bold ? ' style="font-weight:bold;"' : "") + "><td>" + r.label + "</td>" + cells + "</tr>";
