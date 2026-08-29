@@ -47,9 +47,10 @@ registerPage("dashboard", async function (content) {
         '<div class="dv2-card dv2-quick-actions">' +
           "<h4>Quick Actions</h4>" +
           '<button onclick="openOrderModal()">+ New Order</button>' +
+          '<button onclick="openBatchModal()">+ Start New Batch</button>' +
           '<button onclick="openSalesEntryModal()">+ Input Sales</button>' +
           '<button onclick="openPurchaseModal()">+ Input Purchase</button>' +
-          '<button onclick="openBatchModal()">+ Start New Batch</button>' +
+          '<button onclick="openCashflowEntryModal()">+ Input Transaction</button>' +
         "</div>" +
         '<div class="dv2-card">' +
           "<h4>Monthly Expenses</h4>" +

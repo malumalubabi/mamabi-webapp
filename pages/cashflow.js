@@ -130,6 +130,11 @@ const CASHFLOW_LEDGER_SORT_LABELS = { "date-desc": "Date (Newest)", "date-asc": 
 
 async function loadCashflowLedger(account) {
   const tbody = document.getElementById("cashflowLedgerTbody");
+  // Called after saving a transaction from ANY page now (e.g. Dashboard's
+  // Quick Actions, not just the Cashflow page itself) - tbody legitimately
+  // won't exist there, same reasoning as every other page's post-save
+  // reload guard (see pages/orders.js's loadOrdersData).
+  if (!tbody) return;
   tbody.innerHTML = '<tr><td colspan="8">Loading...</td></tr>';
 
   _lastCashflowLedgerRows = await api("cashflow?account=" + encodeURIComponent(account));

@@ -25,11 +25,8 @@ const ENVIRONMENTS = {
     tokenUrl: "https://integration-goauth.gojekapi.com/oauth2/token",
     apiBase: "https://api.partner-sandbox.gobiz.co.id"
   },
-  // TODO verify the exact token path once production credentials exist to
-  // test against - docs only confirmed the base host
-  // (https://accounts.go-jek.com/), not the full path; /oauth2/token is
-  // carried over from sandbox as the most likely OAuth2-conventional guess,
-  // not a confirmed value.
+  // Full path confirmed (not guessed) via developer.gobiz.com/docs/docs/authentication's
+  // own example curl command, which literally uses this exact URL.
   production: {
     tokenUrl: "https://accounts.go-jek.com/oauth2/token",
     apiBase: "https://api.gobiz.co.id"
