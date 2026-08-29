@@ -1059,13 +1059,16 @@ function savePayoutEdit(btn) {
 function orderActionsHtml(o) {
   const fulfillmentDone = o.fulfillmentStatus !== "Pending";
   return (
-    (o.paymentStatus !== "Paid" ? '<button style="font-size:12px; text-align:left;" onclick="startMarkOrderPaid(\'' + o.orderCode + '\')">Mark Paid</button><br>' : "") +
-    (!fulfillmentDone ? '<button style="font-size:12px; text-align:left;" onclick="markOrderDeliveryStatus(this, \'' + o.orderCode + '\', \'' + o.orderType + '\')">' + (o.orderType === "Takeaway" ? "Mark Picked Up" : "Mark Delivered") + "</button><br>" : "") +
+    // Fixed width (not text-align - text stays centered) so this whole
+    // button stack (with Copy Form above it) reads as one uniform column
+    // instead of each button sizing to its own label's length.
+    (o.paymentStatus !== "Paid" ? '<button style="font-size:12px; width:130px;" onclick="startMarkOrderPaid(\'' + o.orderCode + '\')">Mark Paid</button><br>' : "") +
+    (!fulfillmentDone ? '<button style="font-size:12px; width:130px;" onclick="markOrderDeliveryStatus(this, \'' + o.orderCode + '\', \'' + o.orderType + '\')">' + (o.orderType === "Takeaway" ? "Mark Picked Up" : "Mark Delivered") + "</button><br>" : "") +
     // Extra top margin so Cancel sits visibly apart from Mark Paid/Mark
     // Delivered above it - those two get used often, Cancel rarely, so a
     // slip of the mouse shouldn't land on it. Label spelled out
     // ("Cancel Order") since a bare "Cancel" reads as "cancel this action".
-    '<button style="font-size:12px; text-align:left; margin-top:10px;" onclick="markOrderCancelled(\'' + o.orderCode + '\')">Cancel Order</button>'
+    '<button style="font-size:12px; width:130px; margin-top:10px;" onclick="markOrderCancelled(\'' + o.orderCode + '\')">Cancel Order</button>'
   );
 }
 
@@ -1083,7 +1086,7 @@ function ongoingRowHtml(o) {
   // GoFood app itself, not WA - there's no "form" to send them). Extra
   // bottom margin separates it from the Mark Paid/etc buttons below it.
   const actions =
-    '<button style="font-size:12px; text-align:left; margin-bottom:10px;" onclick="copyOrderFormText(this, \'' + o.orderCode + '\')">Copy Form</button><br>' +
+    '<button style="font-size:12px; width:130px; margin-bottom:10px;" onclick="copyOrderFormText(this, \'' + o.orderCode + '\')">Copy Form</button><br>' +
     orderActionsHtml(o);
 
   return (
