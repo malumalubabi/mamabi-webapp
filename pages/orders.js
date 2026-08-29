@@ -126,15 +126,19 @@ function buildOrderFormHtml() {
     // be wrapped in one display:contents group for toggleNewCustomer() to
     // show/hide as a unit.
     '<div style="display:grid; grid-template-columns:220px 200px; grid-template-rows:repeat(4, auto); grid-auto-flow:column; column-gap:30px; row-gap:12px; align-items:start;">' +
+      // Checkbox sits on its own line BELOW the combo (not squeezed beside
+      // it) so the combo can be full column width, matching Contact/Area/
+      // Address below it - this makes the Customer cell taller than a
+      // single input row, which the grid's shared row-height automatically
+      // reserves for Name's cell too (align-items:start keeps Name's own
+      // content top-aligned in that extra space), no overlap either way.
       "<div>" +
         "<label>Customer</label><br>" +
-        '<div style="display:flex; align-items:center; gap:10px;">' +
-          '<div id="orderCustomerCombo" style="min-width:150px;"></div>' +
-          '<label style="display:flex; align-items:center; gap:4px; font-weight:normal; white-space:nowrap;">' +
-            '<input type="checkbox" id="newCustomerToggle" onchange="toggleNewCustomer()">' +
-            "New Customer" +
-          "</label>" +
-        "</div>" +
+        '<div id="orderCustomerCombo" style="width:100%;"></div>' +
+        '<label style="display:flex; align-items:center; gap:4px; font-weight:normal; margin-top:6px;">' +
+          '<input type="checkbox" id="newCustomerToggle" onchange="toggleNewCustomer()">' +
+          "New Customer" +
+        "</label>" +
       "</div>" +
       '<div><label>Contact</label><br><input type="text" id="orderContact" readonly style="background:var(--color-disabled-bg); width:100%; box-sizing:border-box;"></div>' +
       '<div><label>Area</label><br><input type="text" id="orderArea" readonly style="background:var(--color-disabled-bg); width:100%; box-sizing:border-box;"></div>' +
