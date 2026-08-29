@@ -23,11 +23,24 @@ let _ordersCurrentPlatformFilter = "Online";
 let _ordersShowNewOrderBtn = true;
 let _ordersIsPlatformMode = false; // Platform Orders has a different column layout (see renderOrdersTable)
 
+// Order History filter (date range + platform) - client-side over the
+// already-fetched history set, same pattern as Purchase Log's Filter & Sort
+// (see pages/inventory.js's openPurchaseFilterSortModal). Reset on every
+// page navigation so switching Online <-> Platform Orders never carries
+// over a stale filter from the other page.
+let _ordersHistoryRaw = [];
+let _ordersHistoryDateFrom = "";
+let _ordersHistoryDateTo = "";
+let _ordersHistoryPlatformFilter = [];
+
 async function renderOrdersPage(content) {
   await ensureOrdersLookups();
   _ordersCurrentPlatformFilter = "Online";
   _ordersShowNewOrderBtn = true;
   _ordersIsPlatformMode = false;
+  _ordersHistoryDateFrom = "";
+  _ordersHistoryDateTo = "";
+  _ordersHistoryPlatformFilter = [];
 
   content.innerHTML =
     "<h2>Online Orders</h2>" +
@@ -46,6 +59,9 @@ async function renderPlatformOrdersPage(content) {
   _ordersCurrentPlatformFilter = "GrabFood,GoFood";
   _ordersShowNewOrderBtn = false;
   _ordersIsPlatformMode = true;
+  _ordersHistoryDateFrom = "";
+  _ordersHistoryDateTo = "";
+  _ordersHistoryPlatformFilter = [];
 
   content.innerHTML =
     "<h2>Platform Orders</h2>" +
@@ -382,8 +398,76 @@ async function loadOrdersData() {
   // once per section, and would otherwise wipe out the first section's
   // entries when the second one runs.
   _ordersByCode = {};
+  // Registered from the full unfiltered set (not just what ends up
+  // rendered) so a stale History filter never leaves an order unreachable
+  // by code - cheap insurance, no current caller needs it, but matches how
+  // Ongoing's own registration works.
+  ongoing.forEach((o) => { _ordersByCode[o.orderCode] = o; });
+  history.forEach((o) => { _ordersByCode[o.orderCode] = o; });
+
+  _ordersHistoryRaw = history;
   renderOrdersTable(document.getElementById("ordersOngoingWrap"), ongoing, "ongoing");
-  renderOrdersTable(document.getElementById("ordersHistoryWrap"), history, "history");
+  renderHistorySection();
+}
+
+function visibleHistoryOrders() {
+  return _ordersHistoryRaw.filter((o) =>
+    (!_ordersHistoryDateFrom || o.orderDate >= _ordersHistoryDateFrom) &&
+    (!_ordersHistoryDateTo || o.orderDate <= _ordersHistoryDateTo) &&
+    (!_ordersHistoryPlatformFilter.length || _ordersHistoryPlatformFilter.indexOf(o.platform) !== -1)
+  );
+}
+
+function renderHistorySection() {
+  const wrap = document.getElementById("ordersHistoryWrap");
+  if (!wrap) return;
+  renderOrdersTable(wrap, visibleHistoryOrders(), "history");
+}
+
+function ordersHistoryFilterBadgeText() {
+  const dateParts = [];
+  if (_ordersHistoryDateFrom) dateParts.push("from " + _ordersHistoryDateFrom);
+  if (_ordersHistoryDateTo) dateParts.push("to " + _ordersHistoryDateTo);
+  const dateText = dateParts.length ? dateParts.join(" ") : "All dates";
+  const platformText = _ordersHistoryPlatformFilter.length ? _ordersHistoryPlatformFilter.join(", ") : "All platforms";
+  return dateText + " | " + platformText;
+}
+
+// Platform checklist only shown when there's more than one distinct
+// platform in the currently loaded history (Online Orders always has
+// exactly one - "Online" - so a single always-on checkbox would filter
+// nothing); Platform Orders' GrabFood+GoFood mix is the actual use case.
+function openOrdersHistoryFilterModal() {
+  const platforms = [...new Set(_ordersHistoryRaw.map((o) => o.platform).filter(Boolean))].sort();
+  const platformChecks = platforms
+    .map((p) =>
+      '<label style="display:block; margin:4px 0;"><input type="checkbox" class="ordersHistoryPlatformCheck" value="' + p + '"' +
+        (_ordersHistoryPlatformFilter.indexOf(p) !== -1 ? " checked" : "") + "> " + p + "</label>"
+    )
+    .join("");
+
+  openModal(
+    "<h2>Filter - Order History</h2>" +
+    "<label>Date Range</label><br>" +
+    '<div style="display:flex; align-items:center; gap:8px;">' +
+      '<input type="date" id="ordersHistoryDateFrom" value="' + _ordersHistoryDateFrom + '">' +
+      "<span>to</span>" +
+      '<input type="date" id="ordersHistoryDateTo" value="' + _ordersHistoryDateTo + '">' +
+    "</div><br><br>" +
+    (platforms.length > 1 ? "<label>Platform</label><div>" + platformChecks + "</div><br>" : "") +
+    '<div style="margin-top:16px;">' +
+      '<button class="btn-primary" onclick="applyOrdersHistoryFilter()">Apply</button>' +
+    "</div>"
+  );
+}
+
+function applyOrdersHistoryFilter() {
+  _ordersHistoryDateFrom = document.getElementById("ordersHistoryDateFrom").value || "";
+  _ordersHistoryDateTo = document.getElementById("ordersHistoryDateTo").value || "";
+  const checks = document.querySelectorAll(".ordersHistoryPlatformCheck:checked");
+  _ordersHistoryPlatformFilter = checks.length ? Array.from(checks).map((cb) => cb.value) : [];
+  closeModal();
+  renderHistorySection();
 }
 
 // Ported verbatim (columns + action buttons) from the old app's
@@ -446,6 +530,12 @@ function renderOrdersTable(wrap, orders, scope) {
     '<div style="display:flex; justify-content:space-between; align-items:center;">' +
       "<h3>" + title + "</h3>" +
       (scope === "ongoing" && _ordersShowNewOrderBtn ? '<button class="btn-primary" onclick="openOrderModal()">+ New Order</button>' : "") +
+      (scope === "history"
+        ? '<div style="display:flex; align-items:center; gap:10px;">' +
+            '<span style="color:var(--color-text-muted); font-size:12px;">' + ordersHistoryFilterBadgeText() + "</span>" +
+            '<button onclick="openOrdersHistoryFilterModal()">Filter</button>' +
+          "</div>"
+        : "") +
     "</div>";
 
   if (!orders.length) {

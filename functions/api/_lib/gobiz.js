@@ -12,11 +12,33 @@
 // Endpoint/scope/flow details confirmed via developer.gobiz.com docs
 // (Direct Integration auth + API reference), not guessed:
 // https://developer.gobiz.com/docs/api/auth/direct-integration/
-const TOKEN_URL = "https://integration-goauth.gojekapi.com/oauth2/token";
+//
+// Sandbox and Production are NOT the same host with different credentials -
+// the OAuth token endpoint itself moves too (confirmed via docs' Getting
+// Started page). Controlled by GOBIZ_ENV ("production" or unset/anything
+// else = sandbox) so local dev (.dev.vars, no GOBIZ_ENV set) always stays
+// sandbox, and flipping Cloudflare Pages production over later is just
+// setting GOBIZ_ENV=production + swapping the 3 credential env vars for
+// their production values - no code change needed at cutover time.
+const ENVIRONMENTS = {
+  sandbox: {
+    tokenUrl: "https://integration-goauth.gojekapi.com/oauth2/token",
+    apiBase: "https://api.partner-sandbox.gobiz.co.id"
+  },
+  // TODO verify the exact token path once production credentials exist to
+  // test against - docs only confirmed the base host
+  // (https://accounts.go-jek.com/), not the full path; /oauth2/token is
+  // carried over from sandbox as the most likely OAuth2-conventional guess,
+  // not a confirmed value.
+  production: {
+    tokenUrl: "https://accounts.go-jek.com/oauth2/token",
+    apiBase: "https://api.gobiz.co.id"
+  }
+};
 
-// Sandbox base - flip to https://api.partner.gobiz.co.id once moving to a
-// live (non-sandbox) outlet/credentials.
-const API_BASE = "https://api.partner-sandbox.gobiz.co.id";
+function getEnvConfig(env) {
+  return env.GOBIZ_ENV === "production" ? ENVIRONMENTS.production : ENVIRONMENTS.sandbox;
+}
 
 // Exact scope list confirmed live in the developer.gobiz.com integration
 // page (Sandbox "All Active Scopes") - not every scope may end up used, but
@@ -48,19 +70,26 @@ const SCOPES = [
 // {outlet_id} path segment on order-status endpoints (e.g. Mark Food Ready)
 // expects - not something we call an API to obtain or set ourselves.
 
-let _cachedToken = null;
-let _cachedTokenExpiry = 0;
+// Keyed by environment name (not just one shared variable) so a sandbox
+// token and a production token could never collide if a single isolate
+// somehow handled both in practice - cheap insurance, not expected to
+// actually happen (local dev only ever runs sandbox, deployed prod only
+// ever runs whatever GOBIZ_ENV is set to there).
+const _tokenCache = {}; // { [envName]: { token, expiry } }
 
 export async function getGobizToken(env) {
   if (!env.GOBIZ_CLIENT_ID || !env.GOBIZ_CLIENT_SECRET) {
     throw new Error("Missing GOBIZ_CLIENT_ID / GOBIZ_CLIENT_SECRET env vars");
   }
 
+  const envName = env.GOBIZ_ENV === "production" ? "production" : "sandbox";
+  const config = getEnvConfig(env);
   const now = Date.now();
-  if (_cachedToken && now < _cachedTokenExpiry) return _cachedToken;
+  const cached = _tokenCache[envName];
+  if (cached && now < cached.expiry) return cached.token;
 
   const basicAuth = btoa(env.GOBIZ_CLIENT_ID + ":" + env.GOBIZ_CLIENT_SECRET);
-  const res = await fetch(TOKEN_URL, {
+  const res = await fetch(config.tokenUrl, {
     method: "POST",
     headers: {
       "Authorization": "Basic " + basicAuth,
@@ -71,20 +100,21 @@ export async function getGobizToken(env) {
   if (!res.ok) throw new Error("GoBiz token request failed (" + res.status + "): " + await res.text());
   const data = await res.json();
 
-  _cachedToken = data.access_token;
   // Refresh 60s before actual expiry so a request never races an
   // about-to-expire token.
-  _cachedTokenExpiry = now + (Number(data.expires_in) - 60) * 1000;
-  return _cachedToken;
+  _tokenCache[envName] = { token: data.access_token, expiry: now + (Number(data.expires_in) - 60) * 1000 };
+  return data.access_token;
 }
 
 // Generic authenticated call against the GoBiz Partner/GoFood API - path is
-// relative to API_BASE (e.g. "/integrations/partner/v1/outlet-link").
+// relative to the current environment's apiBase (e.g.
+// "/integrations/partner/v1/outlet-link").
 export async function gobizFetch(env, path, options) {
   options = options || {};
   const token = await getGobizToken(env);
+  const config = getEnvConfig(env);
 
-  const res = await fetch(API_BASE + path, {
+  const res = await fetch(config.apiBase + path, {
     method: options.method || "GET",
     headers: Object.assign(
       { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
