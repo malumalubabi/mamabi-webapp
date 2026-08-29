@@ -173,7 +173,7 @@ function opexRowHtml(r) {
   return (
     "<tr>" +
       "<td>" + r.opexCode + "</td>" +
-      '<td style="white-space:nowrap;">' + r.date + "</td>" +
+      '<td style="white-space:nowrap; width:1%;">' + r.date + "</td>" +
       "<td>" + r.category + "</td>" +
       "<td>" + (r.desc || "") + "</td>" +
       '<td><span class="font-number">' + formatRupiah(r.grossAmount) + "</span></td>" +
