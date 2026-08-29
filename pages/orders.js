@@ -858,7 +858,7 @@ function customerCell(o, showAddress) {
     // keeping Ongoing's Customer column sized the same as History's per
     // explicit request, without hardcoding either table's column widths.
     (showAddress && areaAddressText(o.customerArea, o.customerAddress)
-      ? '<br><span style="display:block; max-width:150px; color:var(--color-text-muted); font-size:12px;">' + areaAddressText(o.customerArea, o.customerAddress) + "</span>"
+      ? '<br><span style="display:block; max-width:180px; color:var(--color-text-muted); font-size:12px;">' + areaAddressText(o.customerArea, o.customerAddress) + "</span>"
       : "")
   );
 }
