@@ -503,19 +503,55 @@ function buildOrderFormText(o) {
   if (waDigits.indexOf(countryCode) === 0) waDigits = "0" + waDigits.slice(countryCode.length);
   else if (waDigits && waDigits.indexOf("0") !== 0) waDigits = "0" + waDigits;
 
-  const itemLines = o.items.map((it, i) => (i + 1) + ". " + it.name + " (" + it.qty + ") " + Math.round(it.unitPrice / 1000) + "k").join("\n");
+  const itemLines = o.items
+    .map((it, i) => {
+      const unitK = Math.round(it.unitPrice / 1000) + "k";
+      const lineK = Math.round(it.unitPrice * it.qty / 1000) + "k";
+      return (i + 1) + ". " + it.name + " (" + unitK + ") x " + it.qty + " = " + lineK;
+    })
+    .join("\n");
 
   return (
-    "📝 FORM ORDER\n\n" +
+    "📝 FORM ORDER - MaluMaluBabi\n\n" +
     "Nama Lengkap: " + o.customerName + "\n" +
     "No. WA: " + waDigits + "\n" +
     "Alamat: " + address + "\n\n" +
     "Pesanan:\n\n" +
     itemLines + "\n\n\n" +
-    "TOTAL : " + orderTotal(o).toLocaleString("id-ID") + "\n\n" +
+    "TOTAL: Rp. " + orderTotal(o).toLocaleString("id-ID") + "\n\n" +
     "Metode Bayar: " + (o.paymentMethod || "") + "\n\n" +
     "Catatan: " + (o.notes || "")
   );
+}
+
+// "Copy Template Form" - a blank version of the same form, for staff to
+// fill in by hand while taking an order over WA/phone before it's entered
+// into the system, per explicit request. Not order-specific, so it lives
+// next to "+ New Order" itself rather than per-row.
+function buildBlankOrderFormTemplate() {
+  return (
+    "📝 FORM ORDER - MaluMaluBabi\n\n" +
+    "Nama Lengkap: ...\n" +
+    "No. WA: ...\n" +
+    "Alamat: ...\n\n" +
+    "Pesanan:\n\n" +
+    "1. [item] x [jumlah]\n" +
+    "2. [item] x [jumlah]\n\n\n" +
+    "Metode Bayar: \n\n" +
+    "Catatan:"
+  );
+}
+
+function copyBlankOrderFormTemplate(btn) {
+  const text = buildBlankOrderFormTemplate();
+  const originalLabel = btn.textContent;
+
+  navigator.clipboard.writeText(text).then(function () {
+    btn.textContent = "Copied!";
+    setTimeout(function () { btn.textContent = originalLabel; }, 1500);
+  }).catch(function () {
+    alert("Couldn't copy automatically. Here's the text:\n\n" + text);
+  });
 }
 
 function copyOrderFormText(btn, orderCode) {
@@ -584,7 +620,12 @@ function renderOrdersTable(wrap, orders, scope) {
   const titleRow =
     '<div style="display:flex; justify-content:space-between; align-items:center;">' +
       "<h3>" + title + "</h3>" +
-      (scope === "ongoing" && _ordersShowNewOrderBtn ? '<button class="btn-primary" onclick="openOrderModal()">+ New Order</button>' : "") +
+      (scope === "ongoing" && _ordersShowNewOrderBtn
+        ? '<div style="display:flex; gap:10px;">' +
+            '<button onclick="copyBlankOrderFormTemplate(this)">Copy Template Form</button>' +
+            '<button class="btn-primary" onclick="openOrderModal()">+ New Order</button>' +
+          "</div>"
+        : "") +
       (scope === "history"
         ? '<div style="display:flex; align-items:center; gap:10px;">' +
             '<span style="color:var(--color-text-muted); font-size:12px;">' + ordersHistoryFilterBadgeText() + "</span>" +
