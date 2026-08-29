@@ -68,7 +68,7 @@ function buildOpexLogShellHtml() {
     '<div id="opexPaginationNav" class="pagination-nav"></div>' +
     '<div id="opexLogScrollWrap" style="overflow-x:auto;">' +
       "<table>" +
-        "<thead><tr><th>Expense ID</th><th>Date</th><th>Category</th><th>Description</th><th>Gross Amount</th><th>Amort.</th><th>Period</th><th>Accrued Expense</th><th>Payment Method</th><th></th></tr></thead>" +
+        "<thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Gross Amount</th><th>Amort.</th><th>Period</th><th>Accrued Expense</th><th>Payment Method</th><th></th></tr></thead>" +
         '<tbody id="opexTbody"></tbody>' +
       "</table>" +
     "</div>"
@@ -160,7 +160,7 @@ function renderOpexLogRows() {
     : _lastOpexRows;
   const rows = sortOpexRows(filtered, _opexSort);
 
-  tbody.innerHTML = rows.length ? rows.map(opexRowHtml).join("") : '<tr><td colspan="10">No expenses match this filter.</td></tr>';
+  tbody.innerHTML = rows.length ? rows.map(opexRowHtml).join("") : '<tr><td colspan="9">No expenses match this filter.</td></tr>';
   paginateTable("opexTbody", "opexPaginationNav", 10);
 }
 
@@ -172,8 +172,9 @@ function opexRowHtml(r) {
 
   return (
     "<tr>" +
-      "<td>" + r.opexCode + "</td>" +
-      '<td style="white-space:nowrap; width:1%;">' + r.date + "</td>" +
+      '<td style="white-space:nowrap; width:1%;">' + r.date +
+        '<span style="display:block; color:var(--color-text-muted); font-size:12px;">' + r.opexCode + "</span>" +
+      "</td>" +
       "<td>" + r.category + "</td>" +
       "<td>" + (r.desc || "") + "</td>" +
       '<td><span class="font-number">' + formatRupiah(r.grossAmount) + "</span></td>" +
