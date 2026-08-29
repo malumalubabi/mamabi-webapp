@@ -578,7 +578,7 @@ function dv2SortPlatforms(platforms) {
 
 // ---------- OpEx donut chart (inline SVG arcs, no library) ----------
 
-const DV2_DONUT_COLORS = ["#4e70bb", "#469362", "#c09140", "#b34f4f", "#866cc1", "#3e899c", "#b24f7b", "#719341"];
+const DV2_DONUT_COLORS = ["#6e90db", "#66b483", "#e1b160", "#d36f6f", "#a68de1", "#5eaabc", "#d26f9b", "#92b461"];
 
 function dv2DonutSection(segments) {
   if (!segments.length) return "<p>No OpEx recorded yet this month.</p>";
@@ -702,7 +702,7 @@ function dv2UnpaidDriverPayoutCard(unpaidTotal, monthSplit) {
     "Unpaid Driver Payout",
     formatRupiah(unpaidTotal),
     ratio,
-    "#b34f4f",
+    "#d36f6f",
     caption,
     "navigateTo('orders-payout')"
   );
@@ -719,7 +719,7 @@ function dv2StockAlertCard(items, totalTracked) {
     "Stock Alert",
     label,
     ratio,
-    "#c09140",
+    "#e1b160",
     caption,
     count > 0 ? "navigateTo('inventory-stock?tab=overview&filter=low')" : null
   );
