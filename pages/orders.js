@@ -652,7 +652,10 @@ function methodSelectOptionsHtml(current) {
 }
 
 function renderDriverPayoutSections(wrap, orders) {
-  const deliveryOrders = orders.filter((o) => o.orderType === "Delivery");
+  // deliveryFee > 0 only - a Rp0 fee (free ongkir) has nothing to pay a
+  // driver for, so it's not a Driver Payout concern at all regardless of
+  // paid/unpaid status, per explicit request.
+  const deliveryOrders = orders.filter((o) => o.orderType === "Delivery" && o.deliveryFee > 0);
   _driverPayoutOrdersByCode = {};
   deliveryOrders.forEach((o) => { _driverPayoutOrdersByCode[o.orderCode] = o; });
 
