@@ -929,10 +929,10 @@ function renderOrdersTable(wrap, orders, scope) {
 
   const head = _ordersIsPlatformMode
     ? (scope === "history"
-        ? "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total Price</th><th>Notes</th><th>Order Status</th></tr>"
+        ? "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total Price</th><th>Order Status</th><th>Notes</th></tr>"
         : "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total Price</th><th>Status</th><th>Notes</th><th></th></tr>")
     : (scope === "history"
-        ? "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Fulfillment Type</th><th>Notes</th><th>Order Status</th></tr>"
+        ? "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Fulfillment Type</th><th>Order Status</th><th>Notes</th></tr>"
         : "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Type</th><th>Status</th><th>Notes</th><th></th></tr>");
 
   // Customer ~20% narrower, Items ~50% wider than their previous
@@ -1412,8 +1412,8 @@ function historyRowHtml(o) {
       "<td>" + itemsCell(o) + "</td>" +
       "<td>" + totalHtml + "</td>" +
       "<td>" + typeCell(o) + "</td>" +
-      "<td>" + (o.notes || "") + "</td>" +
       "<td>" + statusLabel + statusSub + "</td>" +
+      "<td>" + (o.notes || "") + "</td>" +
     "</tr>"
   );
 }
@@ -1553,8 +1553,8 @@ function platformHistoryRowHtml(o) {
       "<td>" + platformCustomerCell(o) + "</td>" +
       "<td style=\"min-width:280px;\">" + platformItemsCell(o) + "</td>" +
       "<td>" + platformTotalCell(o) + "</td>" +
-      "<td>" + (o.notes || "") + "</td>" +
       "<td>" + statusLabel + statusSub + platformStatusEventsHtml(o) + "</td>" +
+      "<td>" + (o.notes || "") + "</td>" +
     "</tr>"
   );
 }
