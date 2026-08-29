@@ -129,20 +129,26 @@ function buildOrderFormHtml() {
     '<button type="button" onclick="addOrderItemRow()">+ Add Item</button>' +
     '<div style="margin-top:8px; font-weight:bold;">Total: <span id="orderGrandTotal" class="font-number">Rp 0</span></div><br>' +
 
-    '<div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-end;">' +
-      "<div>" +
+    // Fixed equal-ish widths on every field here (not shrink-to-content) so
+    // toggling Delivery Fee/Driver's visibility via onOrderTypeChange()
+    // never resizes anything, including Fulfillment Type itself - and
+    // align-items:flex-start (top-aligned by label) instead of flex-end,
+    // since the combobox's extra wrapper div (vs. a plain <input>) doesn't
+    // reliably match a flex-end baseline the same way a native control does.
+    '<div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start;">' +
+      '<div style="width:160px;">' +
         "<label>Fulfillment Type</label><br>" +
-        '<select id="orderType" onchange="onOrderTypeChange()">' +
+        '<select id="orderType" onchange="onOrderTypeChange()" style="width:100%;">' +
           "<option>Delivery</option><option>Takeaway</option>" +
         "</select>" +
       "</div>" +
-      '<div id="orderDeliveryFeeWrap">' +
+      '<div id="orderDeliveryFeeWrap" style="width:160px;">' +
         "<label>Delivery Fee</label><br>" +
-        '<input type="text" id="orderDeliveryFee" inputmode="numeric" oninput="formatAmount(this)">' +
+        '<input type="text" id="orderDeliveryFee" inputmode="numeric" oninput="formatAmount(this)" style="width:100%; box-sizing:border-box;">' +
       "</div>" +
-      '<div id="orderDriverWrap">' +
+      '<div id="orderDriverWrap" style="width:180px;">' +
         "<label>Driver</label><br>" +
-        '<div id="orderDriverCombo" style="min-width:180px;"></div>' +
+        '<div id="orderDriverCombo" style="width:100%;"></div>' +
       "</div>" +
     "</div><br>" +
 
