@@ -244,7 +244,11 @@ export async function onRequestGet({ env }) {
     // specifically, so the frontend can add visual spacing setting it apart
     // from the Revenue-through-Other-Income data group above it.
     const header = (label, isMain, groupBreakBefore) => rows.push({ label: label, values: null, isMain: !!isMain, groupBreakBefore: !!groupBreakBefore });
-    const line = (label, values, bold) => rows.push({ label: label, values: values, bold: !!bold });
+    // isSubtotal marks a subsection subtotal (Fixed/Variable Cost's own
+    // "Subtotal" line within OPEX) distinctly from a true section total
+    // (Total Revenue/COGS/OPEX/Other Income) - both are bold, but per
+    // explicit request they shouldn't look identical.
+    const line = (label, values, bold, isSubtotal) => rows.push({ label: label, values: values, bold: !!bold, isSubtotal: !!isSubtotal });
 
     const revenueByMonth = monthKeys.map((mk) => platforms.reduce((sum, p) => sum + (buckets[mk].revenueByPlatform[p] || 0), 0));
     header("Revenue", true);
@@ -280,14 +284,14 @@ export async function onRequestGet({ env }) {
     const fixedCostByMonth = monthKeys.map((mk) =>
       Object.keys(buckets[mk].opexByCategory).reduce((sum, c) => sum + (buckets[mk].sectionByCategory[c] === "Fixed" ? buckets[mk].opexByCategory[c] : 0), 0)
     );
-    line("Subtotal", fixedCostByMonth, true);
+    line("Subtotal", fixedCostByMonth, true, true);
 
     header("Variable Cost");
     variableCategories.forEach((c) => line(c, monthKeys.map((mk) => buckets[mk].opexByCategory[c] || 0)));
     const variableCostByMonth = monthKeys.map((mk) =>
       Object.keys(buckets[mk].opexByCategory).reduce((sum, c) => sum + (buckets[mk].sectionByCategory[c] !== "Fixed" ? buckets[mk].opexByCategory[c] : 0), 0)
     );
-    line("Subtotal", variableCostByMonth, true);
+    line("Subtotal", variableCostByMonth, true, true);
 
     const totalOpexByMonth = monthKeys.map((mk, i) => fixedCostByMonth[i] + variableCostByMonth[i]);
     line("Total OPEX", totalOpexByMonth, true);

@@ -118,8 +118,18 @@ function pnlRowHtml(r) {
       '<tr><td colspan="' + colspan + '" style="' + cellStyle + '">' + label + "</td></tr>"
     );
   }
-  const cells = r.values.map((v) => "<td>" + formatPnlValue(r.label, v) + "</td>").join("");
-  return "<tr" + (r.bold ? ' style="font-weight:bold;"' : "") + "><td>" + r.label + "</td>" + cells + "</tr>";
+  // A subsection subtotal (Fixed/Variable Cost's own "Subtotal" line) reads
+  // lighter/muted with a dashed top rule - a true section total (Total
+  // Revenue/COGS/OPEX/Other Income, Operating/Net Profit) stays crisp bold
+  // with no border, so the two are never visually interchangeable, per
+  // explicit request. Border goes on each <td>, not the <tr> - table rows
+  // don't reliably render borders across browsers, only cells do.
+  const cellStyle = r.isSubtotal
+    ? 'font-weight:bold; font-style:italic; color:var(--color-text-muted); border-top:1px dashed var(--color-border-on-card);'
+    : (r.bold ? "font-weight:bold;" : "");
+  const styleAttr = cellStyle ? ' style="' + cellStyle + '"' : "";
+  const cells = r.values.map((v) => "<td" + styleAttr + ">" + formatPnlValue(r.label, v) + "</td>").join("");
+  return "<tr><td" + styleAttr + ">" + r.label + "</td>" + cells + "</tr>";
 }
 
 function formatPnlValue(label, value) {
