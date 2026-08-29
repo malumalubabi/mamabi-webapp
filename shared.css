@@ -724,13 +724,12 @@ th {
 .pagination-nav {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
   margin-top: 8px;
 }
 .pagination-info {
-  flex: 1;
-  text-align: center;
+  flex: 0 0 170px;
+  text-align: left;
   font-size: 12px;
   color: var(--color-text-muted);
 }
