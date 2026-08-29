@@ -144,8 +144,8 @@ function buildOrderFormHtml() {
       // Editable (not readonly) - saving corrects the customer's own
       // area/address record too (see saveOrder()'s customer PATCH), per
       // explicit request.
-      '<div><label>Area</label><br><input type="text" id="orderArea" style="width:100%; box-sizing:border-box;"></div>' +
-      '<div><label>Address</label><br><input type="text" id="orderAddress" style="width:100%; box-sizing:border-box;"></div>' +
+      '<div><div style="display:flex; justify-content:space-between; align-items:baseline;"><label>Area</label><span id="orderAreaUpdatedBadge" style="display:none; font-size:11px; color:var(--color-accent);">Update</span></div><input type="text" id="orderArea" oninput="updateFieldUpdatedBadge(this)" style="width:100%; box-sizing:border-box;"></div>' +
+      '<div><div style="display:flex; justify-content:space-between; align-items:baseline;"><label>Address</label><span id="orderAddressUpdatedBadge" style="display:none; font-size:11px; color:var(--color-accent);">Update</span></div><input type="text" id="orderAddress" oninput="updateFieldUpdatedBadge(this)" style="width:100%; box-sizing:border-box;"></div>' +
       '<div id="newCustomerFieldsWrap" style="visibility:hidden; display:contents;">' +
         '<div><label>Name</label><br><input type="text" id="newCustomerName" style="width:100%; box-sizing:border-box;"></div>' +
         '<div><label>Contact</label><br><input type="text" id="newCustomerContact" style="width:100%; box-sizing:border-box;"></div>' +
@@ -222,8 +222,8 @@ function initOrderForm(lookups) {
       onSelect: function (value, item) {
         const c = lookups.customers.find((x) => x.id === value);
         document.getElementById("orderContact").value = c && c.contact ? formatPhoneDisplay(c.contact) : "";
-        document.getElementById("orderArea").value = c && c.area ? c.area : "";
-        document.getElementById("orderAddress").value = c && c.address ? c.address : "";
+        setCustomerFieldOriginal(document.getElementById("orderArea"), c ? c.area : "");
+        setCustomerFieldOriginal(document.getElementById("orderAddress"), c ? c.address : "");
       }
     }
   );
@@ -258,6 +258,25 @@ function initOrderForm(lookups) {
   onOrderTypeChange();
 }
 
+// "Updated" badge next to Area/Address's label (New Order and Edit Order,
+// see buildOrderFormHtml/buildEditOrderFormHtml) - shown when the field's
+// current value differs from whatever it was loaded with (the customer's
+// existing record), since saving PATCHes that record. input.dataset.original
+// is set once whenever a field gets (re)populated FROM a customer record
+// (customer selected, or Edit Order's initial load) - never touched by
+// typing itself, so it stays the correct baseline to compare against.
+function setCustomerFieldOriginal(input, value) {
+  input.value = value || "";
+  input.dataset.original = value || "";
+  updateFieldUpdatedBadge(input);
+}
+
+function updateFieldUpdatedBadge(input) {
+  const badge = document.getElementById(input.id + "UpdatedBadge");
+  if (!badge) return;
+  badge.style.display = input.value.trim() !== (input.dataset.original || "") ? "" : "none";
+}
+
 function setOrderToday() {
   if (document.getElementById("orderToday").checked) document.getElementById("orderDate").value = todayISO();
 }
@@ -273,12 +292,14 @@ function toggleNewCustomer() {
   const comboEl = document.getElementById("orderCustomerCombo");
   comboEl.style.pointerEvents = isNew ? "none" : "";
   comboEl.style.opacity = isNew ? "0.5" : "";
+  document.getElementById("orderArea").disabled = isNew;
+  document.getElementById("orderAddress").disabled = isNew;
   document.getElementById("newCustomerFieldsWrap").style.visibility = isNew ? "" : "hidden";
   if (isNew) {
     _customerCombo.clear();
     document.getElementById("orderContact").value = "";
-    document.getElementById("orderArea").value = "";
-    document.getElementById("orderAddress").value = "";
+    setCustomerFieldOriginal(document.getElementById("orderArea"), "");
+    setCustomerFieldOriginal(document.getElementById("orderAddress"), "");
   } else {
     document.getElementById("newCustomerName").value = "";
     document.getElementById("newCustomerContact").value = "";
@@ -543,10 +564,10 @@ function buildEditOrderFormHtml(o) {
       // Editable (not readonly) - saving corrects the customer's own
       // area/address record too (see saveEditOrder()'s customer PATCH), per
       // explicit request.
-      '<label style="display:block; margin-top:8px;">Area</label>' +
-      '<input type="text" id="editOrderArea" value="' + (o.customerArea || "") + '" style="margin-top:2px; width:220px; box-sizing:border-box;">' +
-      '<label style="display:block; margin-top:8px;">Address</label>' +
-      '<input type="text" id="editOrderAddress" value="' + (o.customerAddress || "") + '" style="margin-top:2px; width:220px; box-sizing:border-box;">' +
+      '<div style="display:flex; justify-content:space-between; align-items:baseline; margin-top:8px;"><label>Area</label><span id="editOrderAreaUpdatedBadge" style="display:none; font-size:11px; color:var(--color-accent);">Update</span></div>' +
+      '<input type="text" id="editOrderArea" value="' + (o.customerArea || "") + '" oninput="updateFieldUpdatedBadge(this)" style="margin-top:2px; width:220px; box-sizing:border-box;">' +
+      '<div style="display:flex; justify-content:space-between; align-items:baseline; margin-top:8px;"><label>Address</label><span id="editOrderAddressUpdatedBadge" style="display:none; font-size:11px; color:var(--color-accent);">Update</span></div>' +
+      '<input type="text" id="editOrderAddress" value="' + (o.customerAddress || "") + '" oninput="updateFieldUpdatedBadge(this)" style="margin-top:2px; width:220px; box-sizing:border-box;">' +
     "</div><br>" +
 
     '<table style="table-layout:fixed; width:auto;">' +
@@ -583,6 +604,8 @@ function initEditOrderForm(o) {
   document.getElementById("orderType").value = o.orderType;
   document.getElementById("orderDeliveryFee").value = o.deliveryFee ? formatRupiah(o.deliveryFee) : "";
   document.getElementById("orderNotes").value = o.notes || "";
+  setCustomerFieldOriginal(document.getElementById("editOrderArea"), o.customerArea || "");
+  setCustomerFieldOriginal(document.getElementById("editOrderAddress"), o.customerAddress || "");
 
   o.items.forEach((it) => addOrderItemRow({ lineId: it.lineId, skuId: it.skuId, name: it.name, qty: it.qty, unitPrice: it.unitPrice }));
   onOrderTypeChange();
