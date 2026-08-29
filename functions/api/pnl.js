@@ -259,7 +259,11 @@ export async function onRequestGet({ env }) {
     line("Packaging Cost", packagingCostByMonth);
     line("Total COGS", totalCogsByMonth, true);
 
-    header("Gross Profit");
+    // Not isMain (it's a 2-line subtotal, not a category with its own line
+    // items - COGS/OPEX/etc are), but groupBreakBefore=true so it still gets
+    // visual separation from COGS above it, per explicit request (was
+    // reading as if it belonged to the COGS category with no gap at all).
+    header("Gross Profit", false, true);
     const grossProfitByMonth = monthKeys.map((mk, i) => revenueByMonth[i] - totalCogsByMonth[i]);
     const grossMarginByMonth = monthKeys.map((mk, i) => (revenueByMonth[i] ? grossProfitByMonth[i] / revenueByMonth[i] : 0));
     line("Gross Profit", grossProfitByMonth, true);
