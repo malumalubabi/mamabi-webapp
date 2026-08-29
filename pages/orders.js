@@ -106,39 +106,44 @@ function buildOrderFormHtml() {
       "</div>" +
     "</div><br>" +
 
-    // 2 fixed columns - Customer/Contact/Address (existing customer, locked
-    // via toggleNewCustomer() rather than hidden when New Customer is
-    // checked) on the left, New Customer's own Name/Contact/Area/Address
-    // stacked on the right. The right column's box is always present
-    // (visibility, not display, toggled in toggleNewCustomer()) so neither
-    // column ever shifts when the checkbox is (un)checked, per explicit
-    // request.
-    '<div style="display:flex; gap:30px; flex-wrap:wrap;">' +
+    // One shared CSS Grid (2 columns x 4 rows), not two independently-flowed
+    // flex columns with manually-matched margins - a grid forces every cell
+    // in the same row to the same height by construction, so Customer/Name,
+    // Contact/Contact, Area/Area, Address/Address always land level with
+    // each other regardless of any one field's own rendering quirks (a
+    // combobox vs a plain input, a stray tag throwing off one column's
+    // margins, etc - exactly the kind of drift that broke this before).
+    // The right column is one display:contents group (see
+    // #newCustomerFieldsWrap) so toggleNewCustomer() can show/hide all 4 of
+    // its cells at once while each still participates in the grid
+    // individually - visibility (not display) keeps every cell's row height
+    // reserved either way, so neither column ever shifts when the checkbox
+    // is (un)checked, per explicit request.
+    // grid-auto-flow:column + explicit grid-template-rows fills column 1
+    // (all 4 left/locked cells, in DOM order) before moving to column 2 (all
+    // 4 right/New-Customer cells) - keeps the right cells contiguous in the
+    // DOM despite being visually interleaved row-by-row, so they can still
+    // be wrapped in one display:contents group for toggleNewCustomer() to
+    // show/hide as a unit.
+    '<div style="display:grid; grid-template-columns:220px 200px; grid-template-rows:repeat(4, auto); grid-auto-flow:column; column-gap:30px; row-gap:12px; align-items:start;">' +
       "<div>" +
         "<label>Customer</label><br>" +
         '<div style="display:flex; align-items:center; gap:10px;">' +
-          '<div id="orderCustomerCombo" style="min-width:220px;"></div>' +
-          '<label style="display:flex; align-items:center; gap:4px; font-weight:normal;">' +
+          '<div id="orderCustomerCombo" style="min-width:150px;"></div>' +
+          '<label style="display:flex; align-items:center; gap:4px; font-weight:normal; white-space:nowrap;">' +
             '<input type="checkbox" id="newCustomerToggle" onchange="toggleNewCustomer()">' +
             "New Customer" +
           "</label>" +
         "</div>" +
-        '<label style="display:block; margin-top:8px;">Contact</label>' +
-        '<input type="text" id="orderContact" readonly style="background:var(--color-disabled-bg); margin-top:2px; width:220px; box-sizing:border-box;">' +
-        '<label style="display:block; margin-top:8px;">Area</label>' +
-        '<input type="text" id="orderArea" readonly style="background:var(--color-disabled-bg); margin-top:2px; width:220px; box-sizing:border-box;">' +
-        '<label style="display:block; margin-top:8px;">Address</label>' +
-        '<input type="text" id="orderAddress" readonly style="background:var(--color-disabled-bg); margin-top:2px; width:220px; box-sizing:border-box;">' +
       "</div>" +
-      '<div id="newCustomerFieldsWrap" style="visibility:hidden;">' +
-        "<label>Name</label><br>" +
-        '<input type="text" id="newCustomerName" style="width:180px; box-sizing:border-box;">' +
-        '<label style="display:block; margin-top:8px;">Contact</label>' +
-        '<input type="text" id="newCustomerContact" style="width:180px; box-sizing:border-box; margin-top:2px;">' +
-        '<label style="display:block; margin-top:8px;">Area</label><br>' +
-        '<div id="newCustomerAreaCombo" style="width:180px; margin-top:2px;"></div>' +
-        '<label style="display:block; margin-top:8px;">Address</label>' +
-        '<input type="text" id="newCustomerAddress" style="width:180px; box-sizing:border-box; margin-top:2px;">' +
+      '<div><label>Contact</label><br><input type="text" id="orderContact" readonly style="background:var(--color-disabled-bg); width:100%; box-sizing:border-box;"></div>' +
+      '<div><label>Area</label><br><input type="text" id="orderArea" readonly style="background:var(--color-disabled-bg); width:100%; box-sizing:border-box;"></div>' +
+      '<div><label>Address</label><br><input type="text" id="orderAddress" readonly style="background:var(--color-disabled-bg); width:100%; box-sizing:border-box;"></div>' +
+      '<div id="newCustomerFieldsWrap" style="visibility:hidden; display:contents;">' +
+        '<div><label>Name</label><br><input type="text" id="newCustomerName" style="width:100%; box-sizing:border-box;"></div>' +
+        '<div><label>Contact</label><br><input type="text" id="newCustomerContact" style="width:100%; box-sizing:border-box;"></div>' +
+        '<div><label>Area</label><br><div id="newCustomerAreaCombo" style="width:100%;"></div></div>' +
+        '<div><label>Address</label><br><input type="text" id="newCustomerAddress" style="width:100%; box-sizing:border-box;"></div>' +
       "</div>" +
     "</div><br>" +
 
