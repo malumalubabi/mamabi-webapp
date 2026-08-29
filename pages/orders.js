@@ -125,6 +125,8 @@ function buildOrderFormHtml() {
         "</div>" +
         '<label style="display:block; margin-top:8px;">Contact</label>' +
         '<input type="text" id="orderContact" readonly style="background:var(--color-disabled-bg); margin-top:2px; width:220px; box-sizing:border-box;">' +
+        '<label style="display:block; margin-top:8px;">Area</label>' +
+        '<input type="text" id="orderArea" readonly style="background:var(--color-disabled-bg); margin-top:2px; width:220px; box-sizing:border-box;">' +
         '<label style="display:block; margin-top:8px;">Address</label>' +
         '<input type="text" id="orderAddress" readonly style="background:var(--color-disabled-bg); margin-top:2px; width:220px; box-sizing:border-box;">' +
       "</div>" +
@@ -208,7 +210,8 @@ function initOrderForm(lookups) {
       onSelect: function (value, item) {
         const c = lookups.customers.find((x) => x.id === value);
         document.getElementById("orderContact").value = c && c.contact ? formatPhoneDisplay(c.contact) : "";
-        document.getElementById("orderAddress").value = c ? areaAddressText(c.area, c.address) : "";
+        document.getElementById("orderArea").value = c && c.area ? c.area : "";
+        document.getElementById("orderAddress").value = c && c.address ? c.address : "";
       }
     }
   );
@@ -262,6 +265,7 @@ function toggleNewCustomer() {
   if (isNew) {
     _customerCombo.clear();
     document.getElementById("orderContact").value = "";
+    document.getElementById("orderArea").value = "";
     document.getElementById("orderAddress").value = "";
   } else {
     document.getElementById("newCustomerName").value = "";
@@ -505,8 +509,10 @@ function buildEditOrderFormHtml(o) {
       '<input type="text" value="' + o.customerName + '" readonly style="background:var(--color-disabled-bg); width:220px; box-sizing:border-box;">' +
       '<label style="display:block; margin-top:8px;">Contact</label>' +
       '<input type="text" value="' + (o.customerContact ? formatPhoneDisplay(o.customerContact) : "") + '" readonly style="background:var(--color-disabled-bg); margin-top:2px; width:220px; box-sizing:border-box;">' +
+      '<label style="display:block; margin-top:8px;">Area</label>' +
+      '<input type="text" value="' + (o.customerArea || "") + '" readonly style="background:var(--color-disabled-bg); margin-top:2px; width:220px; box-sizing:border-box;">' +
       '<label style="display:block; margin-top:8px;">Address</label>' +
-      '<input type="text" value="' + areaAddressText(o.customerArea, o.customerAddress) + '" readonly style="background:var(--color-disabled-bg); margin-top:2px; width:220px; box-sizing:border-box;">' +
+      '<input type="text" value="' + (o.customerAddress || "") + '" readonly style="background:var(--color-disabled-bg); margin-top:2px; width:220px; box-sizing:border-box;">' +
     "</div><br>" +
 
     '<table style="table-layout:fixed; width:auto;">' +
