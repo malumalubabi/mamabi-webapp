@@ -1312,12 +1312,51 @@ function confirmMarkOrderPaid(orderCode) {
   });
 }
 
+// Takeaway (Picked Up) needs no driver - the customer collects it
+// themselves - so that path stays a plain confirm(). Delivery orders open a
+// modal to confirm/pick the driver instead, since it's now optional at New
+// Order creation time (may not be decided yet, or may change by the time
+// the order actually goes out) - this is the point it needs to be locked in.
 function markOrderDeliveryStatus(btn, orderCode, orderType) {
-  const status = orderType === "Takeaway" ? "Picked Up" : "Delivered";
-  if (!confirm("Mark this order as " + status + "?")) return;
+  if (orderType === "Takeaway") {
+    if (!confirm("Mark this order as Picked Up?")) return;
+    withInlineSaveStatus(btn, "Status", async function () {
+      await api("orders/" + encodeURIComponent(orderCode), { method: "PATCH", body: { fulfillmentStatus: "Picked Up" } });
+      await loadOrdersData();
+    });
+    return;
+  }
+  openMarkDeliveredModal(orderCode);
+}
 
-  withInlineSaveStatus(btn, "Status", async function () {
-    await api("orders/" + encodeURIComponent(orderCode), { method: "PATCH", body: { fulfillmentStatus: status } });
+function openMarkDeliveredModal(orderCode) {
+  const o = _ordersByCode[orderCode];
+  if (!o) return;
+
+  openModal(
+    "<h2>Mark Delivered - " + orderCode + "</h2>" +
+    "<p><strong>Customer:</strong> " + o.customerName + "</p>" +
+    "<label>Driver</label><br>" +
+    '<select id="markDeliveredDriver">' + driverSelectOptionsHtml(o) + "</select><br><br>" +
+    '<button id="markDeliveredConfirmBtn" onclick="confirmMarkDelivered(\'' + orderCode + '\')">Confirm</button>' +
+    '<span id="markDeliveredStatus" class="save-status"></span>'
+  );
+}
+
+function confirmMarkDelivered(orderCode) {
+  const driverValue = document.getElementById("markDeliveredDriver").value;
+  if (!driverValue) { alert("Please select a driver."); return; }
+
+  const driver = resolveDriver(driverValue);
+  const btn = document.getElementById("markDeliveredConfirmBtn");
+  const statusEl = document.getElementById("markDeliveredStatus");
+
+  withSaveStatus(btn, statusEl, "Status", async function () {
+    await api("orders/" + encodeURIComponent(orderCode), {
+      method: "PATCH",
+      body: { fulfillmentStatus: "Delivered", driverStaffId: driver.driverStaffId, driverNameRaw: driver.driverNameRaw }
+    });
+    closeModal();
     await loadOrdersData();
   });
 }
