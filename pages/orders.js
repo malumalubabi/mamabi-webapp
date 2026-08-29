@@ -17,6 +17,7 @@ registerPage("orders-platform", renderPlatformOrdersPage);
 
 let _ordersLookups = null;
 let _customerCombo = null;
+let _newCustomerAreaCombo = null;
 let _driverCombo = null;
 let _ordersByCode = {}; // last-rendered Ongoing/History rows, keyed by order_code - lets the Mark Paid modal show order details without a re-fetch
 let _ordersCurrentPlatformFilter = "Online";
@@ -105,6 +106,11 @@ function buildOrderFormHtml() {
       "</div>" +
     "</div><br>" +
 
+    // Customer combo never hides/moves anymore, even in New Customer mode -
+    // just visually locked (dimmed, non-interactive) via toggleNewCustomer()
+    // so the checkbox and everything after it stays in place too, instead of
+    // reflowing left into the combo's old spot. New Customer's own fields
+    // (was just a single name input) sit to the right of the checkbox.
     "<div>" +
       "<label>Customer</label><br>" +
       '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">' +
@@ -113,7 +119,12 @@ function buildOrderFormHtml() {
           '<input type="checkbox" id="newCustomerToggle" onchange="toggleNewCustomer()">' +
           "New Customer" +
         "</label>" +
-        '<input type="text" id="newCustomerName" placeholder="New customer name" style="display:none;">' +
+        '<div id="newCustomerFieldsWrap" style="display:none; gap:10px; flex-wrap:wrap; align-items:flex-end;">' +
+          '<div><label style="font-size:12px;">Name</label><br><input type="text" id="newCustomerName" style="width:140px; box-sizing:border-box;"></div>' +
+          '<div><label style="font-size:12px;">Contact</label><br><input type="text" id="newCustomerContact" style="width:140px; box-sizing:border-box;"></div>' +
+          '<div><label style="font-size:12px;">Area</label><br><div id="newCustomerAreaCombo" style="width:140px;"></div></div>' +
+          '<div><label style="font-size:12px;">Address</label><br><input type="text" id="newCustomerAddress" style="width:200px; box-sizing:border-box;"></div>' +
+        "</div>" +
       "</div>" +
       '<label style="display:block; margin-top:8px;">Contact</label>' +
       '<input type="text" id="orderContact" readonly style="background:var(--color-disabled-bg); margin-top:2px;">' +
@@ -191,6 +202,15 @@ function initOrderForm(lookups) {
     }
   );
 
+  // Suggests areas already used by existing customers, but freely accepts a
+  // brand-new one - per explicit request.
+  const areas = [...new Set(lookups.customers.map((c) => c.area).filter(Boolean))].sort();
+  _newCustomerAreaCombo = createCombobox(
+    document.getElementById("newCustomerAreaCombo"),
+    areas.map((a) => ({ value: a, label: a })),
+    { placeholder: "Area...", allowFreeText: true, commitValue: true }
+  );
+
   const driverContainer = document.getElementById("orderDriverCombo");
   _driverCombo = createCombobox(
     driverContainer,
@@ -221,16 +241,28 @@ function setDeliveryToday() {
 
 function toggleNewCustomer() {
   const isNew = document.getElementById("newCustomerToggle").checked;
-  document.getElementById("orderCustomerCombo").style.display = isNew ? "none" : "";
-  document.getElementById("newCustomerName").style.display = isNew ? "" : "none";
+  // Locked (dimmed, non-interactive), never hidden - so the checkbox and
+  // New Customer's own fields never reflow into its old spot, per explicit
+  // request.
+  const comboEl = document.getElementById("orderCustomerCombo");
+  comboEl.style.pointerEvents = isNew ? "none" : "";
+  comboEl.style.opacity = isNew ? "0.5" : "";
+  document.getElementById("newCustomerFieldsWrap").style.display = isNew ? "flex" : "none";
   if (isNew) {
     _customerCombo.clear();
     document.getElementById("orderContact").value = "";
   } else {
     document.getElementById("newCustomerName").value = "";
+    document.getElementById("newCustomerContact").value = "";
+    document.getElementById("newCustomerAddress").value = "";
+    _newCustomerAreaCombo.clear();
   }
 }
 
+// Shared by New Order and Edit Order (see openEditOrderModal) - Edit's form
+// has no Driver/Fulfillment Status fields at all (excluded per explicit
+// request), so every reference to them is null-guarded rather than
+// duplicating this whole function for that one difference.
 function onOrderTypeChange() {
   const orderType = document.getElementById("orderType").value;
   const isDelivery = orderType === "Delivery";
@@ -240,16 +272,20 @@ function onOrderTypeChange() {
   // Status/Method shifting up to fill the now-empty cells), per explicit
   // request.
   document.getElementById("orderDeliveryFeeWrap").style.visibility = isDelivery ? "" : "hidden";
-  document.getElementById("orderDriverWrap").style.visibility = isDelivery ? "" : "hidden";
+  const driverWrap = document.getElementById("orderDriverWrap");
+  if (driverWrap) driverWrap.style.visibility = isDelivery ? "" : "hidden";
   if (!isDelivery) {
     document.getElementById("orderDeliveryFee").value = "";
-    _driverCombo.clear();
+    if (_driverCombo) _driverCombo.clear();
   }
 
   // Delivered only makes sense for Delivery, Picked Up only for Takeaway -
   // Pending is valid (and the reset default) either way.
-  const options = isDelivery ? ["Pending", "Delivered"] : ["Pending", "Picked Up"];
-  document.getElementById("orderFulfillmentStatus").innerHTML = options.map((o) => "<option>" + o + "</option>").join("");
+  const fulfillmentStatusEl = document.getElementById("orderFulfillmentStatus");
+  if (fulfillmentStatusEl) {
+    const options = isDelivery ? ["Pending", "Delivered"] : ["Pending", "Picked Up"];
+    fulfillmentStatusEl.innerHTML = options.map((o) => "<option>" + o + "</option>").join("");
+  }
 }
 
 function onOrderPaymentStatusChange() {
@@ -261,15 +297,21 @@ function onOrderPaymentStatusChange() {
 // 05 Orders/OngoingOrders_JS.html -> addOrderItemRow(). Product -> Qty ->
 // Price -> Total, in that order - confirmed against the source file, not
 // from memory.
-function addOrderItemRow() {
+// prefill (Edit Order only - New Order always calls this with no args) -
+// {lineId, skuId, name, qty, unitPrice} for one existing order_items row,
+// so the row starts populated (and tracked back to that line on save)
+// instead of blank. lineId lives on the row's dataset, read by
+// collectOrderItems() below.
+function addOrderItemRow(prefill) {
   const wrap = document.getElementById("orderItemRows");
   const row = document.createElement("tr");
   row.className = "order-item-row";
+  if (prefill && prefill.lineId) row.dataset.lineId = prefill.lineId;
   row.innerHTML =
     '<td><div class="sku-combo"></div></td>' +
-    '<td><input type="number" class="qty" min="1" style="width:100%; box-sizing:border-box;" oninput="updateOrderRowTotal(this.closest(\'.order-item-row\'))"></td>' +
-    '<td><input type="text" class="unitPrice" inputmode="numeric" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this); updateOrderRowTotal(this.closest(\'.order-item-row\'))"></td>' +
-    '<td><input type="text" class="lineTotal" readonly style="width:100%; box-sizing:border-box; background:var(--color-disabled-bg);"></td>' +
+    '<td><input type="number" class="qty" min="1" style="width:100%; box-sizing:border-box;" oninput="updateOrderRowTotal(this.closest(\'.order-item-row\'))" value="' + (prefill ? prefill.qty : "") + '"></td>' +
+    '<td><input type="text" class="unitPrice" inputmode="numeric" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this); updateOrderRowTotal(this.closest(\'.order-item-row\'))" value="' + (prefill ? formatRupiah(prefill.unitPrice) : "") + '"></td>' +
+    '<td><input type="text" class="lineTotal" readonly style="width:100%; box-sizing:border-box; background:var(--color-disabled-bg);" value="' + (prefill ? formatRupiah(prefill.qty * prefill.unitPrice) : "") + '"></td>' +
     '<td class="compact-cell"><button type="button" class="btn-compact" onclick="removeOrderItemRow(this)">Remove</button></td>';
   wrap.appendChild(row);
 
@@ -285,6 +327,16 @@ function addOrderItemRow() {
     }
   );
   row._combo = combo;
+  if (prefill && prefill.skuId) {
+    // setSelection() fires onSelect same as a manual pick, which would
+    // overwrite unitPrice with the product's CURRENT selling price via
+    // onOrderRowProductChange - re-set it back to the order's actual
+    // (possibly historical/different) price right after, then recompute
+    // the line total against that correct value.
+    combo.setSelection(prefill.skuId, prefill.name);
+    row.querySelector(".unitPrice").value = formatRupiah(prefill.unitPrice);
+    updateOrderRowTotal(row);
+  }
 }
 
 // Price auto-fills from the product's Base Selling Price - Orders always
@@ -331,7 +383,10 @@ function collectOrderItems() {
     const skuId = row._combo.getValue();
     const qty = Number(row.querySelector(".qty").value) || 0;
     const price = parseAmount(row.querySelector(".unitPrice").value);
-    if (skuId && qty > 0) items.push({ skuId: skuId, qty: qty, unitPrice: price });
+    // lineId only ever set by Edit Order's prefill (see addOrderItemRow) -
+    // undefined for every New Order row, which the backend correctly reads
+    // as "this is a new line" either way.
+    if (skuId && qty > 0) items.push({ skuId: skuId, qty: qty, unitPrice: price, lineId: row.dataset.lineId || undefined });
   });
   return items;
 }
@@ -356,7 +411,15 @@ async function saveOrder() {
     if (isNewCustomer) {
       const name = document.getElementById("newCustomerName").value.trim();
       if (!name) throw new Error("New customer name is required");
-      const created = await api("customers", { method: "POST", body: { name: name } });
+      const created = await api("customers", {
+        method: "POST",
+        body: {
+          name: name,
+          contact: document.getElementById("newCustomerContact").value.trim() || undefined,
+          area: _newCustomerAreaCombo.getValue() || undefined,
+          address: document.getElementById("newCustomerAddress").value.trim() || undefined
+        }
+      });
       customerId = created.id;
       _ordersLookups.customers.push(created); // so it's pickable next time without a reload
     }
@@ -385,6 +448,107 @@ async function saveOrder() {
     };
 
     await api("orders", { method: "POST", body: payload });
+    closeModal();
+    await loadOrdersData();
+  });
+}
+
+// ---------- Edit Order modal (Ongoing Online Orders only) ----------
+// Same layout as New Order, but Order Date and Customer are locked
+// (read-only, never sent in the PATCH) and there's no Driver/Fulfillment
+// Status/Payment Status - those are handled by their own dedicated actions
+// (Mark Delivered's driver picker, Mark Paid) rather than a general edit,
+// per explicit request. Reuses the exact same item-row machinery as New
+// Order (addOrderItemRow/collectOrderItems/onOrderTypeChange etc.) since
+// only one modal is ever open at a time.
+
+function openEditOrderModal(orderCode) {
+  const o = _ordersByCode[orderCode];
+  if (!o) return;
+  openModal(buildEditOrderFormHtml(o));
+  initEditOrderForm(o);
+}
+
+function buildEditOrderFormHtml(o) {
+  return (
+    "<h2>Edit Order - " + o.orderCode + "</h2>" +
+    '<div style="display:flex; gap:20px; flex-wrap:wrap;">' +
+      "<div>" +
+        "<label>Order Date</label><br>" +
+        '<input type="text" value="' + o.orderDate + '" readonly style="background:var(--color-disabled-bg); width:150px; box-sizing:border-box;">' +
+      "</div>" +
+      "<div>" +
+        "<label>Delivery Date</label><br>" +
+        '<div style="display:flex; align-items:center; gap:8px;">' +
+          '<input type="checkbox" id="deliveryToday" onchange="setDeliveryToday()">' +
+          '<label for="deliveryToday">Today</label>' +
+          '<input type="date" id="deliveryDate">' +
+        "</div>" +
+      "</div>" +
+    "</div><br>" +
+
+    "<div>" +
+      "<label>Customer</label><br>" +
+      '<input type="text" value="' + o.customerName + '" readonly style="background:var(--color-disabled-bg); width:220px; box-sizing:border-box;">' +
+    "</div><br>" +
+
+    '<table style="table-layout:fixed; width:auto;">' +
+      '<colgroup><col style="width:200px;"><col style="width:90px;"><col style="width:130px;"><col style="width:130px;"><col style="width:74px;"></colgroup>' +
+      "<thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th><th></th></tr></thead>" +
+      '<tbody id="orderItemRows"></tbody>' +
+    "</table>" +
+    '<button type="button" onclick="addOrderItemRow()">+ Add Item</button>' +
+    '<div style="margin-top:8px; font-weight:bold;">Total: <span id="orderGrandTotal" class="font-number">Rp 0</span></div><br>' +
+
+    '<div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start;">' +
+      '<div style="width:160px;">' +
+        "<label>Fulfillment Type</label><br>" +
+        '<select id="orderType" onchange="onOrderTypeChange()" style="width:100%;">' +
+          "<option>Delivery</option><option>Takeaway</option>" +
+        "</select>" +
+      "</div>" +
+      '<div id="orderDeliveryFeeWrap" style="width:160px;">' +
+        "<label>Delivery Fee</label><br>" +
+        '<input type="text" id="orderDeliveryFee" inputmode="numeric" oninput="formatAmount(this)" style="width:100%; box-sizing:border-box;">' +
+      "</div>" +
+    "</div><br>" +
+
+    "<label>Notes</label><br>" +
+    '<input type="text" id="orderNotes" style="width:400px;"><br><br>' +
+
+    '<button id="saveOrderBtn" class="btn-primary" onclick="saveEditOrder(\'' + o.orderCode + '\')">Save Changes</button>' +
+    '<span id="saveOrderStatus" class="save-status"></span>'
+  );
+}
+
+function initEditOrderForm(o) {
+  document.getElementById("deliveryDate").value = o.deliveryDate || "";
+  document.getElementById("orderType").value = o.orderType;
+  document.getElementById("orderDeliveryFee").value = o.deliveryFee ? formatRupiah(o.deliveryFee) : "";
+  document.getElementById("orderNotes").value = o.notes || "";
+
+  o.items.forEach((it) => addOrderItemRow({ lineId: it.lineId, skuId: it.skuId, name: it.name, qty: it.qty, unitPrice: it.unitPrice }));
+  onOrderTypeChange();
+}
+
+function saveEditOrder(orderCode) {
+  const btn = document.getElementById("saveOrderBtn");
+  const statusEl = document.getElementById("saveOrderStatus");
+
+  withSaveStatus(btn, statusEl, "Order", async function () {
+    const items = collectOrderItems();
+    if (!items.length) throw new Error("Add at least one product");
+
+    const orderType = document.getElementById("orderType").value;
+    const payload = {
+      deliveryDate: document.getElementById("deliveryDate").value || null,
+      items: items,
+      orderType: orderType,
+      deliveryFee: orderType === "Delivery" ? parseAmount(document.getElementById("orderDeliveryFee").value) : 0,
+      notes: document.getElementById("orderNotes").value || null
+    };
+
+    await api("orders/" + encodeURIComponent(orderCode), { method: "PATCH", body: payload });
     closeModal();
     await loadOrdersData();
   });
@@ -1080,13 +1244,14 @@ function ongoingRowHtml(o) {
 
   const paymentHtml = o.paymentStatus + (o.paymentStatus === "Paid" && o.paymentMethod ? '<br><span style="font-size:12px; color:var(--color-text-muted);">' + o.paymentMethod + "</span>" : "");
 
-  // Copy Form - Online Orders only (a manually-placed order from a customer
-  // chatting over WA), not shared via orderActionsHtml so it never shows up
-  // on Platform Orders' ongoing rows (those customers ordered through the
-  // GoFood app itself, not WA - there's no "form" to send them). Extra
-  // bottom margin separates it from the Mark Paid/etc buttons below it.
+  // Copy Form/Edit Order - Online Orders only, not shared via
+  // orderActionsHtml so they never show up on Platform Orders' ongoing rows
+  // (GoFood customers ordered through the app, not WA, and their order
+  // details aren't ours to edit). Extra bottom margin after Edit Order
+  // separates this pair from the Mark Paid/etc buttons below.
   const actions =
-    '<button style="font-size:12px; width:130px; margin-bottom:10px;" onclick="copyOrderFormText(this, \'' + o.orderCode + '\')">Copy Form</button><br>' +
+    '<button style="font-size:12px; width:130px;" onclick="copyOrderFormText(this, \'' + o.orderCode + '\')">Copy Form</button><br>' +
+    '<button style="font-size:12px; width:130px; margin-bottom:10px;" onclick="openEditOrderModal(\'' + o.orderCode + '\')">Edit Order</button><br>' +
     orderActionsHtml(o);
 
   return (

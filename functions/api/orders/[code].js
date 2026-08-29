@@ -1,6 +1,15 @@
 // Inline status-update endpoint for one order row in the ongoing/history
-// table - PATCH /api/orders/ORD-0079. Only touches the fields the client
-// actually sends (status dropdowns, driver, payment), never the items.
+// table - PATCH /api/orders/ORD-0079. Also handles Edit Order (Ongoing
+// Orders' own Edit button, see pages/orders.js's openEditOrderModal) - a
+// separate concern (editing static order details/items, not a status
+// transition) that shares this endpoint rather than a new route, since this
+// is already the one mutation point for an order. items, when present,
+// fully replace order_items (reconciled by lineId - update/delete-not-
+// present/insert-new, same pattern as purchases/[code].js), with cost
+// snapshots recomputed fresh from current costing - safe because Edit Order
+// is only ever reachable from the Ongoing list, and an order there has
+// never reached Completed yet (recordOrderConsumption hasn't fired for it),
+// so there's no stale consumption/stock record an item edit could desync.
 import { getSupabase, getBrandId, jsonResponse, errorResponse } from "../_lib/supabase.js";
 import { buildCostResolver } from "../_lib/costing.js";
 import { recordOrderConsumption, normalizeDriverNameRaw } from "../_lib/orders.js";
@@ -11,7 +20,10 @@ const PATCHABLE_FIELDS = {
   fulfillmentStatus: "fulfillment_status",
   paymentStatus: "payment_status",
   paymentMethod: "payment_method",
+  deliveryDate: "delivery_date",
+  orderType: "order_type",
   deliveryFee: "delivery_fee",
+  notes: "notes",
   driverStaffId: "driver_staff_id",
   driverNameRaw: "driver_name_raw",
   driverPayout: "driver_payout",
@@ -28,7 +40,9 @@ export async function onRequestPatch({ request, env, params }) {
       if (clientKey in body) update[column] = body[clientKey];
     }
     if ("driverNameRaw" in body) update.driver_name_raw = normalizeDriverNameRaw(body.driverNameRaw);
-    if (!Object.keys(update).length) {
+
+    const hasItemsUpdate = Array.isArray(body.items);
+    if (!Object.keys(update).length && !hasItemsUpdate) {
       return jsonResponse({ error: "No updatable fields provided" }, 400);
     }
 
@@ -37,7 +51,7 @@ export async function onRequestPatch({ request, env, params }) {
 
     const { data: current, error: curErr } = await supabase
       .from("orders")
-      .select("order_status, payment_status, fulfillment_status, delivery_fee, driver_staff_id, driver_name_raw")
+      .select("id, order_status, payment_status, fulfillment_status, delivery_fee, driver_staff_id, driver_name_raw, order_date")
       .eq("brand_id", brandId)
       .eq("order_code", params.code)
       .maybeSingle();
@@ -61,15 +75,62 @@ export async function onRequestPatch({ request, env, params }) {
       update.order_status = "Completed";
     }
 
-    const { data, error } = await supabase
-      .from("orders")
-      .update(update)
-      .eq("brand_id", brandId)
-      .eq("order_code", params.code)
-      .select("id, order_code, order_date")
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) return jsonResponse({ error: "Order not found: " + params.code }, 404);
+    // An items-only edit (no scalar fields changed) has nothing for this
+    // UPDATE to set - skip it rather than sending an empty SET clause, and
+    // fall back to `current`'s own id/order_code/order_date for the items
+    // reconciliation and response below.
+    let data = { id: current.id, order_code: params.code, order_date: current.order_date };
+    if (Object.keys(update).length) {
+      const { data: updated, error } = await supabase
+        .from("orders")
+        .update(update)
+        .eq("brand_id", brandId)
+        .eq("order_code", params.code)
+        .select("id, order_code, order_date")
+        .maybeSingle();
+      if (error) throw error;
+      if (!updated) return jsonResponse({ error: "Order not found: " + params.code }, 404);
+      data = updated;
+    }
+
+    if (hasItemsUpdate) {
+      const resolver = await buildCostResolver(supabase, brandId);
+      const { data: existingItems, error: existErr } = await supabase.from("order_items").select("id").eq("order_id", current.id);
+      if (existErr) throw existErr;
+      const existingIds = new Set(existingItems.map((it) => it.id));
+      const sentIds = new Set(body.items.filter((it) => it.lineId).map((it) => it.lineId));
+
+      const toDelete = [...existingIds].filter((id) => !sentIds.has(id));
+      if (toDelete.length) {
+        const { error: delErr } = await supabase.from("order_items").delete().in("id", toDelete);
+        if (delErr) throw delErr;
+      }
+
+      // Sequential (not Promise.all) - avoids racing whatever DB triggers
+      // key off order_items writes, same reasoning as
+      // purchases/[code].js's line reconciliation.
+      for (const it of body.items) {
+        const qty = Number(it.qty);
+        const { items: recipeItems } = resolver.getBreakdown(it.skuId);
+        const foodCostPerUnit = recipeItems.filter((x) => x.itemType !== "Packaging").reduce((sum, x) => sum + x.lineCost, 0);
+        const packagingCostPerUnit = recipeItems.filter((x) => x.itemType === "Packaging").reduce((sum, x) => sum + x.lineCost, 0);
+        const row = {
+          order_id: current.id,
+          sku_id: it.skuId,
+          qty: qty,
+          unit_price: it.unitPrice,
+          food_cost_snapshot: foodCostPerUnit * qty,
+          packaging_cost_snapshot: packagingCostPerUnit * qty
+        };
+        if (it.lineId && existingIds.has(it.lineId)) {
+          const { error: updErr } = await supabase.from("order_items").update(row).eq("id", it.lineId);
+          if (updErr) throw updErr;
+        } else {
+          const { error: insErr } = await supabase.from("order_items").insert(row);
+          if (insErr) throw insErr;
+        }
+      }
+    }
 
     // Deduct stock for direct-recipe Ingredient/Packaging/Operating lines,
     // and resync the Driver Payout OpEx group, both at the exact moment
