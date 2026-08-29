@@ -938,15 +938,8 @@ function renderOrdersTable(wrap, orders, scope) {
         ? "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Fulfillment Type</th><th>Order Status</th><th>Notes</th></tr>"
         : "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Type</th><th>Status</th><th>Notes</th><th></th></tr>");
 
-  // Ongoing only - Date and Customer get explicit (slightly narrower)
-  // widths, everything else in this table stays unconstrained (empty <col>,
-  // shares whatever space is left) - per explicit request. History is
-  // untouched, still fully auto-layout.
-  const isOngoingOnline = !_ordersIsPlatformMode && scope === "ongoing";
-  const colgroup = isOngoingOnline
-    ? '<colgroup><col style="width:90px;"><col style="width:170px;"><col><col><col><col><col><col></colgroup>'
-    : "";
-  const tableStyle = isOngoingOnline ? ' style="table-layout:fixed; width:auto;"' : "";
+  const colgroup = "";
+  const tableStyle = "";
 
   // IDs suffixed by scope - Ongoing and History now render into separate
   // containers on the same page at once (not tab-swapped), so they can't
