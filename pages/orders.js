@@ -852,8 +852,13 @@ function customerCell(o, showAddress) {
     o.customerName +
     '<br><span style="color:var(--color-text-muted); font-size:12px;">' + (o.customerContact ? formatPhoneDisplay(o.customerContact) : "") + "</span>" +
     '<br><span style="color:var(--color-text-muted); font-size:12px;">' + o.orderCode + "</span>" +
+    // max-width capped so this line (the only structural difference from
+    // History's customerCell) can't stretch the column wider than what
+    // name/contact/order code alone would need - it just wraps instead,
+    // keeping Ongoing's Customer column sized the same as History's per
+    // explicit request, without hardcoding either table's column widths.
     (showAddress && areaAddressText(o.customerArea, o.customerAddress)
-      ? '<br><span style="color:var(--color-text-muted); font-size:12px;">' + areaAddressText(o.customerArea, o.customerAddress) + "</span>"
+      ? '<br><span style="display:block; max-width:150px; color:var(--color-text-muted); font-size:12px;">' + areaAddressText(o.customerArea, o.customerAddress) + "</span>"
       : "")
   );
 }
