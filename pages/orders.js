@@ -921,17 +921,11 @@ function renderOrdersTable(wrap, orders, scope) {
     ? orders.map(scope === "history" ? platformHistoryRowHtml : platformOngoingRowHtml).join("")
     : orders.map(scope === "history" ? historyRowHtml : ongoingRowHtml).join("");
 
-  // Online (Ongoing and History, not Platform) gets explicit column
-  // widths - Customer narrower, Items wider, Payment+Status merged into one
-  // Status column on Ongoing (see ongoingRowHtml) - per explicit request.
-  // Date/Customer/Items/Total share the EXACT same widths across both
-  // tables (ONLINE_SHARED_COL_WIDTHS below), so they line up visually
-  // whether you're looking at Ongoing or History; each table's own
-  // remaining columns get their own widths after that.
-  const isOnline = !_ordersIsPlatformMode;
-  const isOnlineOngoing = isOnline && scope === "ongoing";
-  const isOnlineHistory = isOnline && scope === "history";
-
+  // Reverted the fixed-width colgroup experiment on both Online tables -
+  // back to plain auto-layout (content-driven sizing) for all columns, per
+  // explicit correction. The Status merge/Total rename/Notes-Order Status
+  // swap (in `head` below and their row builders) are unrelated content/
+  // order changes, not sizing, and stay.
   const head = _ordersIsPlatformMode
     ? (scope === "history"
         ? "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total Price</th><th>Order Status</th><th>Notes</th></tr>"
@@ -940,18 +934,8 @@ function renderOrdersTable(wrap, orders, scope) {
         ? "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Fulfillment Type</th><th>Order Status</th><th>Notes</th></tr>"
         : "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Type</th><th>Status</th><th>Notes</th><th></th></tr>");
 
-  // Customer ~20% narrower, Items ~50% wider than their previous
-  // auto-sized widths - table-layout:fixed + width:auto (not just the
-  // colgroup) is required for these to actually take effect, not just be
-  // treated as ratios - see the table{width:100%} stretch bug fixed
-  // earlier this session (Purchase Log/Sales/Cashflow tables).
-  const ONLINE_SHARED_COLS = '<col style="width:100px;"><col style="width:160px;"><col style="width:300px;"><col style="width:100px;">'; // Date, Customer, Items, Total
-  const colgroup = isOnlineOngoing
-    ? "<colgroup>" + ONLINE_SHARED_COLS + '<col style="width:90px;"><col style="width:120px;"><col style="width:130px;"><col style="width:150px;"></colgroup>' // Type, Status, Notes, Actions
-    : isOnlineHistory
-      ? "<colgroup>" + ONLINE_SHARED_COLS + '<col style="width:90px;"><col style="width:120px;"><col style="width:150px;"></colgroup>' // Fulfillment Type, Order Status, Notes
-      : "";
-  const tableStyle = isOnline ? ' style="table-layout:fixed; width:auto;"' : "";
+  const colgroup = "";
+  const tableStyle = "";
 
   // IDs suffixed by scope - Ongoing and History now render into separate
   // containers on the same page at once (not tab-swapped), so they can't
