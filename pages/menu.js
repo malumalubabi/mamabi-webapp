@@ -115,7 +115,7 @@ function renderBatchTable(wrap, rows, scope) {
         "> Show Cancelled Batches (" + cancelledCount + ")</label></div>"
       : "");
 
-  paginateTable(tbodyId, paginationId, 20);
+  paginateTable(tbodyId, paginationId, scope === "history" ? 10 : 20);
   enableDragScroll(document.getElementById(scrollWrapId));
 }
 

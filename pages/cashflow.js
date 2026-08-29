@@ -160,7 +160,7 @@ function renderCashflowLedgerRows() {
   });
 
   tbody.innerHTML = rows.length ? rows.map(cashflowRowHtml).join("") : '<tr><td colspan="8">No transactions match this filter.</td></tr>';
-  paginateTable("cashflowLedgerTbody", "cashflowLedgerPaginationNav", 20);
+  paginateTable("cashflowLedgerTbody", "cashflowLedgerPaginationNav", 10);
 }
 
 function openCashflowLogFilterSortModal() {

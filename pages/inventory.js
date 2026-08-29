@@ -615,7 +615,7 @@ function renderPurchaseLogRows() {
 
   const rows = visiblePurchaseRows();
   tbody.innerHTML = rows.length ? rows.map(purchaseRowHtml).join("") : '<tr><td colspan="10">No purchases match this filter.</td></tr>';
-  paginateGroupedTable("purchaseLogTbody", "purchasePaginationNav", 20);
+  paginateGroupedTable("purchaseLogTbody", "purchasePaginationNav", 5);
   enableDragScroll(document.getElementById("purchaseLogScrollWrap"));
 }
 

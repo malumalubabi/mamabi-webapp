@@ -161,7 +161,7 @@ function renderOpexLogRows() {
   const rows = sortOpexRows(filtered, _opexSort);
 
   tbody.innerHTML = rows.length ? rows.map(opexRowHtml).join("") : '<tr><td colspan="10">No expenses match this filter.</td></tr>';
-  paginateTable("opexTbody", "opexPaginationNav", 20);
+  paginateTable("opexTbody", "opexPaginationNav", 10);
 }
 
 function opexRowHtml(r) {

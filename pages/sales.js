@@ -238,7 +238,7 @@ function renderSalesLogTab(wrap) {
   if (badge) badge.textContent = (_salesLogChannelFilter.length ? _salesLogChannelFilter.join(", ") : "All") + " | " + SALES_LOG_SORT_LABELS[_salesLogSort];
 
   if (rows.length) {
-    paginateGroupedTable("salesLogTbody", "salesPaginationNav", 20);
+    paginateGroupedTable("salesLogTbody", "salesPaginationNav", 5);
     enableDragScroll(document.getElementById("salesLogScrollWrap"));
   }
 }
