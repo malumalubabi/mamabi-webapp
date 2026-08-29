@@ -921,13 +921,29 @@ function renderOrdersTable(wrap, orders, scope) {
     ? orders.map(scope === "history" ? platformHistoryRowHtml : platformOngoingRowHtml).join("")
     : orders.map(scope === "history" ? historyRowHtml : ongoingRowHtml).join("");
 
+  // Online Ongoing only gets explicit column widths (Customer narrower,
+  // Items wider, Payment+Status merged into one Status column showing
+  // payment on top/order status below - see ongoingRowHtml) - per explicit
+  // request. History/Platform tables are unchanged, still auto-layout.
+  const isOnlineOngoing = !_ordersIsPlatformMode && scope === "ongoing";
+
   const head = _ordersIsPlatformMode
     ? (scope === "history"
         ? "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total Price</th><th>Notes</th><th>Order Status</th></tr>"
         : "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total Price</th><th>Status</th><th>Notes</th><th></th></tr>")
     : (scope === "history"
         ? "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Fulfillment Type</th><th>Notes</th><th>Order Status</th></tr>"
-        : "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total Price</th><th>Type</th><th>Payment</th><th>Status</th><th>Notes</th><th></th></tr>");
+        : "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Type</th><th>Status</th><th>Notes</th><th></th></tr>");
+
+  // Customer ~20% narrower, Items ~50% wider than their previous
+  // auto-sized widths - table-layout:fixed + width:auto (not just the
+  // colgroup) is required for these to actually take effect, not just be
+  // treated as ratios - see the table{width:100%} stretch bug fixed
+  // earlier this session (Purchase Log/Sales/Cashflow tables).
+  const colgroup = isOnlineOngoing
+    ? '<colgroup><col style="width:100px;"><col style="width:160px;"><col style="width:300px;"><col style="width:100px;"><col style="width:90px;"><col style="width:120px;"><col style="width:130px;"><col style="width:150px;"></colgroup>'
+    : "";
+  const tableStyle = isOnlineOngoing ? ' style="table-layout:fixed; width:auto;"' : "";
 
   // IDs suffixed by scope - Ongoing and History now render into separate
   // containers on the same page at once (not tab-swapped), so they can't
@@ -942,7 +958,7 @@ function renderOrdersTable(wrap, orders, scope) {
     titleRow +
     '<div id="' + paginationId + '" class="pagination-nav"></div>' +
     '<div id="' + scrollWrapId + '" style="overflow-x:auto;">' +
-      "<table><thead>" + head + "</thead>" +
+      "<table" + tableStyle + ">" + colgroup + "<thead>" + head + "</thead>" +
       '<tbody id="' + tbodyId + '">' + rows + "</tbody></table>" +
     "</div>";
 
@@ -1353,6 +1369,11 @@ function ongoingRowHtml(o) {
 
   const paymentHtml = o.paymentStatus + (o.paymentStatus === "Paid" && o.paymentMethod ? '<br><span style="font-size:12px; color:var(--color-text-muted);">' + o.paymentMethod + "</span>" : "");
 
+  // Merged Payment+Status into one Status column - payment on top, order/
+  // fulfillment status below it, separated by a small gap - per explicit
+  // request.
+  const combinedStatusHtml = paymentHtml + (statusHtml ? '<div style="margin-top:6px;">' + statusHtml + "</div>" : "");
+
   // Copy Form/Edit Order - Online Orders only, not shared via
   // orderActionsHtml so they never show up on Platform Orders' ongoing rows
   // (GoFood customers ordered through the app, not WA, and their order
@@ -1370,8 +1391,7 @@ function ongoingRowHtml(o) {
       "<td>" + itemsCell(o) + "</td>" +
       '<td><span class="font-number">' + formatRupiah(orderTotal(o)) + "</span></td>" +
       "<td>" + typeCell(o) + "</td>" +
-      "<td>" + paymentHtml + "</td>" +
-      "<td>" + statusHtml + "</td>" +
+      "<td>" + combinedStatusHtml + "</td>" +
       "<td>" + (o.notes || "") + "</td>" +
       '<td class="orderActions" style="text-align:left;" data-order="' + o.orderCode + '">' + actions + "</td>" +
     "</tr>"
