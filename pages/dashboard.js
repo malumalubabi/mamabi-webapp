@@ -403,10 +403,12 @@ function dv2RevenueTicks(maxVal) {
     : Array.from({ length: Math.round(maxVal / step) + 1 }, (_, i) => i * step);
 }
 
-// Catmull-Rom -> cubic Bezier conversion (standard /6 tension constant) -
-// curves smoothly through every point instead of a straight-segment
-// polyline, without overshooting past the data like a looser spline would.
-function dv2SmoothLinePath(coords) {
+// Catmull-Rom -> cubic Bezier conversion, tension constant /10 (gentler
+// than the standard /6 - a lighter touch of curve, not a full spline).
+// baselineY (the chart's y=0 pixel row) clamps both control points so a dip
+// toward zero between two low points can never bow past the zero line -
+// revenue is never negative, so the curve shouldn't visually suggest it is.
+function dv2SmoothLinePath(coords, baselineY) {
   if (!coords.length) return "";
   if (coords.length === 1) return "M" + coords[0].x.toFixed(1) + " " + coords[0].y.toFixed(1);
 
@@ -416,10 +418,10 @@ function dv2SmoothLinePath(coords) {
     const p1 = coords[i];
     const p2 = coords[i + 1];
     const p3 = coords[i + 2] || p2;
-    const cp1x = p1.x + (p2.x - p0.x) / 6;
-    const cp1y = p1.y + (p2.y - p0.y) / 6;
-    const cp2x = p2.x - (p3.x - p1.x) / 6;
-    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    const cp1x = p1.x + (p2.x - p0.x) / 10;
+    const cp1y = Math.min(p1.y + (p2.y - p0.y) / 10, baselineY);
+    const cp2x = p2.x - (p3.x - p1.x) / 10;
+    const cp2y = Math.min(p2.y - (p3.y - p1.y) / 10, baselineY);
     d += " C" + cp1x.toFixed(1) + " " + cp1y.toFixed(1) + " " + cp2x.toFixed(1) + " " + cp2y.toFixed(1) + " " + p2.x.toFixed(1) + " " + p2.y.toFixed(1);
   }
   return d;
@@ -458,7 +460,7 @@ function dv2RevenueChartSvg(points) {
     value: p.value
   }));
 
-  const linePath = dv2SmoothLinePath(coords);
+  const linePath = dv2SmoothLinePath(coords, padding.top + chartH);
   const last = coords[coords.length - 1];
   const first = coords[0];
   const areaPath = linePath + " L" + last.x.toFixed(1) + " " + (padding.top + chartH) + " L" + first.x.toFixed(1) + " " + (padding.top + chartH) + " Z";
@@ -530,7 +532,7 @@ function dv2RevenueMultiChartSvg(buckets) {
     .map((platform, pi) => {
       const color = platformColors[pi];
       const coords = buckets.map((b, i) => ({ x: xOf(i), y: yOf(b.byPlatform[platform] || 0) }));
-      const path = dv2SmoothLinePath(coords);
+      const path = dv2SmoothLinePath(coords, padding.top + chartH);
       return '<path d="' + path + '" fill="none" stroke="' + color + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
     })
     .join("");
