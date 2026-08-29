@@ -242,7 +242,7 @@ function dv2WireChartTooltip(el, buckets, view) {
   line.setAttribute("stroke-dasharray", "3,3");
   overlay.appendChild(line);
 
-  const dotColors = view === "channel" ? platformColors : ["#5c7ec9"];
+  const dotColors = view === "channel" ? platformColors : ["#87a9f4"];
   const dots = dotColors.map((color) => {
     const c = document.createElementNS(svgNS, "circle");
     c.setAttribute("r", "4");
@@ -484,8 +484,8 @@ function dv2RevenueChartSvg(points) {
       '<div class="dv2-chart-scroll">' +
         '<svg viewBox="0 0 ' + width + " " + height + '" style="width:' + width + "px; height:" + height + 'px;">' +
           gridLines +
-          '<path d="' + areaPath + '" fill="#5c7ec91a" stroke="none"/>' +
-          '<path d="' + linePath + '" fill="none" stroke="#5c7ec9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<path d="' + areaPath + '" fill="#87a9f41a" stroke="none"/>' +
+          '<path d="' + linePath + '" fill="none" stroke="#87a9f4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
           xLabels +
         "</svg>" +
       "</div>" +
@@ -564,11 +564,11 @@ function dv2RevenueMultiChartSvg(buckets) {
 // blue, GoFood = red); every other platform (GrabFood, Dine In, ...) falls
 // back to the shared donut palette, skipping blue/red so it never collides
 // with the fixed pair.
-const DV2_PLATFORM_COLORS = { "Online": "#5c7ec9", "GoFood": "#c15d5d" };
+const DV2_PLATFORM_COLORS = { "Online": "#87a9f4", "GoFood": "#ec8888" };
 // Same palette as DV2_DONUT_COLORS below minus blue/red (already spoken for
 // above) - kept as a literal instead of filtering that array, since this
 // const runs at script-load time, before DV2_DONUT_COLORS is declared.
-const DV2_FALLBACK_LINE_COLORS = ["#54a271", "#cf9f4e", "#947bcf", "#4c98aa", "#c05d89", "#80a24f"];
+const DV2_FALLBACK_LINE_COLORS = ["#7fcc9b", "#faca79", "#bfa5fa", "#77c3d5", "#eb88b4", "#aacc7a"];
 
 function dv2ColorsForPlatforms(platforms) {
   let fallbackIdx = 0;
@@ -597,7 +597,7 @@ function dv2SortPlatforms(platforms) {
 
 // ---------- OpEx donut chart (inline SVG arcs, no library) ----------
 
-const DV2_DONUT_COLORS = ["#5c7ec9", "#54a271", "#cf9f4e", "#c15d5d", "#947bcf", "#4c98aa", "#c05d89", "#80a24f"];
+const DV2_DONUT_COLORS = ["#87a9f4", "#7fcc9b", "#faca79", "#ec8888", "#bfa5fa", "#77c3d5", "#eb88b4", "#aacc7a"];
 
 function dv2DonutSection(segments) {
   if (!segments.length) return "<p>No OpEx recorded yet this month.</p>";
@@ -721,7 +721,7 @@ function dv2UnpaidDriverPayoutCard(unpaidTotal, monthSplit) {
     "Unpaid Driver Payout",
     formatRupiah(unpaidTotal),
     ratio,
-    "#c15d5d",
+    "#ec8888",
     caption,
     "navigateTo('orders-payout')"
   );
@@ -738,7 +738,7 @@ function dv2StockAlertCard(items, totalTracked) {
     "Stock Alert",
     label,
     ratio,
-    "#cf9f4e",
+    "#faca79",
     caption,
     count > 0 ? "navigateTo('inventory-stock?tab=overview&filter=low')" : null
   );
