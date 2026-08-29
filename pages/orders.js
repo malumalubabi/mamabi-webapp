@@ -516,8 +516,8 @@ function buildOrderFormText(o) {
     "Nama Lengkap: " + o.customerName + "\n" +
     "No. WA: " + waDigits + "\n" +
     "Alamat: " + address + "\n\n" +
-    "Pesanan:\n\n" +
-    itemLines + "\n\n\n" +
+    "Pesanan:\n" +
+    itemLines + "\n\n" +
     "TOTAL: Rp. " + orderTotal(o).toLocaleString("id-ID") + "\n\n" +
     "Metode Bayar: " + (o.paymentMethod || "") + "\n\n" +
     "Catatan: " + (o.notes || "")
@@ -534,9 +534,9 @@ function buildBlankOrderFormTemplate() {
     "Nama Lengkap: ...\n" +
     "No. WA: ...\n" +
     "Alamat: ...\n\n" +
-    "Pesanan:\n\n" +
+    "Pesanan:\n" +
     "1. [item] x [jumlah]\n" +
-    "2. [item] x [jumlah]\n\n\n" +
+    "2. [item] x [jumlah]\n\n" +
     "Metode Bayar: \n\n" +
     "Catatan:"
   );
