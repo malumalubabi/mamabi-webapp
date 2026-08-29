@@ -19,8 +19,9 @@ const ORDER_SELECT =
   "order_code, order_date, delivery_date, order_type, order_status, fulfillment_status, " +
   "payment_status, payment_method, delivery_fee, driver_staff_id, driver_name_raw, driver_payout, " +
   "driver_payout_status, driver_payout_method, driver_payout_opex_code, notes, platform, " +
+  "platform_order_id, platform_pin, platform_fulfillment_type, platform_service_fee, platform_customer_name, " +
   "customers(name, contact), staff(name), " +
-  "order_items(qty, unit_price, line_total, food_cost_snapshot, packaging_cost_snapshot, sku_items(sku, name))";
+  "order_items(qty, unit_price, line_total, food_cost_snapshot, packaging_cost_snapshot, notes, sku_items(sku, name))";
 
 export async function onRequestGet({ request, env }) {
   try {
@@ -194,7 +195,11 @@ function shapeOrder(o) {
     driverPayoutOpexCode: o.driver_payout_opex_code,
     notes: o.notes,
     platform: o.platform,
-    customerName: o.customers ? o.customers.name : "",
+    platformOrderId: o.platform_order_id,
+    platformPin: o.platform_pin,
+    platformFulfillmentType: o.platform_fulfillment_type,
+    platformServiceFee: Number(o.platform_service_fee) || 0,
+    customerName: o.customers ? o.customers.name : (o.platform_customer_name || ""),
     customerContact: o.customers ? o.customers.contact : "",
     items: (o.order_items || []).map((it) => ({
       sku: it.sku_items ? it.sku_items.sku : "",
@@ -202,6 +207,7 @@ function shapeOrder(o) {
       qty: Number(it.qty),
       unitPrice: Number(it.unit_price),
       lineTotal: Number(it.line_total),
+      notes: it.notes,
       foodCostSnapshot: it.food_cost_snapshot === null ? null : Number(it.food_cost_snapshot),
       packagingCostSnapshot: it.packaging_cost_snapshot === null ? null : Number(it.packaging_cost_snapshot)
     }))

@@ -131,22 +131,33 @@ async function handleCreated(supabase, brandId, body) {
 
   const orderCode = await nextCode(supabase, "orders", "order_code", brandId, "ORD", 4);
 
-  // No driver/delivery fee tracking on our side - Gojek's own courier
-  // network handles the actual delivery leg and is paid by GoFood directly,
-  // not through our Driver Payout module. order_type "Takeaway" (rather than
-  // "Delivery") reflects this accurately from our bookkeeping's perspective
-  // - the Gojek driver picks food up FROM us, same shape as a Takeaway
-  // customer, and keeps these orders out of Driver Payout's Delivery-only
-  // grouping (see pages/orders.js's renderDriverPayoutSections). fulfillment_status
+  // service_type is "gofood" (Gojek's own driver delivers) or
+  // "gofood_pickup" (consumer collects themselves) - confirmed live in
+  // webhook_logs at body.service_type, not body.order.service_type.
+  const fulfillmentType = body.service_type === "gofood_pickup" ? "Pickup" : "Delivery";
+
+  // No driver/delivery fee tracking on our side either way - even for
+  // "Delivery" here, it's Gojek's own courier network doing the actual leg
+  // and being paid by GoFood directly, not through our Driver Payout module.
+  // order_type "Takeaway" (rather than "Delivery") reflects this accurately
+  // from our bookkeeping's perspective - whoever physically collects the
+  // food does so FROM us, same shape as a Takeaway customer, and keeps
+  // these orders out of Driver Payout's Delivery-only grouping (see
+  // pages/orders.js's renderDriverPayoutSections). fulfillment_status
   // starts Pending like any other order - staff click the same existing
-  // "Mark Picked Up" action once the Gojek driver actually collects it,
-  // which is also what triggers stock consumption (see
-  // functions/api/orders/[code].js's PATCH, unchanged for this case).
+  // "Mark Picked Up" action once collected, which is also what triggers
+  // stock consumption (see functions/api/orders/[code].js's PATCH,
+  // unchanged for this case).
   //
   // payment_status is Paid immediately - GoFood collects payment from the
   // consumer through their own app at order time, never cash/QRIS collected
   // by us, confirmed by the existence of a separate payment.transaction.settlement
-  // webhook event for GoBiz's own settlement to us.
+  // webhook event for GoBiz's own settlement to us. That settlement is a
+  // lump-sum payout the next day though, not per-order, so this deliberately
+  // does NOT get treated as recognized Sales revenue yet (see
+  // _lib/sales.js's getOnlineSalesRows(), which now excludes platform !=
+  // "Online" orders for exactly this reason) - a platform settlement
+  // reconciliation flow would need to exist first.
   const insertRow = {
     brand_id: brandId,
     order_code: orderCode,
@@ -160,7 +171,11 @@ async function handleCreated(supabase, brandId, body) {
     delivery_fee: 0,
     platform: "GoFood",
     platform_order_id: orderNumber,
-    notes: "GoFood #" + orderNumber + (body.customer && body.customer.name ? " - " + body.customer.name : "")
+    platform_pin: (body.order && body.order.pin) || null,
+    platform_fulfillment_type: fulfillmentType,
+    platform_service_fee: (body.order && Number(body.order.takeaway_charges)) || 0,
+    platform_customer_name: (body.customer && body.customer.name) || null,
+    notes: null
   };
 
   const { data: order, error: orderErr } = await supabase
@@ -190,7 +205,8 @@ async function handleCreated(supabase, brandId, body) {
       qty: qty,
       unit_price: unitPrice,
       food_cost_snapshot: foodCostPerUnit * qty,
-      packaging_cost_snapshot: packagingCostPerUnit * qty
+      packaging_cost_snapshot: packagingCostPerUnit * qty,
+      notes: it.notes || null
     });
   });
 

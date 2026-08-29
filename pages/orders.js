@@ -21,11 +21,13 @@ let _driverCombo = null;
 let _ordersByCode = {}; // last-rendered Ongoing/History rows, keyed by order_code - lets the Mark Paid modal show order details without a re-fetch
 let _ordersCurrentPlatformFilter = "Online";
 let _ordersShowNewOrderBtn = true;
+let _ordersIsPlatformMode = false; // Platform Orders has a different column layout (see renderOrdersTable)
 
 async function renderOrdersPage(content) {
   await ensureOrdersLookups();
   _ordersCurrentPlatformFilter = "Online";
   _ordersShowNewOrderBtn = true;
+  _ordersIsPlatformMode = false;
 
   content.innerHTML =
     "<h2>Online Orders</h2>" +
@@ -43,6 +45,7 @@ async function renderPlatformOrdersPage(content) {
   await ensureOrdersLookups();
   _ordersCurrentPlatformFilter = "GrabFood,GoFood";
   _ordersShowNewOrderBtn = false;
+  _ordersIsPlatformMode = true;
 
   content.innerHTML =
     "<h2>Platform Orders</h2>" +
@@ -450,13 +453,22 @@ function renderOrdersTable(wrap, orders, scope) {
     return;
   }
 
-  const rows = scope === "history"
-    ? orders.map(historyRowHtml).join("")
-    : orders.map(ongoingRowHtml).join("");
+  // Platform Orders (GrabFood/GoFood) has its own column set - Type/Payment
+  // are meaningless (always Takeaway/already-Paid via the platform), and
+  // there's platform-only data (order number, PIN, per-item notes, service
+  // fee breakdown) the Online layout has no room or need for - see
+  // platformOngoingRowHtml/platformHistoryRowHtml above.
+  const rows = _ordersIsPlatformMode
+    ? orders.map(scope === "history" ? platformHistoryRowHtml : platformOngoingRowHtml).join("")
+    : orders.map(scope === "history" ? historyRowHtml : ongoingRowHtml).join("");
 
-  const head = scope === "history"
-    ? "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Fulfillment Type</th><th>Notes</th><th>Order Status</th></tr>"
-    : "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total Price</th><th>Type</th><th>Payment</th><th>Status</th><th>Notes</th><th></th></tr>";
+  const head = _ordersIsPlatformMode
+    ? (scope === "history"
+        ? "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total Price</th><th>Notes</th><th>Order Status</th></tr>"
+        : "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total Price</th><th>Status</th><th>Notes</th><th></th></tr>")
+    : (scope === "history"
+        ? "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Fulfillment Type</th><th>Notes</th><th>Order Status</th></tr>"
+        : "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total Price</th><th>Type</th><th>Payment</th><th>Status</th><th>Notes</th><th></th></tr>");
 
   // IDs suffixed by scope - Ongoing and History now render into separate
   // containers on the same page at once (not tab-swapped), so they can't
@@ -850,6 +862,24 @@ function savePayoutEdit(btn) {
   });
 }
 
+// Shared by ongoingRowHtml and platformOngoingRowHtml - Mark Paid/Mark
+// Delivered-or-PickedUp/Cancel Order all key off generic order fields, no
+// platform-specific logic needed (a GoFood order's paymentStatus is already
+// "Paid" at creation, so Mark Paid just never renders for it, same effect
+// achieved for free).
+function orderActionsHtml(o) {
+  const fulfillmentDone = o.fulfillmentStatus !== "Pending";
+  return (
+    (o.paymentStatus !== "Paid" ? '<button style="font-size:12px;" onclick="startMarkOrderPaid(\'' + o.orderCode + '\')">Mark Paid</button><br>' : "") +
+    (!fulfillmentDone ? '<button style="font-size:12px;" onclick="markOrderDeliveryStatus(this, \'' + o.orderCode + '\', \'' + o.orderType + '\')">' + (o.orderType === "Takeaway" ? "Mark Picked Up" : "Mark Delivered") + "</button><br>" : "") +
+    // Extra top margin so Cancel sits visibly apart from Mark Paid/Mark
+    // Delivered above it - those two get used often, Cancel rarely, so a
+    // slip of the mouse shouldn't land on it. Label spelled out
+    // ("Cancel Order") since a bare "Cancel" reads as "cancel this action".
+    '<button style="font-size:12px; margin-top:10px;" onclick="markOrderCancelled(\'' + o.orderCode + '\')">Cancel Order</button>'
+  );
+}
+
 function ongoingRowHtml(o) {
   const fulfillmentDone = o.fulfillmentStatus !== "Pending";
   const statusHtml = fulfillmentDone
@@ -858,14 +888,7 @@ function ongoingRowHtml(o) {
 
   const paymentHtml = o.paymentStatus + (o.paymentStatus === "Paid" && o.paymentMethod ? '<br><span style="font-size:12px; color:var(--color-text-muted);">' + o.paymentMethod + "</span>" : "");
 
-  const actions =
-    (o.paymentStatus !== "Paid" ? '<button style="font-size:12px;" onclick="startMarkOrderPaid(\'' + o.orderCode + '\')">Mark Paid</button><br>' : "") +
-    (!fulfillmentDone ? '<button style="font-size:12px;" onclick="markOrderDeliveryStatus(this, \'' + o.orderCode + '\', \'' + o.orderType + '\')">' + (o.orderType === "Takeaway" ? "Mark Picked Up" : "Mark Delivered") + "</button><br>" : "") +
-    // Extra top margin so Cancel sits visibly apart from Mark Paid/Mark
-    // Delivered above it - those two get used often, Cancel rarely, so a
-    // slip of the mouse shouldn't land on it. Label spelled out
-    // ("Cancel Order") since a bare "Cancel" reads as "cancel this action".
-    '<button style="font-size:12px; margin-top:10px;" onclick="markOrderCancelled(\'' + o.orderCode + '\')">Cancel Order</button>';
+  const actions = orderActionsHtml(o);
 
   return (
     "<tr>" +
@@ -896,6 +919,104 @@ function historyRowHtml(o) {
       "<td>" + itemsCell(o) + "</td>" +
       "<td>" + totalHtml + "</td>" +
       "<td>" + typeCell(o) + "</td>" +
+      "<td>" + (o.notes || "") + "</td>" +
+      "<td>" + statusLabel + statusSub + "</td>" +
+    "</tr>"
+  );
+}
+
+// ---------- Platform Orders (GrabFood/GoFood) - dedicated column layout ----------
+// Distinct from the Online cell builders above (dateCell/customerCell/
+// itemsCell/typeCell) since Type/Payment are meaningless here (always
+// Takeaway/already-Paid via the platform) and there's extra platform-only
+// data to show instead: platform name + fulfillment method, the platform's
+// own order number/PIN, and per-item notes.
+
+// GoFood's own order_total = items subtotal + takeaway/service charge (see
+// functions/api/webhooks/gofood.js) - orderTotal(o) (items + deliveryFee)
+// doesn't apply here since deliveryFee is always 0 for platform orders.
+function platformOrderTotal(o) {
+  return o.items.reduce((s, it) => s + it.lineTotal, 0) + o.platformServiceFee;
+}
+
+function platformDateCell(o) {
+  return (
+    "<div>" + o.orderDate + "</div>" +
+    '<div style="margin-top:4px; font-size:12px; color:var(--color-text-muted);">' + o.platform + "</div>" +
+    '<div style="font-size:12px; color:var(--color-text-muted);">' + (o.platformFulfillmentType === "Pickup" ? "Self Pick Up" : "by Driver") + "</div>"
+  );
+}
+
+function platformCustomerCell(o) {
+  return (
+    o.customerName +
+    '<br><span style="color:var(--color-text-muted); font-size:12px;">' + o.orderCode + "</span>" +
+    "<br>" + (o.platformOrderId || "") +
+    (o.platformPin ? "<br>PIN: " + o.platformPin : "")
+  );
+}
+
+// Per-item notes (customer's item-level customization request, e.g. "pedas
+// dikit") shown to the right of that same item's name/qty line, in orange
+// so it stands out from the rest of the row - independent per item, not
+// pooled into one block, since two items in the same order can carry
+// unrelated notes.
+function platformItemsCell(o) {
+  return o.items
+    .map(function (it) {
+      return (
+        '<div style="padding:1px 0;">' +
+          '<div style="display:flex; justify-content:space-between; gap:8px;">' +
+            "<span>" + it.name + ' <span style="color:var(--color-text-muted);">x' + it.qty + "</span></span>" +
+            (it.notes ? '<span style="color:#C2703D; font-size:12px; white-space:nowrap;">' + it.notes + "</span>" : "") +
+          "</div>" +
+          '<span class="font-number" style="color:var(--color-text-muted); font-size:12px;">' + formatRupiah(it.unitPrice) + "</span>" +
+        "</div>"
+      );
+    })
+    .join("");
+}
+
+function platformTotalCell(o) {
+  const itemsSubtotal = o.items.reduce((s, it) => s + it.lineTotal, 0);
+  return (
+    '<span class="font-number" style="font-weight:bold;">' + formatRupiah(platformOrderTotal(o)) + "</span>" +
+    '<div style="font-size:11px; color:var(--color-text-muted); margin-top:2px;">' +
+      "Items: " + formatRupiah(itemsSubtotal) +
+      (o.platformServiceFee > 0 ? "<br>Service Fee: " + formatRupiah(o.platformServiceFee) : "") +
+    "</div>"
+  );
+}
+
+function platformOngoingRowHtml(o) {
+  const fulfillmentDone = o.fulfillmentStatus !== "Pending";
+  const statusHtml = fulfillmentDone ? o.fulfillmentStatus : "Preparing";
+
+  return (
+    "<tr>" +
+      "<td>" + platformDateCell(o) + "</td>" +
+      "<td>" + platformCustomerCell(o) + "</td>" +
+      "<td style=\"min-width:280px;\">" + platformItemsCell(o) + "</td>" +
+      "<td>" + platformTotalCell(o) + "</td>" +
+      "<td>" + statusHtml + "</td>" +
+      "<td>" + (o.notes || "") + "</td>" +
+      '<td class="orderActions" style="text-align:left;" data-order="' + o.orderCode + '">' + orderActionsHtml(o) + "</td>" +
+    "</tr>"
+  );
+}
+
+function platformHistoryRowHtml(o) {
+  const statusLabel = o.orderStatus === "Cancelled" ? "Cancelled" : "Completed";
+  const statusSub = o.orderStatus !== "Cancelled" && o.fulfillmentStatus !== "Pending"
+    ? '<br><span style="font-size:12px; color:var(--color-text-muted);">' + o.fulfillmentStatus + "</span>"
+    : "";
+
+  return (
+    "<tr>" +
+      "<td>" + platformDateCell(o) + "</td>" +
+      "<td>" + platformCustomerCell(o) + "</td>" +
+      "<td style=\"min-width:280px;\">" + platformItemsCell(o) + "</td>" +
+      "<td>" + platformTotalCell(o) + "</td>" +
       "<td>" + (o.notes || "") + "</td>" +
       "<td>" + statusLabel + statusSub + "</td>" +
     "</tr>"
