@@ -1322,7 +1322,7 @@ function renderConsumptionLogRows() {
   });
 
   tbody.innerHTML = rows.length ? rows.map(consumptionRowHtml).join("") : '<tr><td colspan="6">No consumption matches this filter.</td></tr>';
-  paginateTable("consumptionTbody", "consumptionPaginationNav", 20);
+  paginateTable("consumptionTbody", "consumptionPaginationNav", 10);
 }
 
 function openConsumptionFilterSortModal() {
