@@ -1380,7 +1380,8 @@ let _currentCostCategoryFilter = []; // empty = show every Category (default)
 let _currentCostSort = "name-asc";
 const CURRENT_COST_SORT_LABELS = {
   "name-asc": "Item Name (A-Z)", "name-desc": "Item Name (Z-A)",
-  "cost-desc": "Unit Cost (High-Low)", "cost-asc": "Unit Cost (Low-High)"
+  "cost-desc": "Unit Cost (High-Low)", "cost-asc": "Unit Cost (Low-High)",
+  "category-asc": "Category (A-Z)", "category-desc": "Category (Z-A)"
 };
 
 async function renderCurrentCostTab(wrap) {
@@ -1402,7 +1403,7 @@ async function renderCurrentCostTab(wrap) {
     '<div id="currentCostPaginationNav" class="pagination-nav"></div>' +
     '<div id="currentCostScrollWrap" style="overflow-x:auto;">' +
       "<table>" +
-        "<thead><tr><th>SKU</th><th>Category</th><th>Item Name</th><th>Unit</th><th>Purchase Qty</th>" +
+        "<thead><tr><th>Category</th><th>Item Name</th><th>Unit</th><th>Purchase Qty</th>" +
         "<th>Purchase Price</th><th>Current Unit Cost</th><th>Last Updated</th><th>Supplier</th></tr></thead>" +
         '<tbody id="currentCostTbody"></tbody>' +
       "</table>" +
@@ -1427,17 +1428,19 @@ function renderCurrentCostRows() {
       case "name-desc": return b.name.localeCompare(a.name);
       case "cost-desc": return b.unitCost - a.unitCost;
       case "cost-asc": return a.unitCost - b.unitCost;
+      case "category-asc": return (a.category || "").localeCompare(b.category || "");
+      case "category-desc": return (b.category || "").localeCompare(a.category || "");
       default: return a.name.localeCompare(b.name);
     }
   });
 
-  tbody.innerHTML = rows.length ? rows.map(currentCostRowHtml).join("") : '<tr><td colspan="9">No items match this filter.</td></tr>';
+  tbody.innerHTML = rows.length ? rows.map(currentCostRowHtml).join("") : '<tr><td colspan="8">No items match this filter.</td></tr>';
   paginateTable("currentCostTbody", "currentCostPaginationNav", 20);
 }
 
 function openCurrentCostFilterSortModal() {
   const categories = [...new Set(_lastCurrentCostRows.map((r) => r.category || "").filter(Boolean))].sort();
-  const sortOptions = [["name-asc", "Item Name (A-Z)"], ["name-desc", "Item Name (Z-A)"], ["cost-desc", "Unit Cost (High-Low)"], ["cost-asc", "Unit Cost (Low-High)"]];
+  const sortOptions = [["name-asc", "Item Name (A-Z)"], ["name-desc", "Item Name (Z-A)"], ["cost-desc", "Unit Cost (High-Low)"], ["cost-asc", "Unit Cost (Low-High)"], ["category-asc", "Category (A-Z)"], ["category-desc", "Category (Z-A)"]];
 
   const checkboxes = categories.map((c) =>
     '<label style="display:block; margin:4px 0;"><input type="checkbox" class="currentCostCategoryFilterCheck" value="' + c + '"' + (_currentCostCategoryFilter.indexOf(c) !== -1 ? " checked" : "") + "> " + c + "</label>"
@@ -1469,14 +1472,13 @@ function applyCurrentCostFilterSort() {
 function currentCostRowHtml(r) {
   return (
     "<tr>" +
-      "<td>" + r.sku + "</td>" +
       "<td>" + (r.category || "") + "</td>" +
-      "<td>" + r.name + "</td>" +
+      "<td>" + r.name + '<br><span style="color:var(--color-text-muted); font-size:12px;">' + r.sku + "</span></td>" +
       "<td>" + r.unit + "</td>" +
       "<td>" + r.purchaseQty + "</td>" +
       '<td><span class="font-number">' + formatRupiah(r.purchasePrice) + "</span></td>" +
       '<td><span class="font-number">' + formatRupiah(r.unitCost) + "</span></td>" +
-      "<td>" + r.lastUpdated + "</td>" +
+      '<td style="white-space:nowrap; width:1%;">' + r.lastUpdated + "</td>" +
       "<td>" + (r.supplier || "") + "</td>" +
     "</tr>"
   );
@@ -1540,7 +1542,7 @@ function renderCostUpdateRows() {
   });
 
   tbody.innerHTML = rows.length ? rows.map(costUpdateRowHtml).join("") : '<tr><td colspan="12">No entries match this filter.</td></tr>';
-  paginateTable("costUpdateTbody", "costUpdatePaginationNav", 20);
+  paginateTable("costUpdateTbody", "costUpdatePaginationNav", 10);
 }
 
 function openCostUpdateFilterSortModal() {

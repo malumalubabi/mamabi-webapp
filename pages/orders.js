@@ -33,6 +33,7 @@ let _ordersHistoryRaw = [];
 let _ordersHistoryDateFrom = "";
 let _ordersHistoryDateTo = "";
 let _ordersHistoryPlatformFilter = [];
+let _ordersHistoryFulfillmentTypeFilter = [];
 
 async function renderOrdersPage(content) {
   await ensureOrdersLookups();
@@ -42,6 +43,7 @@ async function renderOrdersPage(content) {
   _ordersHistoryDateFrom = "";
   _ordersHistoryDateTo = "";
   _ordersHistoryPlatformFilter = [];
+  _ordersHistoryFulfillmentTypeFilter = [];
 
   content.innerHTML =
     "<h2>Online Orders</h2>" +
@@ -63,6 +65,7 @@ async function renderPlatformOrdersPage(content) {
   _ordersHistoryDateFrom = "";
   _ordersHistoryDateTo = "";
   _ordersHistoryPlatformFilter = [];
+  _ordersHistoryFulfillmentTypeFilter = [];
 
   content.innerHTML =
     "<h2>Platform Orders</h2>" +
@@ -682,7 +685,8 @@ function visibleHistoryOrders() {
   return _ordersHistoryRaw.filter((o) =>
     (!_ordersHistoryDateFrom || o.orderDate >= _ordersHistoryDateFrom) &&
     (!_ordersHistoryDateTo || o.orderDate <= _ordersHistoryDateTo) &&
-    (!_ordersHistoryPlatformFilter.length || _ordersHistoryPlatformFilter.indexOf(o.platform) !== -1)
+    (!_ordersHistoryPlatformFilter.length || _ordersHistoryPlatformFilter.indexOf(o.platform) !== -1) &&
+    (!_ordersHistoryFulfillmentTypeFilter.length || _ordersHistoryFulfillmentTypeFilter.indexOf(o.orderType) !== -1)
   );
 }
 
@@ -698,7 +702,8 @@ function ordersHistoryFilterBadgeText() {
   if (_ordersHistoryDateTo) dateParts.push("to " + _ordersHistoryDateTo);
   const dateText = dateParts.length ? dateParts.join(" ") : "All dates";
   const platformText = _ordersHistoryPlatformFilter.length ? _ordersHistoryPlatformFilter.join(", ") : "All platforms";
-  return dateText + " | " + platformText;
+  const typeText = _ordersHistoryFulfillmentTypeFilter.length ? _ordersHistoryFulfillmentTypeFilter.join(", ") : "All types";
+  return dateText + " | " + platformText + " | " + typeText;
 }
 
 // Platform checklist only shown when there's more than one distinct
@@ -714,6 +719,13 @@ function openOrdersHistoryFilterModal() {
     )
     .join("");
 
+  const fulfillmentTypeChecks = ["Delivery", "Takeaway"]
+    .map((t) =>
+      '<label style="display:block; margin:4px 0;"><input type="checkbox" class="ordersHistoryFulfillmentTypeCheck" value="' + t + '"' +
+        (_ordersHistoryFulfillmentTypeFilter.indexOf(t) !== -1 ? " checked" : "") + "> " + t + "</label>"
+    )
+    .join("");
+
   openModal(
     "<h2>Filter - Order History</h2>" +
     "<label>Date Range</label><br>" +
@@ -723,6 +735,7 @@ function openOrdersHistoryFilterModal() {
       '<input type="date" id="ordersHistoryDateTo" value="' + _ordersHistoryDateTo + '">' +
     "</div><br><br>" +
     (platforms.length > 1 ? "<label>Platform</label><div>" + platformChecks + "</div><br>" : "") +
+    "<label>Fulfillment Type</label><div>" + fulfillmentTypeChecks + "</div><br>" +
     '<div style="margin-top:16px;">' +
       '<button class="btn-primary" onclick="applyOrdersHistoryFilter()">Apply</button>' +
     "</div>"
@@ -734,6 +747,8 @@ function applyOrdersHistoryFilter() {
   _ordersHistoryDateTo = document.getElementById("ordersHistoryDateTo").value || "";
   const checks = document.querySelectorAll(".ordersHistoryPlatformCheck:checked");
   _ordersHistoryPlatformFilter = checks.length ? Array.from(checks).map((cb) => cb.value) : [];
+  const typeChecks = document.querySelectorAll(".ordersHistoryFulfillmentTypeCheck:checked");
+  _ordersHistoryFulfillmentTypeFilter = typeChecks.length ? Array.from(typeChecks).map((cb) => cb.value) : [];
   closeModal();
   renderHistorySection();
 }
