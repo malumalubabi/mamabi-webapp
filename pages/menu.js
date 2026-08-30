@@ -230,22 +230,17 @@ async function openBatchRecipeModal(batchCode) {
       }).join("")
     : '<tr><td colspan="3">No consumption recorded.</td></tr>';
 
-  const title = batch
-    ? "Recipe Detail — " + batch.itemName + ' <span style="font-size:12px; color:var(--color-text-muted); font-weight:normal;">(' + batch.sku + ")</span>"
-    : "Recipe Detail";
-
   const raw = batch && batch.batchSize !== null ? batch.batchSize : "";
-
   // Change Component only for Ongoing batches (matches the old inline-row
   // button's own restriction) - a Done/Cancelled batch's output SKU is
   // history, not something to still be re-pointing.
-  const componentSectionHtml = batch && batch.status === "Ongoing"
-    ? '<div id="batchComponentSection" data-batch-code="' + batchCode + '" style="margin-bottom:12px;">' + batchComponentViewHtml() + "</div>"
-    : "";
+  const canChangeComponent = !!(batch && batch.status === "Ongoing");
 
   openModal(
-    "<h2>" + title + "</h2>" +
-    componentSectionHtml +
+    "<h2>Recipe Detail</h2>" +
+    '<div id="batchComponentTitle" data-batch-code="' + batchCode + '" style="font-size:16px; font-weight:600; margin-bottom:16px;">' +
+      batchComponentViewHtml(batch, canChangeComponent) +
+    "</div>" +
     '<div id="batchQtySection" data-batch-code="' + batchCode + '" data-raw="' + raw + '" style="margin-bottom:16px;">' +
       batchQtyViewHtml(raw) +
     "</div>" +
@@ -254,48 +249,79 @@ async function openBatchRecipeModal(batchCode) {
   );
 }
 
+// stroke="currentColor" - color comes from .btn-icon-edit's own `color`
+// property (shared.css), so this single markup stays monochrome and
+// theme-matched wherever it's dropped in, no per-use color to keep in sync.
+const ICON_PENCIL = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+
 // Change Component - ported from the old inline-row control (see
-// itemNameCell's comment above), now living inside the Open Recipe modal.
-// Same auto-scale-from-recipe PATCH as before (functions/api/batches/
-// [code].js), just reachable from the modal instead of the row.
-function batchComponentViewHtml() {
-  return '<button onclick="startEditBatchComponent()">Change Component</button>';
-}
-
-function startEditBatchComponent() {
-  const section = document.getElementById("batchComponentSection");
-  const batchCode = section.dataset.batchCode;
-  const batch = _lastBatchesData.find((b) => b.batchCode === batchCode);
-  const currentItem = _batchLookups.skus.find((s) => s.sku === batch.sku);
-  const type = currentItem ? currentItem.item_type : null;
-
-  section.innerHTML =
-    "<label>Change Component</label><br>" +
-    '<div class="batchComponentCombo" style="min-width:220px; display:inline-block;"></div> ' +
-    '<button class="saveBatchComponentBtn btn-primary" onclick="saveBatchComponent(this)">Save</button> ' +
-    '<button onclick="cancelEditBatchComponent()">Cancel</button>' +
-    '<span class="save-status"></span>';
-
-  const options = _batchLookups.skus.filter((s) => s.item_type === type && s.sku !== batch.sku && s.status !== "Unavailable");
-  section._combo = createCombobox(
-    section.querySelector(".batchComponentCombo"),
-    options.map((s) => ({ value: s.id, label: s.name, sub: s.sku })),
-    { placeholder: "Select " + (type || "item").toLowerCase() + "..." }
+// itemNameCell's comment above), now living inline in the modal's own
+// header: a pencil button next to the item name swaps that name for a
+// dropdown in place (not a separate section), defaulting to the item
+// currently in use. Same auto-scale-from-recipe PATCH as before
+// (functions/api/batches/[code].js), just reachable from a different spot.
+function batchComponentViewHtml(batch, canChangeComponent) {
+  const nameHtml = batch
+    ? batch.itemName + ' <span style="font-size:12px; color:var(--color-text-muted); font-weight:normal;">(' + batch.sku + ")</span>"
+    : "";
+  const pencil = canChangeComponent
+    ? '<button class="btn-icon-edit" onclick="startEditBatchComponent()" title="Change Component">' + ICON_PENCIL + "</button>"
+    : "";
+  return (
+    '<div style="display:flex; align-items:center; gap:4px;">' +
+      '<span style="display:inline-block; min-width:200px;">' + nameHtml + "</span>" +
+      pencil +
+    "</div>"
   );
 }
 
+// Component AND Semi-Finished both belong here (a batch can be re-pointed
+// to either kind of produced item, not just whichever type it currently
+// is) - previously filtered to the batch's own current item_type only,
+// which hid the other kind from the picker entirely.
+const BATCH_COMPONENT_SWAP_TYPES = ["Component", "Semi-Finished"];
+
+function startEditBatchComponent() {
+  const wrap = document.getElementById("batchComponentTitle");
+  const batchCode = wrap.dataset.batchCode;
+  const batch = _lastBatchesData.find((b) => b.batchCode === batchCode);
+
+  wrap.innerHTML =
+    '<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">' +
+      '<div class="batchComponentCombo" style="min-width:220px;"></div>' +
+      '<button class="saveBatchComponentBtn btn-primary" onclick="saveBatchComponent(this)">Save</button>' +
+      '<button onclick="cancelEditBatchComponent()">Cancel</button>' +
+      '<span class="save-status"></span>' +
+    "</div>";
+
+  // Current item stays in the list (unlike before) so it can be the
+  // dropdown's default selection - "not yet changed" needs to be a valid,
+  // visible option, not just an empty placeholder.
+  const options = _batchLookups.skus.filter((s) =>
+    BATCH_COMPONENT_SWAP_TYPES.indexOf(s.item_type) !== -1 && (s.status !== "Unavailable" || s.sku === batch.sku)
+  );
+  wrap._combo = createCombobox(
+    wrap.querySelector(".batchComponentCombo"),
+    options.map((s) => ({ value: s.id, label: s.name, sub: s.sku })),
+    { placeholder: "Select component or semi-finished..." }
+  );
+  const currentItem = _batchLookups.skus.find((s) => s.sku === batch.sku);
+  if (currentItem) wrap._combo.setSelection(currentItem.id, currentItem.name);
+}
+
 function cancelEditBatchComponent() {
-  const section = document.getElementById("batchComponentSection");
-  section.innerHTML = batchComponentViewHtml();
+  const wrap = document.getElementById("batchComponentTitle");
+  const batch = _lastBatchesData.find((b) => b.batchCode === wrap.dataset.batchCode);
+  wrap.innerHTML = batchComponentViewHtml(batch, batch && batch.status === "Ongoing");
 }
 
 function saveBatchComponent(btn) {
-  const section = document.getElementById("batchComponentSection");
-  const batchCode = section.dataset.batchCode;
-  const newSkuId = section._combo ? section._combo.getValue() : "";
+  const wrap = document.getElementById("batchComponentTitle");
+  const batchCode = wrap.dataset.batchCode;
+  const newSkuId = wrap._combo ? wrap._combo.getValue() : "";
   if (!newSkuId) { alert("Please select a component."); return; }
 
-  const statusEl = section.querySelector(".save-status");
+  const statusEl = wrap.querySelector(".save-status");
   withSaveStatus(btn, statusEl, "Component", async function () {
     await api("batches/" + encodeURIComponent(batchCode), { method: "PATCH", body: { outputSkuId: newSkuId } });
     closeModal();
@@ -303,18 +329,23 @@ function saveBatchComponent(btn) {
   });
 }
 
+// Number gets a reserved min-width so the pencil button sits at a fixed x
+// position regardless of digit count (1 digit vs 4 digits no longer shifts
+// it left/right).
 function batchQtyViewHtml(raw) {
   return (
-    "<label>Batch Size</label><br>" +
-    (raw === "" ? "-" : raw) + " " +
-    '<button onclick="startEditBatchQty()">Edit</button>'
+    '<label style="color:var(--color-text-muted); font-size:12px;">Batch Size</label><br>' +
+    '<div style="display:flex; align-items:center;">' +
+      '<span style="display:inline-block; min-width:40px;">' + (raw === "" ? "-" : raw) + "</span>" +
+      '<button class="btn-icon-edit" onclick="startEditBatchQty()" title="Edit Batch Size">' + ICON_PENCIL + "</button>" +
+    "</div>"
   );
 }
 
 function startEditBatchQty() {
   const section = document.getElementById("batchQtySection");
   section.innerHTML =
-    "<label>Batch Size</label><br>" +
+    '<label style="color:var(--color-text-muted); font-size:12px;">Batch Size</label><br>' +
     '<input type="number" class="batchQtyInput" min="0" step="any" value="' + section.dataset.raw + '" style="width:100px;"> ' +
     '<button class="saveBatchQtyBtn btn-primary" onclick="saveBatchQty(this)">Save</button> ' +
     '<button onclick="cancelEditBatchQty()">Cancel</button>' +

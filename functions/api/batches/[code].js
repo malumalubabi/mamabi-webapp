@@ -8,7 +8,9 @@
 // changed by, so editing 2x -> 3x actually multiplies what's on hand to be
 // deducted instead of leaving Consumption stuck at the old size - and
 // Change Component (ported concept from updateBatchComponent()), which
-// re-points the batch at a different SKU of the same item_type and fully
+// re-points the batch at a different SKU - any Component or Semi-Finished
+// item, not restricted to the batch's current item_type, per explicit
+// request that this be free to swap across both kinds - and fully
 // regenerates Consumption from THAT SKU's own recipe (not a rescale - the
 // old Consumption belonged to an entirely different recipe, keeping it
 // would be nonsensical).
@@ -20,6 +22,11 @@ const PATCHABLE_FIELDS = {
   batchSize: "batch_size",
   outputSkuId: "output_sku_id"
 };
+
+// Same pair as pages/menu.js's BATCH_OUTPUT_TYPES (Start New Batch's own
+// output picker) - a batch only ever produces one of these two kinds, so
+// Change Component can't be pointed at a raw/purchased item_type.
+const BATCH_COMPONENT_OUTPUT_TYPES = ["Semi-Finished", "Component"];
 
 export async function onRequestPatch({ request, env, params }) {
   try {
@@ -39,12 +46,11 @@ export async function onRequestPatch({ request, env, params }) {
     const supabase = getSupabase(env);
     const brandId = await getBrandId(supabase);
 
-    // Need the pre-update batch_size/output_sku_id before applying the
-    // update - batch_size to compute the rescale ratio below, output_sku_id
-    // to validate a Change Component swap stays within the same item_type.
+    // Need the pre-update batch_size before applying the update, to compute
+    // the rescale ratio below.
     const { data: current, error: curErr } = await supabase
       .from("production_batches")
-      .select("id, batch_size, batch_date, output_sku_id, sku_items(item_type)")
+      .select("id, batch_size, batch_date, output_sku_id")
       .eq("brand_id", brandId)
       .eq("batch_code", code)
       .maybeSingle();
@@ -62,9 +68,15 @@ export async function onRequestPatch({ request, env, params }) {
       if (skuErr) throw skuErr;
       if (!skuRow) return jsonResponse({ error: "SKU not found: " + body.outputSkuId }, 404);
 
-      const currentType = current.sku_items ? current.sku_items.item_type : null;
-      if (currentType && skuRow.item_type !== currentType) {
-        return jsonResponse({ error: "Change Component must pick another " + currentType + " - " + skuRow.name + " is a " + skuRow.item_type + "." }, 400);
+      // No longer restricted to the batch's current item_type - Change
+      // Component can freely swap between Component and Semi-Finished (the
+      // same pair Start New Batch's own output picker allows), per explicit
+      // request that this not be locked to "same category". Still can't be
+      // pointed at a raw/purchased type (Ingredient/Packaging/...) though -
+      // a batch always produces one of these two kinds, nothing else has a
+      // recipe to regenerate Consumption from below.
+      if (BATCH_COMPONENT_OUTPUT_TYPES.indexOf(skuRow.item_type) === -1) {
+        return jsonResponse({ error: "Change Component must pick a Component or Semi-Finished item - " + skuRow.name + " is a " + skuRow.item_type + "." }, 400);
       }
       newSku = skuRow;
       update.category = newSku.category; // denormalized on production_batches, keep it in sync with the new output SKU
@@ -108,11 +120,12 @@ export async function onRequestPatch({ request, env, params }) {
     }
 
     // Change Component: fully regenerate Consumption from the NEW SKU's own
-    // recipe (unfiltered - every recipe_lines entry, whatever its own
-    // item_type, unlike Sales/Orders' saleConsumptionItems which skips
-    // Component/Semi-Finished lines to avoid double-counting against Batch
-    // Production - this IS Batch Production, it's the one place that
-    // consumption belongs). Scaled by whatever Batch Size ends up in effect
+    // recipe (every recipe_lines entry, whatever its own item_type - this
+    // IS Batch Production, the one place a produced item's own raw-
+    // ingredient consumption belongs; Sales/Orders' saleConsumptionItems
+    // deducts a completely different, one-level-up set of lines, so there's
+    // no overlap to double-count here either way). Scaled by whatever Batch
+    // Size ends up in effect
     // (the new one if also being changed in this same request, otherwise
     // the batch's existing size).
     if (newSku) {

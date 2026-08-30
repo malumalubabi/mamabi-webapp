@@ -226,6 +226,23 @@ button.btn-compact {
   padding: 4px 10px;
   font-size: 12px;
 }
+
+/* Icon-only trigger (pencil, ...) sitting inline next to a value/label -
+   no visible box (border:none, background:transparent) so it reads as part
+   of the text line, not a separate button - "seamless" per explicit
+   request. Its SVG icon uses stroke="currentColor" so this color property
+   is what makes it monochrome/theme-matched, not a hardcoded icon color. */
+button.btn-icon-edit {
+  padding: 2px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-muted);
+  line-height: 0;
+}
+button.btn-icon-edit:hover {
+  background: var(--color-muted-tint);
+}
 /* The table/td rule below gives every cell 8px 12px padding - fine for
    text, but it ate into an actions column's already-tight fixed width and
    pushed .btn-compact past the table edge anyway. Cut this one cell's

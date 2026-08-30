@@ -141,16 +141,22 @@ export async function getManualSalesRows(supabase, brandId) {
   });
 }
 
-// Items directly on a Product's recipe that get deducted from stock at Sale
-// time. Component/Semi-Finished lines are skipped - Batch Production already
-// deducted THEIR raw ingredients when that Component/Semi-Finished was
-// produced, so deducting them again here would double-count. Ported from
-// the old app's resolveProductConsumption_()/getStockableTypes_().
+// Every item directly on a Product's recipe gets deducted from stock at
+// Sale time - Component/Semi-Finished lines included. getBreakdown() only
+// ever returns ONE level of recipe_lines (the Product's own direct lines,
+// never recursing into a Component's own sub-recipe), so a Component/SF
+// line here deducts only that Component's OWN stock (qty consumed by this
+// sale) - it can't double-count against Batch Production, which deducted a
+// completely different set of rows (that Component's own raw-ingredient
+// recipe_lines, parented to the Component itself) at the time that batch
+// was produced. Ported from the old app's resolveProductConsumption_()/
+// getStockableTypes_(), which - per explicit correction - shouldn't have
+// carried over that app's Component/Semi-Finished exclusion in the first
+// place; selling a Product that uses a Component measurably draws down
+// that Component's own stock and needs to be recorded as such.
 export function saleConsumptionItems(resolver, skuId, qty) {
   const { items } = resolver.getBreakdown(skuId);
-  return items
-    .filter((it) => it.itemType !== "Component" && it.itemType !== "Semi-Finished")
-    .map((it) => ({ skuId: it.componentSkuId, qty: it.qty * qty }));
+  return items.map((it) => ({ skuId: it.componentSkuId, qty: it.qty * qty }));
 }
 
 // Live Food/Packaging cost per unit for a Product SKU, from the same

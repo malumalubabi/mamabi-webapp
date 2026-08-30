@@ -1,13 +1,15 @@
-// Deducts stock for an Order's direct-recipe Ingredient/Packaging/Operating
-// lines exactly once, at the moment the order first becomes Completed - the
-// same "Production Consumption" channel Sales already uses (see
-// _lib/sales.js's saleConsumptionItems, reused here as-is), not the
-// structurally-dead "Sale" branch in the stock_ledger view (order_items.
-// sku_id is always a Product, and that branch only ever matches non-Product
-// rows - see functions/api/inventory/overview.js's comment). Component/
-// Semi-Finished lines are already skipped by saleConsumptionItems (their
-// raw ingredients were deducted when THAT batch was produced), so this
-// can't double-count against Batch Production.
+// Deducts stock for an Order's direct-recipe lines (Ingredient/Packaging/
+// Operating AND Component/Semi-Finished) exactly once, at the moment the
+// order first becomes Completed - the same "Production Consumption"
+// channel Sales already uses (see _lib/sales.js's saleConsumptionItems,
+// reused here as-is), not the structurally-dead "Sale" branch in the
+// stock_ledger view (order_items.sku_id is always a Product, and that
+// branch only ever matches non-Product rows - see functions/api/inventory/
+// overview.js's comment). saleConsumptionItems only ever resolves ONE level
+// of recipe_lines, so a Component/Semi-Finished line here draws down only
+// that item's own stock - it can't double-count against Batch Production,
+// which deducted a completely different set of rows (that item's own
+// raw-ingredient recipe) when the batch producing it was made.
 //
 // Called from two places, both exactly at the order_status -> "Completed"
 // transition: functions/api/orders.js's POST (an order created already Paid
