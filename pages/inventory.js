@@ -52,17 +52,19 @@ function buildInventoryStockTabsHtml() {
       '<button id="invStockTab-overview" class="tab-active" onclick="switchInventoryStockTab(\'overview\')">Stock Overview</button>' +
       '<button id="invStockTab-purchases" onclick="switchInventoryStockTab(\'purchases\')">Purchase Log</button>' +
       '<button id="invStockTab-opname" onclick="switchInventoryStockTab(\'opname\')">Stock Opname</button>' +
+      '<button id="invStockTab-value" onclick="switchInventoryStockTab(\'value\')">Inventory Value</button>' +
       '<button id="invStockTab-consumption" onclick="switchInventoryStockTab(\'consumption\')">Consumption Log</button>' +
     "</div>" +
     '<div id="inventoryStockTabContent"><p>Loading...</p></div>'
   );
 }
 
-const INV_STOCK_TABS = ["overview", "purchases", "opname", "consumption"];
+const INV_STOCK_TABS = ["overview", "purchases", "opname", "value", "consumption"];
 const INV_STOCK_TAB_RENDERERS = {
   overview: renderOverviewTab,
   purchases: renderPurchasesTab,
   opname: renderOpnameTab,
+  value: renderInventoryValueTab,
   consumption: renderConsumptionLogTab
 };
 
@@ -1123,6 +1125,144 @@ function opnameRowHtml(r) {
       "<td>" + r.variance + "</td>" +
       "<td>" + (r.varianceValue === null ? "" : '<span class="font-number">' + formatRupiah(r.varianceValue) + "</span>") + "</td>" +
       "<td>" + (r.notes || "") + "</td>" +
+    "</tr>"
+  );
+}
+
+// ================================================================
+// Inventory Value - read-only, one row per stocked SKU valuing current
+// stock at its live unit cost (functions/api/inventory/value.js's
+// buildCostResolver, same resolver Menu Engineering uses - so Semi-Finished/
+// Component items get a recipe-derived cost, not just purchased raw items).
+// ================================================================
+
+let _lastInvValueRows = [];
+let _invValueTypeFilter = []; // empty = show every Item Type (default)
+let _invValueSort = "value-desc";
+const INV_VALUE_SORT_LABELS = {
+  "value-desc": "Value (High-Low)", "value-asc": "Value (Low-High)",
+  "name-asc": "Item Name (A-Z)", "name-desc": "Item Name (Z-A)"
+};
+
+async function renderInventoryValueTab(wrap) {
+  _lastInvValueRows = await api("inventory/value");
+  if (!_lastInvValueRows.length) {
+    wrap.innerHTML = "<p>No stocked items yet.</p>";
+    return;
+  }
+
+  wrap.innerHTML =
+    '<div id="invValueSummaryWrap"></div>' +
+    '<div style="display:flex; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:8px; margin-top:12px;">' +
+      '<div style="display:flex; align-items:center; gap:10px;">' +
+        '<span id="invValueFilterSortBadge" style="color:var(--color-text-muted); font-size:12px;"></span>' +
+        '<button onclick="openInvValueFilterSortModal()">Filter &amp; Sort</button>' +
+      "</div>" +
+    "</div>" +
+    '<div id="invValuePaginationNav" class="pagination-nav"></div>' +
+    '<div id="invValueScrollWrap" style="overflow-x:auto;">' +
+      "<table>" +
+        "<thead><tr><th>Type</th><th>Category</th><th>Item</th><th>Unit</th><th>Current Stock</th>" +
+        "<th>Unit Cost</th><th>Total Value</th></tr></thead>" +
+        '<tbody id="invValueTbody"></tbody>' +
+      "</table>" +
+    "</div>";
+
+  renderInventoryValueSummary();
+  renderInventoryValueRows();
+  enableDragScroll(document.getElementById("invValueScrollWrap"));
+}
+
+// One row per Item Type present (matches the "This Month Recap"-style
+// summary used elsewhere, e.g. OpEx's renderOpexSummary) plus a Grand Total.
+function renderInventoryValueSummary() {
+  const wrap = document.getElementById("invValueSummaryWrap");
+  if (!wrap) return;
+
+  const types = [...new Set(_lastInvValueRows.map((r) => r.itemType))];
+  const valueByType = {};
+  types.forEach((t) => {
+    valueByType[t] = _lastInvValueRows.filter((r) => r.itemType === t).reduce((sum, r) => sum + r.value, 0);
+  });
+  const grandTotal = types.reduce((sum, t) => sum + valueByType[t], 0);
+
+  wrap.innerHTML =
+    '<div style="overflow-x:auto;">' +
+      "<table>" +
+        "<thead><tr><th>Total Inventory Value</th>" + types.map((t) => "<th>" + t + "</th>").join("") + "<th>Total</th></tr></thead>" +
+        "<tbody><tr>" +
+          "<td>As of Today</td>" +
+          types.map((t) => '<td><span class="font-number">' + formatRupiah(valueByType[t]) + "</span></td>").join("") +
+          "<td><strong><span class=\"font-number\">" + formatRupiah(grandTotal) + "</span></strong></td>" +
+        "</tr></tbody>" +
+      "</table>" +
+    "</div>";
+}
+
+function renderInventoryValueRows() {
+  const tbody = document.getElementById("invValueTbody");
+  if (!tbody) return;
+
+  const badge = document.getElementById("invValueFilterSortBadge");
+  if (badge) badge.textContent = (_invValueTypeFilter.length ? _invValueTypeFilter.join(", ") : "All Types") + " | " + INV_VALUE_SORT_LABELS[_invValueSort];
+
+  const filtered = _invValueTypeFilter.length
+    ? _lastInvValueRows.filter((r) => _invValueTypeFilter.indexOf(r.itemType) !== -1)
+    : _lastInvValueRows;
+  const rows = filtered.slice().sort((a, b) => {
+    switch (_invValueSort) {
+      case "value-asc": return a.value - b.value;
+      case "name-asc": return a.name.localeCompare(b.name);
+      case "name-desc": return b.name.localeCompare(a.name);
+      default: return b.value - a.value; // value-desc
+    }
+  });
+
+  tbody.innerHTML = rows.length ? rows.map(invValueRowHtml).join("") : '<tr><td colspan="7">No items match this filter.</td></tr>';
+  paginateTable("invValueTbody", "invValuePaginationNav", 20);
+}
+
+function openInvValueFilterSortModal() {
+  const types = [...new Set(_lastInvValueRows.map((r) => r.itemType))];
+  const sortOptions = [["value-desc", "Value (High-Low)"], ["value-asc", "Value (Low-High)"], ["name-asc", "Item Name (A-Z)"], ["name-desc", "Item Name (Z-A)"]];
+
+  const checkboxes = types.map((t) =>
+    '<label style="display:block; margin:4px 0;"><input type="checkbox" class="invValueTypeFilterCheck" value="' + t + '"' + (_invValueTypeFilter.indexOf(t) !== -1 ? " checked" : "") + "> " + t + "</label>"
+  ).join("");
+  const sortRadios = sortOptions.map(([val, label]) =>
+    '<label style="display:block; margin:6px 0;"><input type="radio" name="invValueSortOption" value="' + val + '"' + (_invValueSort === val ? " checked" : "") + "> " + label + "</label>"
+  ).join("");
+
+  openModal(
+    "<h2>Filter &amp; Sort - Inventory Value</h2>" +
+    "<label>Item Type</label>" +
+    "<div>" + checkboxes + "</div><br>" +
+    "<label>Sort</label>" +
+    "<div>" + sortRadios + "</div>" +
+    '<div style="margin-top:16px;">' +
+      '<button class="btn-primary" onclick="applyInvValueFilterSort()">Apply</button>' +
+    "</div>"
+  );
+}
+
+function applyInvValueFilterSort() {
+  _invValueTypeFilter = Array.from(document.querySelectorAll(".invValueTypeFilterCheck:checked")).map((cb) => cb.value);
+  const selectedSort = document.querySelector('input[name="invValueSortOption"]:checked');
+  if (selectedSort) _invValueSort = selectedSort.value;
+  closeModal();
+  renderInventoryValueRows();
+}
+
+function invValueRowHtml(r) {
+  return (
+    "<tr>" +
+      "<td>" + r.itemType + "</td>" +
+      "<td>" + (r.category || "") + "</td>" +
+      "<td>" + r.name + '<br><span style="color:var(--color-text-muted); font-size:12px;">' + r.sku + "</span></td>" +
+      "<td>" + r.unit + "</td>" +
+      "<td>" + r.currentStock + "</td>" +
+      '<td><span class="font-number">' + formatRupiah(r.unitCost) + "</span></td>" +
+      '<td><span class="font-number">' + formatRupiah(r.value) + "</span></td>" +
     "</tr>"
   );
 }

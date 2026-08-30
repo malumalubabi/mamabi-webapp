@@ -88,7 +88,7 @@ function renderBatchTable(wrap, rows, scope) {
   // lookups, see baseYieldFor()). Batch History keeps its own separate
   // column set (unaffected by this - see batchHistoryRowHtml).
   const head = scope === "ongoing"
-    ? "<tr><th>Batch ID</th><th>Date</th><th>Category</th><th>Recipe</th><th>Batch Size</th><th>Base Yield (g)</th><th>Scaled Yield (g)</th><th></th></tr>"
+    ? "<tr><th>Batch ID</th><th>Date</th><th>Category</th><th>Item Name</th><th>Batch Size</th><th>Base Yield (g)</th><th>Scaled Yield (g)</th><th></th></tr>"
     : "<tr><th>Batch ID</th><th>Date</th><th>Category</th><th>Item Name</th><th>Batch Size</th><th>Yield</th><th>Status</th><th>Notes</th></tr>";
 
   const bodyRows = scope === "ongoing" ? visibleRows.map(ongoingBatchRowHtml).join("") : visibleRows.map(batchHistoryRowHtml).join("");
@@ -119,115 +119,18 @@ function renderBatchTable(wrap, rows, scope) {
   enableDragScroll(document.getElementById(scrollWrapId));
 }
 
-// Item Name + SKU (small, gray, underneath) + Open Recipe - used by Batch
-// History only now (Ongoing Batches has its own "Recipe" cell below, with
-// Change Component alongside Open Recipe, matching the old app).
+// Item Name + SKU (small, gray, underneath) + Open Recipe - shared by both
+// Ongoing Batches and Batch History. Change Component and Edit Batch Size
+// used to have their own inline row controls (Ongoing only); both now live
+// inside the Open Recipe modal instead (see openBatchRecipeModal below), so
+// Ongoing's row is down to this one button too, per explicit request that
+// the row not "pile up" action buttons.
 function itemNameCell(b) {
   return (
     b.itemName +
     '<br><span style="color:var(--color-text-muted); font-size:12px;">' + b.sku + "</span>" +
     '<br><button onclick="openBatchRecipeModal(\'' + b.batchCode + '\')">Open Recipe</button>'
   );
-}
-
-// "Recipe" cell - ported from MenuBatchProduction_JS.html's recipeViewHtml()/
-// enterChangeComponentMode()/updateBatchRecipe(). Change Component swaps in
-// a live combobox (same item_type as the current output - Component-only or
-// Semi-Finished-only, matching the old app's per-type picker) to re-point
-// the batch at a different recipe SKU. Now feasible (recipe_lines is
-// populated) via the same auto-scale-from-recipe machinery Start New Batch
-// uses - see saveChangeComponent below and functions/api/batches/[code].js.
-function recipeCell(b) {
-  return (
-    '<div class="recipeCellView" data-batch-code="' + b.batchCode + '">' + recipeCellViewHtml(b) + "</div>"
-  );
-}
-
-function recipeCellViewHtml(b) {
-  return (
-    b.itemName +
-    '<br><span style="color:var(--color-text-muted); font-size:12px;">' + b.sku + "</span>" +
-    '<br><button onclick="openBatchRecipeModal(\'' + b.batchCode + '\')">Open Recipe</button> ' +
-    '<button onclick="enterChangeComponentMode(this, \'' + b.batchCode + '\')">Change Component</button>'
-  );
-}
-
-function enterChangeComponentMode(btn, batchCode) {
-  const cell = btn.closest(".recipeCellView");
-  const batch = _lastBatchesData.find((b) => b.batchCode === batchCode);
-  const currentItem = _batchLookups.skus.find((s) => s.sku === batch.sku);
-  const type = currentItem ? currentItem.item_type : null;
-
-  cell.innerHTML =
-    '<div class="changeComponentCombo" style="min-width:200px;"></div>' +
-    '<button onclick="saveChangeComponent(\'' + batchCode + '\', this)">Update</button> ' +
-    '<button onclick="cancelChangeComponent(\'' + batchCode + '\')">Cancel</button>';
-
-  const options = _batchLookups.skus.filter((s) => s.item_type === type && s.sku !== batch.sku && s.status !== "Unavailable");
-  cell._combo = createCombobox(
-    cell.querySelector(".changeComponentCombo"),
-    options.map((s) => ({ value: s.id, label: s.name, sub: s.sku })),
-    { placeholder: "Select " + (type || "item").toLowerCase() + "..." }
-  );
-}
-
-function cancelChangeComponent(batchCode) {
-  const batch = _lastBatchesData.find((b) => b.batchCode === batchCode);
-  const cell = document.querySelector('.recipeCellView[data-batch-code="' + batchCode + '"]');
-  if (cell && batch) cell.innerHTML = recipeCellViewHtml(batch);
-}
-
-async function saveChangeComponent(batchCode, btn) {
-  const cell = btn.closest(".recipeCellView");
-  const newSkuId = cell._combo ? cell._combo.getValue() : "";
-  if (!newSkuId) { alert("Please select a component."); return; }
-
-  btn.disabled = true;
-  try {
-    await api("batches/" + encodeURIComponent(batchCode), { method: "PATCH", body: { outputSkuId: newSkuId } });
-    await loadBatchData();
-  } catch (err) {
-    alert(err.message);
-    btn.disabled = false;
-  }
-}
-
-// Batch Size cell - view/edit toggle ported from MenuBatchProduction_JS.html's
-// scaledQtyViewHtml()/enterEditScaledQtyMode(), inline in the row (separate
-// from - but backed by the same PATCH as - the Open Recipe modal's own Edit
-// Batch Size).
-function scaledQtyViewHtml(raw) {
-  return (
-    '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">' +
-      "<span>" + (raw === "" ? "" : raw) + "</span>" +
-      '<button class="btn-compact" onclick="startEditScaledQty(this)">Edit</button>' +
-    "</div>"
-  );
-}
-
-function startEditScaledQty(btn) {
-  const cell = btn.closest(".scaledQty");
-  cell.innerHTML =
-    '<input type="number" class="scaledQtyInput" min="0" step="any" value="' + cell.dataset.raw + '" style="width:70px;"> ' +
-    '<button class="btn-compact btn-primary" onclick="saveScaledQty(this)">Save</button> ' +
-    '<button class="btn-compact" onclick="cancelEditScaledQty(this)">Cancel</button>';
-}
-
-function cancelEditScaledQty(btn) {
-  const cell = btn.closest(".scaledQty");
-  cell.innerHTML = scaledQtyViewHtml(cell.dataset.raw);
-}
-
-function saveScaledQty(btn) {
-  const cell = btn.closest(".scaledQty");
-  const batchCode = cell.dataset.batchCode;
-  const newQty = cell.querySelector(".scaledQtyInput").value;
-  if (newQty === "" || Number(newQty) < 0) { alert("Please enter a valid Batch Size."); return; }
-
-  withInlineSaveStatus(btn, "Batch Size", async function () {
-    await api("batches/" + encodeURIComponent(batchCode), { method: "PATCH", body: { batchSize: Number(newQty) } });
-    await loadBatchData();
-  });
 }
 
 // From lookups.skus (recipe_lines' base_yield_qty, filled in from the
@@ -239,14 +142,13 @@ function baseYieldFor(sku) {
 }
 
 function ongoingBatchRowHtml(b) {
-  const raw = b.batchSize === null ? "" : b.batchSize;
   return (
     "<tr>" +
       "<td>" + b.batchCode + "</td>" +
       "<td>" + b.date + "</td>" +
       "<td>" + (b.category || "") + "</td>" +
-      "<td>" + recipeCell(b) + "</td>" +
-      '<td class="scaledQty" data-batch-code="' + b.batchCode + '" data-raw="' + raw + '">' + scaledQtyViewHtml(raw) + "</td>" +
+      "<td>" + itemNameCell(b) + "</td>" +
+      "<td>" + (b.batchSize === null ? "" : b.batchSize) + "</td>" +
       "<td>" + baseYieldFor(b.sku) + "</td>" +
       "<td>" + (b.yieldQty === null ? "" : b.yieldQty) + "</td>" +
       "<td>" +
@@ -334,14 +236,71 @@ async function openBatchRecipeModal(batchCode) {
 
   const raw = batch && batch.batchSize !== null ? batch.batchSize : "";
 
+  // Change Component only for Ongoing batches (matches the old inline-row
+  // button's own restriction) - a Done/Cancelled batch's output SKU is
+  // history, not something to still be re-pointing.
+  const componentSectionHtml = batch && batch.status === "Ongoing"
+    ? '<div id="batchComponentSection" data-batch-code="' + batchCode + '" style="margin-bottom:12px;">' + batchComponentViewHtml() + "</div>"
+    : "";
+
   openModal(
     "<h2>" + title + "</h2>" +
+    componentSectionHtml +
     '<div id="batchQtySection" data-batch-code="' + batchCode + '" data-raw="' + raw + '" style="margin-bottom:16px;">' +
       batchQtyViewHtml(raw) +
     "</div>" +
     "<table><thead><tr><th>Item Name</th><th>Base Qty</th><th>Scaled Qty</th></tr></thead>" +
     "<tbody>" + rows + "</tbody></table>"
   );
+}
+
+// Change Component - ported from the old inline-row control (see
+// itemNameCell's comment above), now living inside the Open Recipe modal.
+// Same auto-scale-from-recipe PATCH as before (functions/api/batches/
+// [code].js), just reachable from the modal instead of the row.
+function batchComponentViewHtml() {
+  return '<button onclick="startEditBatchComponent()">Change Component</button>';
+}
+
+function startEditBatchComponent() {
+  const section = document.getElementById("batchComponentSection");
+  const batchCode = section.dataset.batchCode;
+  const batch = _lastBatchesData.find((b) => b.batchCode === batchCode);
+  const currentItem = _batchLookups.skus.find((s) => s.sku === batch.sku);
+  const type = currentItem ? currentItem.item_type : null;
+
+  section.innerHTML =
+    "<label>Change Component</label><br>" +
+    '<div class="batchComponentCombo" style="min-width:220px; display:inline-block;"></div> ' +
+    '<button class="saveBatchComponentBtn btn-primary" onclick="saveBatchComponent(this)">Save</button> ' +
+    '<button onclick="cancelEditBatchComponent()">Cancel</button>' +
+    '<span class="save-status"></span>';
+
+  const options = _batchLookups.skus.filter((s) => s.item_type === type && s.sku !== batch.sku && s.status !== "Unavailable");
+  section._combo = createCombobox(
+    section.querySelector(".batchComponentCombo"),
+    options.map((s) => ({ value: s.id, label: s.name, sub: s.sku })),
+    { placeholder: "Select " + (type || "item").toLowerCase() + "..." }
+  );
+}
+
+function cancelEditBatchComponent() {
+  const section = document.getElementById("batchComponentSection");
+  section.innerHTML = batchComponentViewHtml();
+}
+
+function saveBatchComponent(btn) {
+  const section = document.getElementById("batchComponentSection");
+  const batchCode = section.dataset.batchCode;
+  const newSkuId = section._combo ? section._combo.getValue() : "";
+  if (!newSkuId) { alert("Please select a component."); return; }
+
+  const statusEl = section.querySelector(".save-status");
+  withSaveStatus(btn, statusEl, "Component", async function () {
+    await api("batches/" + encodeURIComponent(batchCode), { method: "PATCH", body: { outputSkuId: newSkuId } });
+    closeModal();
+    await loadBatchData();
+  });
 }
 
 function batchQtyViewHtml(raw) {
