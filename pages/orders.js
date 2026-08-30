@@ -1356,7 +1356,7 @@ function orderActionsHtml(o) {
     // button stack (with Copy Form above it) reads as one uniform column
     // instead of each button sizing to its own label's length.
     (o.paymentStatus !== "Paid" ? '<button style="font-size:12px; width:130px;" onclick="startMarkOrderPaid(\'' + o.orderCode + '\')">Mark Paid</button><br>' : "") +
-    (!fulfillmentDone ? '<button style="font-size:12px; width:130px;" onclick="markOrderDeliveryStatus(this, \'' + o.orderCode + '\', \'' + o.orderType + '\')">' + (o.orderType === "Takeaway" ? "Mark Picked Up" : "Mark Delivered") + "</button><br>" : "") +
+    (!fulfillmentDone ? '<button style="font-size:12px; width:130px;" onclick="markOrderDeliveryStatus(\'' + o.orderCode + '\', \'' + o.orderType + '\')">' + (o.orderType === "Takeaway" ? "Mark Picked Up" : "Mark Delivered") + "</button><br>" : "") +
     // Extra top margin so Cancel sits visibly apart from Mark Paid/Mark
     // Delivered above it - those two get used often, Cancel rarely, so a
     // slip of the mouse shouldn't land on it. Label spelled out
@@ -1611,16 +1611,22 @@ function confirmMarkOrderPaid(orderCode) {
 }
 
 // Takeaway (Picked Up) needs no driver - the customer collects it
-// themselves - so that path stays a plain confirm(). Delivery orders open a
-// modal to confirm/pick the driver instead, since it's now optional at New
-// Order creation time (may not be decided yet, or may change by the time
-// the order actually goes out) - this is the point it needs to be locked in.
-function markOrderDeliveryStatus(btn, orderCode, orderType) {
+// themselves - so that path is a plain confirmation modal. Delivery orders
+// open a modal to confirm/pick the driver instead, since it's now optional
+// at New Order creation time (may not be decided yet, or may change by the
+// time the order actually goes out) - this is the point it needs to be
+// locked in.
+function markOrderDeliveryStatus(orderCode, orderType) {
   if (orderType === "Takeaway") {
-    if (!confirm("Mark this order as Picked Up?")) return;
-    withInlineSaveStatus(btn, "Status", async function () {
-      await api("orders/" + encodeURIComponent(orderCode), { method: "PATCH", body: { fulfillmentStatus: "Picked Up" } });
-      await loadOrdersData();
+    openConfirmModal({
+      title: "Mark as Picked Up?",
+      chip: orderCode,
+      confirmLabel: "Mark as Picked Up",
+      onConfirm: async function () {
+        await api("orders/" + encodeURIComponent(orderCode), { method: "PATCH", body: { fulfillmentStatus: "Picked Up" } });
+        closeModal();
+        await loadOrdersData();
+      }
     });
     return;
   }
@@ -1660,8 +1666,15 @@ function confirmMarkDelivered(orderCode) {
 }
 
 function markOrderCancelled(orderCode) {
-  if (!confirm("Mark this order as Cancelled?")) return;
-  api("orders/" + encodeURIComponent(orderCode), { method: "PATCH", body: { orderStatus: "Cancelled" } })
-    .then(() => loadOrdersData())
-    .catch((err) => alert(err.message));
+  openConfirmModal({
+    title: "Mark this order as Cancelled?",
+    chip: orderCode,
+    confirmLabel: "Cancel Order",
+    danger: true,
+    onConfirm: async function () {
+      await api("orders/" + encodeURIComponent(orderCode), { method: "PATCH", body: { orderStatus: "Cancelled" } });
+      closeModal();
+      await loadOrdersData();
+    }
+  });
 }

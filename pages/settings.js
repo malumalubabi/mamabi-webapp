@@ -217,12 +217,47 @@ function manageListRowHtml(value, index, arranging, total, metaMap, metaSpec) {
 
   const actionsCell = arranging
     ? ""
-    : ('<td class="compact-cell">' +
-        '<button class="btn-compact" onclick="openEditSettingsListItem(\'' + escaped + '\')">Edit</button> ' +
-        '<button class="btn-compact" onclick="removeSettingsListItem(\'' + escaped + '\')">Remove</button>' +
-      "</td>");
+    : ('<td class="compact-cell">' + settingsListActionsHtml(escaped) + "</td>");
 
   return "<tr>" + moveCell + "<td>" + value + "</td>" + metaCell + actionsCell + "</tr>";
+}
+
+// Inline expand-in-place confirm, not openConfirmModal - this row lives
+// inside the already-open Manage List modal, and openModal() always closes
+// whatever modal is currently open before showing a new one, so a stacked
+// confirm modal would discard this one from underneath even on Cancel.
+// Same reasoning as sales.js's batchDeleteTriggerHtml.
+function settingsListActionsHtml(escaped) {
+  return (
+    '<button class="btn-compact" onclick="openEditSettingsListItem(\'' + escaped + '\')">Edit</button> ' +
+    '<button class="btn-compact" onclick="confirmRemoveSettingsListItem(this, \'' + escaped + '\')">Remove</button>'
+  );
+}
+
+function confirmRemoveSettingsListItem(btn, escaped) {
+  btn.closest("td").innerHTML =
+    '<span style="color:#b00020; font-size:11px; display:block; margin-bottom:4px;">Remove? Won\'t affect existing records.</span>' +
+    '<button class="btn-compact" style="color:#b00020;" onclick="removeSettingsListItem(\'' + escaped + '\', this)">Yes, Remove</button> ' +
+    '<button class="btn-compact" onclick="cancelRemoveSettingsListItem(this, \'' + escaped + '\')">Cancel</button>' +
+    '<span class="save-status" style="display:block;"></span>';
+}
+
+function cancelRemoveSettingsListItem(btn, escaped) {
+  btn.closest("td").innerHTML = settingsListActionsHtml(escaped);
+}
+
+// Takes the same (unescaped-quote) string openEditSettingsListItem above
+// does - matches its existing convention rather than introducing a new one.
+function removeSettingsListItem(value, btn) {
+  const listName = _manageListName;
+  const statusEl = btn.closest("td").querySelector(".save-status");
+
+  withSaveStatus(btn, statusEl, "Removal", async function () {
+    await api("settings-lists", { method: "DELETE", body: { listName: listName, value: value } });
+    _lastSettingsData = await api("settings");
+    renderManageSettingsListModal();
+    renderAllSettingsLists();
+  });
 }
 
 function addSettingsListItem() {
@@ -283,19 +318,6 @@ function saveEditSettingsListItem(oldValue) {
     renderManageSettingsListModal();
     renderAllSettingsLists();
   });
-}
-
-function removeSettingsListItem(value) {
-  const listName = _manageListName;
-  if (!confirm('Remove "' + value + '" from ' + listName + '? Existing records already using it won\'t change, but it won\'t be selectable anymore.')) return;
-
-  api("settings-lists", { method: "DELETE", body: { listName: listName, value: value } })
-    .then(async () => {
-      _lastSettingsData = await api("settings");
-      renderManageSettingsListModal();
-      renderAllSettingsLists();
-    })
-    .catch((err) => alert(err.message));
 }
 
 // ---------- Arrange (Staff Roles only) - same "stage moves locally, save
@@ -479,9 +501,31 @@ function skuConfigItemRowHtml(listName, value, code) {
   return (
     "<tr><td>" + value + "</td>" +
     '<td style="color:var(--color-text-muted); font-size:12px;">' + (code || "") + "</td>" +
-    '<td class="compact-cell"><button class="btn-compact" onclick="openEditSkuConfigItem(\'' + escapedList + '\', \'' + escapedValue + '\')">Edit</button> ' +
-    '<button class="btn-compact" onclick="removeSkuConfigItem(\'' + escapedList + '\', \'' + escapedValue + '\')">Remove</button></td></tr>'
+    '<td class="compact-cell">' + skuConfigActionsHtml(escapedList, escapedValue) + "</td></tr>"
   );
+}
+
+// Inline expand-in-place confirm, not openConfirmModal - same reasoning as
+// settingsListActionsHtml above (this row lives inside the already-open
+// Manage SKU Config modal, and openModal() would discard it from
+// underneath even on Cancel).
+function skuConfigActionsHtml(escapedList, escapedValue) {
+  return (
+    '<button class="btn-compact" onclick="openEditSkuConfigItem(\'' + escapedList + '\', \'' + escapedValue + '\')">Edit</button> ' +
+    '<button class="btn-compact" onclick="confirmRemoveSkuConfigItem(this, \'' + escapedList + '\', \'' + escapedValue + '\')">Remove</button>'
+  );
+}
+
+function confirmRemoveSkuConfigItem(btn, escapedList, escapedValue) {
+  btn.closest("td").innerHTML =
+    '<span style="color:#b00020; font-size:11px; display:block; margin-bottom:4px;">Remove? Add SKU won\'t auto-generate a code for it anymore.</span>' +
+    '<button class="btn-compact" style="color:#b00020;" onclick="removeSkuConfigItem(\'' + escapedList + '\', \'' + escapedValue + '\', this)">Yes, Remove</button> ' +
+    '<button class="btn-compact" onclick="cancelRemoveSkuConfigItem(this, \'' + escapedList + '\', \'' + escapedValue + '\')">Cancel</button>' +
+    '<span class="save-status" style="display:block;"></span>';
+}
+
+function cancelRemoveSkuConfigItem(btn, escapedList, escapedValue) {
+  btn.closest("td").innerHTML = skuConfigActionsHtml(escapedList, escapedValue);
 }
 
 function addSkuConfigItem(listName, valueInputId, codeInputId, btnId, statusId) {
@@ -543,14 +587,13 @@ function saveEditSkuConfigItem(listName, oldValue) {
   });
 }
 
-function removeSkuConfigItem(listName, value) {
-  if (!confirm('Remove "' + value + '"? Add SKU won\'t be able to auto-generate a code for it anymore.')) return;
+function removeSkuConfigItem(listName, value, btn) {
+  const statusEl = btn.closest("td").querySelector(".save-status");
 
-  api("settings-lists", { method: "DELETE", body: { listName: listName, value: value } })
-    .then(async () => {
-      _lastSettingsData = await api("settings");
-      renderSkuConfigModal();
-      renderSkuConfigSection();
-    })
-    .catch((err) => alert(err.message));
+  withSaveStatus(btn, statusEl, "Removal", async function () {
+    await api("settings-lists", { method: "DELETE", body: { listName: listName, value: value } });
+    _lastSettingsData = await api("settings");
+    renderSkuConfigModal();
+    renderSkuConfigSection();
+  });
 }

@@ -362,11 +362,18 @@ function saveSku(existingSku) {
 }
 
 function deleteSku(sku) {
-  if (!confirm("Delete SKU " + sku + "? This can't be undone.")) return;
-
-  api("sku-items/" + encodeURIComponent(sku), { method: "DELETE" })
-    .then(() => loadSkuType(_activeSkuType))
-    .catch((err) => alert(err.message));
+  openConfirmModal({
+    title: "Delete this SKU?",
+    body: "This can't be undone.",
+    chip: sku,
+    confirmLabel: "Delete SKU",
+    danger: true,
+    onConfirm: async function () {
+      await api("sku-items/" + encodeURIComponent(sku), { method: "DELETE" });
+      closeModal();
+      await loadSkuType(_activeSkuType);
+    }
+  });
 }
 
 // ================================================================
@@ -546,11 +553,17 @@ function saveSupplier(code) {
 }
 
 function deleteSupplier(code) {
-  if (!confirm("Delete this supplier? This can't be undone.")) return;
-
-  api("suppliers/" + encodeURIComponent(code), { method: "DELETE" })
-    .then(() => renderSupplierSection(document.getElementById("databaseSectionWrap")))
-    .catch((err) => alert(err.message));
+  openConfirmModal({
+    title: "Delete this supplier?",
+    body: "This can't be undone.",
+    confirmLabel: "Delete Supplier",
+    danger: true,
+    onConfirm: async function () {
+      await api("suppliers/" + encodeURIComponent(code), { method: "DELETE" });
+      closeModal();
+      await renderSupplierSection(document.getElementById("databaseSectionWrap"));
+    }
+  });
 }
 
 // ================================================================
@@ -692,11 +705,17 @@ function saveCustomer(code) {
 }
 
 function deleteCustomer(code) {
-  if (!confirm("Delete this customer? This can't be undone.")) return;
-
-  api("customers/" + encodeURIComponent(code), { method: "DELETE" })
-    .then(() => renderCustomerSection(document.getElementById("databaseSectionWrap")))
-    .catch((err) => alert(err.message));
+  openConfirmModal({
+    title: "Delete this customer?",
+    body: "This can't be undone.",
+    confirmLabel: "Delete Customer",
+    danger: true,
+    onConfirm: async function () {
+      await api("customers/" + encodeURIComponent(code), { method: "DELETE" });
+      closeModal();
+      await renderCustomerSection(document.getElementById("databaseSectionWrap"));
+    }
+  });
 }
 
 // ================================================================
@@ -892,9 +911,15 @@ function saveStaff(code) {
 }
 
 function deleteStaff(code) {
-  if (!confirm("Delete this staff record? This can't be undone.")) return;
-
-  api("staff/" + encodeURIComponent(code), { method: "DELETE" })
-    .then(() => renderStaffSection(document.getElementById("databaseSectionWrap")))
-    .catch((err) => alert(err.message));
+  openConfirmModal({
+    title: "Delete this staff record?",
+    body: "This can't be undone.",
+    confirmLabel: "Delete Staff",
+    danger: true,
+    onConfirm: async function () {
+      await api("staff/" + encodeURIComponent(code), { method: "DELETE" });
+      closeModal();
+      await renderStaffSection(document.getElementById("databaseSectionWrap"));
+    }
+  });
 }

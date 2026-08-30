@@ -631,6 +631,64 @@ function closeModalOnEscape(e) {
   if (e.key === "Escape") closeModal();
 }
 
+// ---------- Confirmation modal (replaces window.confirm()) ----------
+//
+// confirm()/alert() render in the browser's own chrome, entirely outside
+// the page - no class, no override, no !important ever reaches them. A
+// themed confirmation has to be a real modal instead; this reuses the same
+// card/button language as every other modal in the app.
+const ICON_CHECK_CIRCLE = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+const ICON_ALERT_TRIANGLE = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
+
+// opts: { title, body (optional), chip (optional small code/id badge under
+// the body text), confirmLabel, danger (bool - red icon/button, for
+// destructive actions like Delete/Cancel/Remove vs a neutral positive
+// action like Mark Done), onConfirm (async fn - runs on confirm; same
+// responsibility as any other modal's Save handler, call closeModal() and
+// reload whatever data yourself once it succeeds - throwing shows the
+// message inline instead of a native alert()) }.
+function openConfirmModal(opts) {
+  const danger = !!opts.danger;
+  const iconColor = danger ? "var(--color-error)" : "var(--color-accent)";
+  const iconBg = danger ? "rgba(207,34,46,0.12)" : "var(--color-accent-tint)";
+  const bodyHtml = opts.body
+    ? '<p style="font-size:13.5px; line-height:1.55; color:var(--color-text-muted); margin:0 0 6px;">' + opts.body + "</p>"
+    : "";
+  const chipHtml = opts.chip
+    ? '<span style="display:inline-block; font-family:\'Inter\', Arial, sans-serif; font-weight:600; font-size:12.5px; background:var(--color-field-bg); border:1px solid var(--color-border-on-card); color:var(--color-text-primary); padding:2px 8px; border-radius:6px; margin:2px 0 4px;">' + opts.chip + "</span><br>"
+    : "";
+
+  const box = openModal(
+    '<div style="width:40px; height:40px; border-radius:10px; background:' + iconBg + '; color:' + iconColor + '; display:flex; align-items:center; justify-content:center; margin-bottom:14px;">' +
+      (danger ? ICON_ALERT_TRIANGLE : ICON_CHECK_CIRCLE) +
+    "</div>" +
+    "<h2>" + opts.title + "</h2>" +
+    bodyHtml +
+    chipHtml +
+    '<div style="display:flex; justify-content:flex-end; gap:10px; margin-top:16px;">' +
+      '<button onclick="closeModal()">Cancel</button>' +
+      '<button class="btn-primary confirmModalBtn"' + (danger ? ' style="background:var(--color-error); border-color:var(--color-error);"' : "") + ">" + opts.confirmLabel + "</button>" +
+    "</div>" +
+    '<div class="save-status" style="display:block; text-align:right; margin:10px 0 0;"></div>'
+  );
+  box.style.maxWidth = "380px";
+
+  const btn = box.querySelector(".confirmModalBtn");
+  const statusEl = box.querySelector(".save-status");
+  btn.onclick = function () {
+    btn.disabled = true;
+    statusEl.classList.remove("error");
+    statusEl.textContent = "";
+    Promise.resolve()
+      .then(opts.onConfirm)
+      .catch(function (err) {
+        btn.disabled = false;
+        statusEl.classList.add("error");
+        statusEl.textContent = err.message || String(err);
+      });
+  };
+}
+
 // ---------- Tiny hash router ----------
 //
 // pages/*.js each register themselves via registerPage(name, renderFn).

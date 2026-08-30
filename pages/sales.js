@@ -598,7 +598,7 @@ function openSalesBatchModal(batchCode) {
         '<button id="saveBatchEditBtn" class="btn-primary" onclick="saveSalesBatchEdit(\'' + batchCode + '\')">Save</button> ' +
         '<span id="saveBatchEditStatus" class="save-status"></span>' +
       "</div>" +
-      '<button type="button" style="color:#b00020;" onclick="deleteSalesBatchFromModal(\'' + batchCode + '\')">Delete Batch</button>' +
+      '<div id="batchDeleteWrap">' + batchDeleteTriggerHtml(batchCode) + "</div>" +
     "</div>"
   );
   document.getElementById("batchEditItemRows").innerHTML = "";
@@ -757,10 +757,37 @@ async function saveSalesBatchEdit(batchCode) {
   });
 }
 
-function deleteSalesBatchFromModal(batchCode) {
-  if (!confirm("Delete this whole batch? Every product line, their stock consumption, and the linked Platform/Marketing Fee expenses will all be removed.")) return;
+// Inline confirm toggle, not openConfirmModal - this button lives inside
+// the already-open Edit Sales Batch modal, and openModal() always closes
+// whatever modal is currently open before showing a new one (only one at a
+// time), so stacking a confirm modal on top would silently discard the
+// edit modal under it even on Cancel. Expanding in place instead (same
+// view/edit-toggle idiom as editMinStock/scaledQtyViewHtml elsewhere)
+// keeps the edit modal intact regardless of what's chosen here.
+function batchDeleteTriggerHtml(batchCode) {
+  return '<button type="button" style="color:#b00020;" onclick="confirmDeleteSalesBatchInline(\'' + batchCode + '\')">Delete Batch</button>';
+}
 
-  api("sales-batches/" + encodeURIComponent(batchCode), { method: "DELETE" })
-    .then(function () { closeModal(); return loadSalesData(); })
-    .catch((err) => alert(err.message));
+function confirmDeleteSalesBatchInline(batchCode) {
+  const wrap = document.getElementById("batchDeleteWrap");
+  wrap.innerHTML =
+    '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end;">' +
+      '<span style="color:#b00020; font-size:12.5px; max-width:260px; text-align:right;">Delete this batch? Every product line, their stock consumption, and the linked Platform/Marketing Fee expenses will all be removed.</span>' +
+      '<button type="button" class="deleteBatchConfirmBtn" style="color:#b00020;" onclick="deleteSalesBatchFromModal(\'' + batchCode + '\', this)">Yes, Delete</button>' +
+      '<button type="button" onclick="cancelDeleteSalesBatchInline(\'' + batchCode + '\')">Cancel</button>' +
+    "</div>" +
+    '<span class="save-status" style="display:block; text-align:right; margin-top:6px;"></span>';
+}
+
+function cancelDeleteSalesBatchInline(batchCode) {
+  document.getElementById("batchDeleteWrap").innerHTML = batchDeleteTriggerHtml(batchCode);
+}
+
+function deleteSalesBatchFromModal(batchCode, btn) {
+  const statusEl = document.getElementById("batchDeleteWrap").querySelector(".save-status");
+  withSaveStatus(btn, statusEl, "Batch", async function () {
+    await api("sales-batches/" + encodeURIComponent(batchCode), { method: "DELETE" });
+    closeModal();
+    await loadSalesData();
+  });
 }

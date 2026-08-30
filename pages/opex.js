@@ -318,9 +318,16 @@ function saveOpexEntry(existingCode) {
 }
 
 function deleteOpexEntry(code) {
-  if (!confirm("Delete this expense entirely? This can't be undone.")) return;
-
-  api("opex/" + encodeURIComponent(code), { method: "DELETE" })
-    .then(() => loadOpexData())
-    .catch((err) => alert(err.message));
+  openConfirmModal({
+    title: "Delete this expense?",
+    body: "This can't be undone.",
+    chip: code,
+    confirmLabel: "Delete Expense",
+    danger: true,
+    onConfirm: async function () {
+      await api("opex/" + encodeURIComponent(code), { method: "DELETE" });
+      closeModal();
+      await loadOpexData();
+    }
+  });
 }

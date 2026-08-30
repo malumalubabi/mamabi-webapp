@@ -138,12 +138,19 @@ function formatPnlValue(label, value) {
 }
 
 function closeOrRecalculatePnlMonth(monthKey, isRecalculate) {
-  const confirmMsg = isRecalculate
-    ? "Recalculate " + monthKey + "? This re-derives its numbers from CURRENT Sales/Opex data (and current PnL Categories Fixed/Variable settings) and overwrites the frozen snapshot."
-    : "Close " + monthKey + "? This freezes its P&L numbers so they won't change even if Sales/Opex data is edited later. You can Recalculate afterwards if a correction is needed.";
-  if (!confirm(confirmMsg)) return;
+  const title = isRecalculate ? "Recalculate " + monthKey + "?" : "Close " + monthKey + "?";
+  const body = isRecalculate
+    ? "This re-derives its numbers from CURRENT Sales/Opex data (and current PnL Categories Fixed/Variable settings) and overwrites the frozen snapshot."
+    : "This freezes its P&L numbers so they won't change even if Sales/Opex data is edited later. You can Recalculate afterwards if a correction is needed.";
 
-  api("pnl-close", { method: "POST", body: { monthKey: monthKey } })
-    .then(loadPnl)
-    .catch((err) => alert(err.message));
+  openConfirmModal({
+    title: title,
+    body: body,
+    confirmLabel: isRecalculate ? "Recalculate" : "Close Month",
+    onConfirm: async function () {
+      await api("pnl-close", { method: "POST", body: { monthKey: monthKey } });
+      closeModal();
+      await loadPnl();
+    }
+  });
 }

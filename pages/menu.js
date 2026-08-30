@@ -152,7 +152,7 @@ function ongoingBatchRowHtml(b) {
       "<td>" + baseYieldFor(b.sku) + "</td>" +
       "<td>" + (b.yieldQty === null ? "" : b.yieldQty) + "</td>" +
       "<td>" +
-        '<button onclick="markBatchDone(this, \'' + b.batchCode + '\')">Mark Done</button> ' +
+        '<button onclick="markBatchDone(\'' + b.batchCode + '\')">Mark Done</button> ' +
         '<button onclick="cancelBatch(\'' + b.batchCode + '\')">Cancel Batch</button>' +
       "</td>" +
     "</tr>"
@@ -174,24 +174,36 @@ function batchHistoryRowHtml(b) {
   );
 }
 
-function markBatchDone(btn, batchCode) {
-  if (!confirm("Mark batch " + batchCode + " as Done? This will count its yield into stock.")) return;
-
-  withInlineSaveStatus(btn, "Batch", async function () {
-    await api("batches/" + encodeURIComponent(batchCode), { method: "PATCH", body: { status: "Done" } });
-    await loadBatchData();
+function markBatchDone(batchCode) {
+  openConfirmModal({
+    title: "Mark batch as Done?",
+    body: "This will count its yield into stock.",
+    chip: batchCode,
+    confirmLabel: "Mark as Done",
+    onConfirm: async function () {
+      await api("batches/" + encodeURIComponent(batchCode), { method: "PATCH", body: { status: "Done" } });
+      closeModal();
+      await loadBatchData();
+    }
   });
 }
 
-// Ported from MenuBatchProduction_JS.html's cancelBatch() - same confirm
-// wording. Sets status to Cancelled, which moves it out of Ongoing Batches
-// and into Batch History (see the scope filter in functions/api/batches.js).
+// Ported from MenuBatchProduction_JS.html's cancelBatch() - same wording.
+// Sets status to Cancelled, which moves it out of Ongoing Batches and into
+// Batch History (see the scope filter in functions/api/batches.js).
 function cancelBatch(batchCode) {
-  if (!confirm("Cancel batch " + batchCode + "? This will remove it from Ongoing Batches and move it to Batch History with status Cancelled.")) return;
-
-  api("batches/" + encodeURIComponent(batchCode), { method: "PATCH", body: { status: "Cancelled" } })
-    .then(() => loadBatchData())
-    .catch((err) => alert(err.message));
+  openConfirmModal({
+    title: "Cancel this batch?",
+    body: "This will remove it from Ongoing Batches and move it to Batch History with status Cancelled.",
+    chip: batchCode,
+    confirmLabel: "Cancel Batch",
+    danger: true,
+    onConfirm: async function () {
+      await api("batches/" + encodeURIComponent(batchCode), { method: "PATCH", body: { status: "Cancelled" } });
+      closeModal();
+      await loadBatchData();
+    }
+  });
 }
 
 // Ported concept from MenuBatchProduction_JS.html's showBatchRecipeDetail()
