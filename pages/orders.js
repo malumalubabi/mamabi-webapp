@@ -1055,6 +1055,77 @@ function methodSelectOptionsHtml(current) {
   return html;
 }
 
+// Payout History is per-order (one row per paid Delivery order, not a
+// lump-sum-per-driver record - the lump sum only exists on the OpEx side,
+// see resyncDriverPayoutOpexGroup), so a Date filter + explicit "newest
+// first" default sort makes sense here the same way every other per-row
+// log in the app has one - previously had neither, just whatever order the
+// API happened to return (order_code descending, not truly date-sorted).
+let _lastPaidPayoutOrders = [];
+let _payoutHistoryDateFrom = "";
+let _payoutHistoryDateTo = "";
+let _payoutHistorySort = "date-desc";
+const PAYOUT_HISTORY_SORT_LABELS = { "date-desc": "Order Date (Newest)", "date-asc": "Order Date (Oldest)" };
+
+function visiblePayoutHistoryOrders() {
+  return _lastPaidPayoutOrders
+    .filter((o) =>
+      (!_payoutHistoryDateFrom || o.orderDate >= _payoutHistoryDateFrom) &&
+      (!_payoutHistoryDateTo || o.orderDate <= _payoutHistoryDateTo)
+    )
+    .sort((a, b) => {
+      if (a.orderDate === b.orderDate) return 0;
+      const cmp = a.orderDate < b.orderDate ? -1 : 1;
+      return _payoutHistorySort === "date-asc" ? cmp : -cmp;
+    });
+}
+
+function payoutHistoryFilterSortBadgeText() {
+  const dateParts = [];
+  if (_payoutHistoryDateFrom) dateParts.push("from " + _payoutHistoryDateFrom);
+  if (_payoutHistoryDateTo) dateParts.push("to " + _payoutHistoryDateTo);
+  const dateText = dateParts.length ? dateParts.join(" ") : "All dates";
+  return dateText + " | " + PAYOUT_HISTORY_SORT_LABELS[_payoutHistorySort];
+}
+
+function openPayoutHistoryFilterSortModal() {
+  const sortOptions = [["date-desc", "Order Date (Newest)"], ["date-asc", "Order Date (Oldest)"]];
+  const sortRadios = sortOptions.map(([val, label]) =>
+    '<label style="display:block; margin:6px 0;"><input type="radio" name="payoutHistorySortOption" value="' + val + '"' + (_payoutHistorySort === val ? " checked" : "") + "> " + label + "</label>"
+  ).join("");
+
+  openModal(
+    "<h2>Filter &amp; Sort - Payout History</h2>" +
+    "<label>Order Date Range</label><br>" +
+    '<div style="display:flex; align-items:center; gap:8px;">' +
+      '<input type="date" id="payoutHistoryDateFrom" value="' + _payoutHistoryDateFrom + '">' +
+      "<span>to</span>" +
+      '<input type="date" id="payoutHistoryDateTo" value="' + _payoutHistoryDateTo + '">' +
+    "</div><br><br>" +
+    "<label>Sort</label>" +
+    "<div>" + sortRadios + "</div>" +
+    '<div style="margin-top:16px;">' +
+      '<button class="btn-primary" onclick="applyPayoutHistoryFilterSort()">Apply</button>' +
+    "</div>"
+  );
+}
+
+function applyPayoutHistoryFilterSort() {
+  _payoutHistoryDateFrom = document.getElementById("payoutHistoryDateFrom").value || "";
+  _payoutHistoryDateTo = document.getElementById("payoutHistoryDateTo").value || "";
+  const selectedSort = document.querySelector('input[name="payoutHistorySortOption"]:checked');
+  if (selectedSort) _payoutHistorySort = selectedSort.value;
+  closeModal();
+  rerenderPayoutHistory();
+}
+
+function rerenderPayoutHistory() {
+  const wrap = document.getElementById("payoutHistorySectionWrap");
+  if (!wrap) return;
+  wrap.innerHTML = buildPayoutHistoryTableHtml(visiblePayoutHistoryOrders());
+  enableDragScroll(document.getElementById("payoutHistoryScrollWrap"));
+}
+
 function renderDriverPayoutSections(wrap, orders) {
   // deliveryFee > 0 only - a Rp0 fee (free ongkir) has nothing to pay a
   // driver for, so it's not a Driver Payout concern at all regardless of
@@ -1064,13 +1135,19 @@ function renderDriverPayoutSections(wrap, orders) {
   deliveryOrders.forEach((o) => { _driverPayoutOrdersByCode[o.orderCode] = o; });
 
   const unpaid = deliveryOrders.filter((o) => o.driverPayoutStatus !== "Paid");
-  const paid = deliveryOrders.filter((o) => o.driverPayoutStatus === "Paid");
+  _lastPaidPayoutOrders = deliveryOrders.filter((o) => o.driverPayoutStatus === "Paid");
 
   wrap.innerHTML =
     "<h3>Unpaid Payout</h3>" +
     buildUnpaidPayoutTableShellHtml(unpaid) +
-    '<h3 style="margin-top:28px;">Payout History</h3>' +
-    buildPayoutHistoryTableHtml(paid);
+    '<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-top:28px;">' +
+      "<h3>Payout History</h3>" +
+      '<div style="display:flex; align-items:center; gap:10px;">' +
+        '<span style="color:var(--color-text-muted); font-size:12px;">' + payoutHistoryFilterSortBadgeText() + "</span>" +
+        '<button onclick="openPayoutHistoryFilterSortModal()">Filter &amp; Sort</button>' +
+      "</div>" +
+    "</div>" +
+    '<div id="payoutHistorySectionWrap">' + buildPayoutHistoryTableHtml(visiblePayoutHistoryOrders()) + "</div>";
 
   // Same helper as the Purchase Log (inventory.js) - keeps each driver's
   // group of rows intact across page breaks instead of slicing blindly.

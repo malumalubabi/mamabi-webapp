@@ -64,17 +64,94 @@ function toggleShowCancelledBatches() {
   renderBatchTable(document.getElementById("batchHistoryWrap"), _lastHistoryBatches, "history");
 }
 
+// Batch History only (Ongoing stays unfiltered - it's small and everything
+// in it is current/actionable, same reasoning Order History's filter never
+// applies to Ongoing Orders either).
+let _batchHistoryDateFrom = "";
+let _batchHistoryDateTo = "";
+let _batchHistoryCategoryFilter = []; // empty = show every Category (default)
+let _batchHistorySort = "date-desc";
+const BATCH_HISTORY_SORT_LABELS = { "date-desc": "Date (Newest)", "date-asc": "Date (Oldest)" };
+
+function visibleBatchHistoryRows(rows) {
+  const cancelledFiltered = _showCancelledBatches ? rows : rows.filter((b) => b.status !== "Cancelled");
+  return cancelledFiltered
+    .filter((b) =>
+      (!_batchHistoryCategoryFilter.length || _batchHistoryCategoryFilter.indexOf(b.category || "") !== -1) &&
+      (!_batchHistoryDateFrom || b.date >= _batchHistoryDateFrom) &&
+      (!_batchHistoryDateTo || b.date <= _batchHistoryDateTo)
+    )
+    .sort((a, b) => {
+      if (a.date === b.date) return 0;
+      const cmp = a.date < b.date ? -1 : 1;
+      return _batchHistorySort === "date-asc" ? cmp : -cmp;
+    });
+}
+
+function openBatchHistoryFilterSortModal() {
+  const categories = [...new Set(_lastHistoryBatches.map((b) => b.category || "").filter(Boolean))].sort();
+  const sortOptions = [["date-desc", "Date (Newest)"], ["date-asc", "Date (Oldest)"]];
+
+  const categoryChecks = categories.map((c) =>
+    '<label style="display:block; margin:4px 0;"><input type="checkbox" class="batchHistoryCategoryFilterCheck" value="' + c + '"' + (_batchHistoryCategoryFilter.indexOf(c) !== -1 ? " checked" : "") + "> " + c + "</label>"
+  ).join("");
+  const sortRadios = sortOptions.map(([val, label]) =>
+    '<label style="display:block; margin:6px 0;"><input type="radio" name="batchHistorySortOption" value="' + val + '"' + (_batchHistorySort === val ? " checked" : "") + "> " + label + "</label>"
+  ).join("");
+
+  openModal(
+    "<h2>Filter &amp; Sort - Batch History</h2>" +
+    "<label>Date Range</label><br>" +
+    '<div style="display:flex; align-items:center; gap:8px;">' +
+      '<input type="date" id="batchHistoryDateFrom" value="' + _batchHistoryDateFrom + '">' +
+      "<span>to</span>" +
+      '<input type="date" id="batchHistoryDateTo" value="' + _batchHistoryDateTo + '">' +
+    "</div><br><br>" +
+    "<label>Category</label>" +
+    "<div>" + categoryChecks + "</div><br>" +
+    "<label>Sort</label>" +
+    "<div>" + sortRadios + "</div>" +
+    '<div style="margin-top:16px;">' +
+      '<button class="btn-primary" onclick="applyBatchHistoryFilterSort()">Apply</button>' +
+    "</div>"
+  );
+}
+
+function applyBatchHistoryFilterSort() {
+  _batchHistoryDateFrom = document.getElementById("batchHistoryDateFrom").value || "";
+  _batchHistoryDateTo = document.getElementById("batchHistoryDateTo").value || "";
+  _batchHistoryCategoryFilter = Array.from(document.querySelectorAll(".batchHistoryCategoryFilterCheck:checked")).map((cb) => cb.value);
+  const selectedSort = document.querySelector('input[name="batchHistorySortOption"]:checked');
+  if (selectedSort) _batchHistorySort = selectedSort.value;
+  closeModal();
+  renderBatchTable(document.getElementById("batchHistoryWrap"), _lastHistoryBatches, "history");
+}
+
+function batchHistoryFilterSortBadgeText() {
+  const dateParts = [];
+  if (_batchHistoryDateFrom) dateParts.push("from " + _batchHistoryDateFrom);
+  if (_batchHistoryDateTo) dateParts.push("to " + _batchHistoryDateTo);
+  const dateText = dateParts.length ? dateParts.join(" ") : "All dates";
+  const categoryText = _batchHistoryCategoryFilter.length ? _batchHistoryCategoryFilter.join(", ") : "All Categories";
+  return dateText + " | " + categoryText + " | " + BATCH_HISTORY_SORT_LABELS[_batchHistorySort];
+}
+
 function renderBatchTable(wrap, rows, scope) {
   const title = scope === "ongoing" ? "Ongoing Batches" : "Batch History";
-  const visibleRows = scope === "history" && !_showCancelledBatches ? rows.filter((b) => b.status !== "Cancelled") : rows;
+  const visibleRows = scope === "history" ? visibleBatchHistoryRows(rows) : rows;
 
   // Start New Batch always creates an Ongoing batch, so the button lives
   // next to that subsection's own title, not a page-level header - same
   // reasoning as Orders' "+ New Order" and Sales' "+ Input Sales".
   const titleRow =
-    '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+    '<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">' +
       "<h3>" + title + "</h3>" +
-      (scope === "ongoing" ? '<button class="btn-primary" onclick="openBatchModal()">+ Start New Batch</button>' : "") +
+      (scope === "ongoing"
+        ? '<button class="btn-primary" onclick="openBatchModal()">+ Start New Batch</button>'
+        : '<div style="display:flex; align-items:center; gap:10px;">' +
+            '<span style="color:var(--color-text-muted); font-size:12px;">' + batchHistoryFilterSortBadgeText() + "</span>" +
+            '<button onclick="openBatchHistoryFilterSortModal()">Filter &amp; Sort</button>' +
+          "</div>") +
     "</div>";
 
   if (!rows.length) {

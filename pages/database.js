@@ -75,6 +75,10 @@ let _lastSkuRows = [];
 let _skuArrangeMode = false;
 let _skuArrangeRows = [];
 let _skuCategoryFilter = []; // empty = show every Category (default) - reset on type switch, see switchSkuType
+// Defaults to the type's "on" status (Available, or Active for Product) -
+// reset per-type in switchSkuType since the vocabulary itself differs by
+// type (see skuStatusOptionsHtml). "All" is still reachable via Set Filter.
+let _skuStatusFilter = ["Available"];
 
 function skuTypeTabId(type) {
   return "skuTypeTab-" + type.replace(/[^a-zA-Z]/g, "");
@@ -99,6 +103,7 @@ function switchSkuType(type) {
   _activeSkuType = type;
   _skuArrangeMode = false;
   _skuCategoryFilter = []; // categories are type-specific, stale otherwise
+  _skuStatusFilter = [type === "Product" ? "Active" : "Available"]; // vocabulary is type-specific too
   wireSkuTypeTabs();
   loadSkuType(type);
 }
@@ -122,7 +127,10 @@ async function loadSkuType(type) {
 // filtered view would make "Save Order" silently drop whatever's hidden.
 function visibleSkuRows() {
   if (_skuArrangeMode) return _skuArrangeRows;
-  return _skuCategoryFilter.length ? _lastSkuRows.filter((r) => _skuCategoryFilter.indexOf(r.category || "") !== -1) : _lastSkuRows;
+  return _lastSkuRows.filter((r) =>
+    (!_skuCategoryFilter.length || _skuCategoryFilter.indexOf(r.category || "") !== -1) &&
+    (!_skuStatusFilter.length || _skuStatusFilter.indexOf(r.status) !== -1)
+  );
 }
 
 function renderSkuTable(wrap) {
@@ -133,7 +141,10 @@ function renderSkuTable(wrap) {
       "<h3>SKU Registry - " + _activeSkuType + "</h3>" +
       '<div style="display:flex; align-items:center; gap:10px;">' +
         (_skuArrangeMode ? "" :
-          '<span id="skuFilterBadge" style="color:var(--color-text-muted); font-size:12px;">' + (_skuCategoryFilter.length ? _skuCategoryFilter.join(", ") : "All Categories") + "</span>" +
+          '<span id="skuFilterBadge" style="color:var(--color-text-muted); font-size:12px;">' +
+            (_skuCategoryFilter.length ? _skuCategoryFilter.join(", ") : "All Categories") + " | " +
+            (_skuStatusFilter.length ? _skuStatusFilter.join(", ") : "All Statuses") +
+          "</span>" +
           '<button onclick="openSkuFilterModal()">Set Filter</button>'
         ) +
         '<button class="btn-primary" onclick="openSkuModal(null)">+ Add SKU</button>' +
@@ -144,8 +155,8 @@ function renderSkuTable(wrap) {
       "<table>" +
         "<thead><tr>" +
           (_skuArrangeMode ? "<th></th>" : "") +
-          "<th>SKU</th><th>Category</th><th>Name</th><th>Unit</th><th>Status</th><th></th></tr></thead>" +
-        '<tbody id="skuTbody">' + (rows.length ? rows.map((r, i) => skuRowHtml(r, i === 0, i === rows.length - 1)).join("") : '<tr><td colspan="6">No SKUs match this filter.</td></tr>') + "</tbody>" +
+          "<th>Category</th><th>Name</th><th>Unit</th><th>Status</th><th></th></tr></thead>" +
+        '<tbody id="skuTbody">' + (rows.length ? rows.map((r, i) => skuRowHtml(r, i === 0, i === rows.length - 1)).join("") : '<tr><td colspan="5">No SKUs match this filter.</td></tr>') + "</tbody>" +
       "</table>" +
     "</div>" +
     '<div style="display:flex; justify-content:flex-start; gap:8px; margin-top:8px;">' +
@@ -160,24 +171,37 @@ function renderSkuTable(wrap) {
 
 function openSkuFilterModal() {
   const categories = [...new Set(_lastSkuRows.map((r) => r.category || "").filter(Boolean))].sort();
-  const checkboxes = categories.map((c) =>
+  const categoryChecks = categories.map((c) =>
     '<label style="display:block; margin:4px 0;">' +
       '<input type="checkbox" class="skuCategoryFilterCheck" value="' + c + '"' + (_skuCategoryFilter.indexOf(c) !== -1 ? " checked" : "") + "> " + c +
     "</label>"
   ).join("");
+  // Same two-value vocabulary as skuStatusOptionsHtml (Add/Edit SKU's own
+  // Status dropdown) - Active/Inactive for Product, Available/Unavailable
+  // for everything else.
+  const statusOptions = _activeSkuType === "Product" ? ["Active", "Inactive"] : ["Available", "Unavailable"];
+  const statusChecks = statusOptions.map((s) =>
+    '<label style="display:block; margin:4px 0;">' +
+      '<input type="checkbox" class="skuStatusFilterCheck" value="' + s + '"' + (_skuStatusFilter.indexOf(s) !== -1 ? " checked" : "") + "> " + s +
+    "</label>"
+  ).join("");
 
   openModal(
-    "<h2>Set Filter - Category</h2>" +
-    "<div>" + (checkboxes || "<p>No categories on this SKU type.</p>") + "</div>" +
+    "<h2>Set Filter - SKU Registry</h2>" +
+    "<label>Category</label>" +
+    "<div>" + (categoryChecks || "<p>No categories on this SKU type.</p>") + "</div><br>" +
+    "<label>Status</label>" +
+    "<div>" + statusChecks + "</div>" +
     '<div style="margin-top:16px;">' +
       '<button onclick="closeModal()">Cancel</button> ' +
-      '<button onclick="applySkuFilter()">Apply Filter</button>' +
+      '<button class="btn-primary" onclick="applySkuFilter()">Apply Filter</button>' +
     "</div>"
   );
 }
 
 function applySkuFilter() {
   _skuCategoryFilter = Array.from(document.querySelectorAll(".skuCategoryFilterCheck:checked")).map((cb) => cb.value);
+  _skuStatusFilter = Array.from(document.querySelectorAll(".skuStatusFilterCheck:checked")).map((cb) => cb.value);
   closeModal();
   renderSkuTable(document.getElementById("skuTypeWrap"));
 }
@@ -193,9 +217,8 @@ function skuRowHtml(r, isFirst, isLast) {
   return (
     "<tr>" +
       moveCell +
-      "<td>" + r.sku + "</td>" +
       "<td>" + (r.category || "") + "</td>" +
-      "<td>" + r.name + "</td>" +
+      "<td>" + r.name + '<br><span style="color:var(--color-text-muted); font-size:12px;">' + r.sku + "</span></td>" +
       "<td>" + r.unit + "</td>" +
       "<td>" + r.status + "</td>" +
       (_skuArrangeMode ? "" :
@@ -301,7 +324,13 @@ async function openSkuModal(sku) {
 
   await ensureSkuConfigData();
   const categories = row ? [] : (_skuConfigData.lists["SKU Category Code - " + itemType] || []);
-  const units = _skuConfigData.lists["SKU Unit Code"] || [];
+  // Dropdown shows the friendly Name (Gram, Piece, ...) but its value - what
+  // actually gets saved to sku_items.unit and shown everywhere else in the
+  // app (recipe qty, purchase lines, batch consumption, ...) - is the short
+  // Code (g, pc, ...), per explicit correction: unit Name is UI-only, every
+  // other reference to a unit uses the Code.
+  const unitNames = _skuConfigData.lists["SKU Unit Code"] || [];
+  const unitCodeByName = _skuConfigData.listsMeta["SKU Unit Code"] || {};
 
   openModal(
     "<h2>" + (sku ? "Edit SKU - " + sku : "Add SKU - " + _activeSkuType) + "</h2>" +
@@ -320,7 +349,12 @@ async function openSkuModal(sku) {
     '<input type="text" id="skuName" value="' + (row ? row.name : "") + '"><br><br>' +
     "<label>Unit</label><br>" +
     '<select id="skuUnit" style="width:170px;">' +
-      (units.length ? units.map((u) => "<option" + (row && row.unit === u ? " selected" : "") + ">" + u + "</option>").join("") : '<option value="">No units configured</option>') +
+      (unitNames.length
+        ? unitNames.map((n) => {
+            const code = unitCodeByName[n] || n;
+            return '<option value="' + code + '"' + (row && row.unit === code ? " selected" : "") + ">" + n + "</option>";
+          }).join("")
+        : '<option value="">No units configured</option>') +
     "</select><br><br>" +
     "<label>Status</label><br>" +
     '<select id="skuStatus">' + skuStatusOptionsHtml(itemType, row ? row.status : null) + "</select><br><br>" +
@@ -382,7 +416,7 @@ function deleteSku(sku) {
 
 let _lastSupplierRows = [];
 let _supplierSort = "name-asc";
-let _supplierStatusFilter = []; // empty = show every Status (default)
+let _supplierStatusFilter = ["Active"]; // defaults to Active only, per explicit request - "All" is still reachable via Filter & Sort
 
 const ENTITY_SORT_LABELS = {
   "name-asc": "Name (A-Z)",
@@ -435,8 +469,8 @@ async function renderSupplierSection(wrap) {
     '<div id="supplierPaginationNav" class="pagination-nav"></div>' +
     '<div id="supplierScrollWrap" style="overflow-x:auto;">' +
       "<table>" +
-        "<thead><tr><th>Code</th><th>Name</th><th>Contact</th><th>Area</th><th>Address</th><th>Notes</th><th>Status</th><th></th></tr></thead>" +
-        '<tbody id="supplierTbody"><tr><td colspan="8">Loading...</td></tr></tbody>' +
+        "<thead><tr><th>Name</th><th>Contact</th><th>Area</th><th>Address</th><th>Notes</th><th>Status</th><th></th></tr></thead>" +
+        '<tbody id="supplierTbody"><tr><td colspan="7">Loading...</td></tr></tbody>' +
       "</table>" +
     "</div>";
 
@@ -453,7 +487,7 @@ function renderSupplierTable() {
   if (!tbody) return;
   const filtered = filterEntityRowsByStatus(_lastSupplierRows, _supplierStatusFilter);
   const rows = sortEntityRows(filtered, _supplierSort, "supplier_code");
-  tbody.innerHTML = rows.length ? rows.map(supplierRowHtml).join("") : '<tr><td colspan="8">No suppliers match this filter.</td></tr>';
+  tbody.innerHTML = rows.length ? rows.map(supplierRowHtml).join("") : '<tr><td colspan="7">No suppliers match this filter.</td></tr>';
   paginateTable("supplierTbody", "supplierPaginationNav", 20);
   enableDragScroll(document.getElementById("supplierScrollWrap"));
 }
@@ -491,8 +525,7 @@ function applySupplierFilterSort() {
 function supplierRowHtml(r) {
   return (
     "<tr>" +
-      "<td>" + r.supplier_code + "</td>" +
-      "<td>" + r.name + "</td>" +
+      "<td>" + r.name + '<br><span style="color:var(--color-text-muted); font-size:12px;">' + r.supplier_code + "</span></td>" +
       "<td>" + formatPhoneDisplay(r.contact) + "</td>" +
       "<td>" + (r.area || "") + "</td>" +
       "<td>" + (r.address || "") + "</td>" +
@@ -572,7 +605,7 @@ function deleteSupplier(code) {
 
 let _lastCustomerRows = [];
 let _customerSort = "name-asc";
-let _customerStatusFilter = []; // empty = show every Status (default)
+let _customerStatusFilter = ["Active"]; // defaults to Active only, per explicit request - "All" is still reachable via Filter & Sort
 
 async function renderCustomerSection(wrap) {
   wrap.innerHTML =
@@ -587,8 +620,8 @@ async function renderCustomerSection(wrap) {
     '<div id="customerPaginationNav" class="pagination-nav"></div>' +
     '<div id="customerScrollWrap" style="overflow-x:auto;">' +
       "<table>" +
-        "<thead><tr><th>Code</th><th>Name</th><th>Contact</th><th>Area</th><th>Address</th><th>Notes</th><th>Status</th><th></th></tr></thead>" +
-        '<tbody id="customerTbody"><tr><td colspan="8">Loading...</td></tr></tbody>' +
+        "<thead><tr><th>Name</th><th>Contact</th><th>Area</th><th>Address</th><th>Notes</th><th>Status</th><th></th></tr></thead>" +
+        '<tbody id="customerTbody"><tr><td colspan="7">Loading...</td></tr></tbody>' +
       "</table>" +
     "</div>";
 
@@ -605,7 +638,7 @@ function renderCustomerTable() {
   if (!tbody) return;
   const filtered = filterEntityRowsByStatus(_lastCustomerRows, _customerStatusFilter);
   const rows = sortEntityRows(filtered, _customerSort, "customer_code");
-  tbody.innerHTML = rows.length ? rows.map(customerRowHtml).join("") : '<tr><td colspan="8">No customers match this filter.</td></tr>';
+  tbody.innerHTML = rows.length ? rows.map(customerRowHtml).join("") : '<tr><td colspan="7">No customers match this filter.</td></tr>';
   paginateTable("customerTbody", "customerPaginationNav", 20);
   enableDragScroll(document.getElementById("customerScrollWrap"));
 }
@@ -643,8 +676,7 @@ function applyCustomerFilterSort() {
 function customerRowHtml(r) {
   return (
     "<tr>" +
-      "<td>" + r.customer_code + "</td>" +
-      "<td>" + r.name + "</td>" +
+      "<td>" + r.name + '<br><span style="color:var(--color-text-muted); font-size:12px;">' + r.customer_code + "</span></td>" +
       "<td>" + formatPhoneDisplay(r.contact) + "</td>" +
       "<td>" + (r.area || "") + "</td>" +
       "<td>" + (r.address || "") + "</td>" +
@@ -726,7 +758,7 @@ let _lastStaffRows = [];
 let _staffRoleOptions = [];
 let _staffSort = "role-priority";
 let _staffRoleFilter = []; // empty = show every Role (default)
-let _staffStatusFilter = []; // empty = show every Status (default)
+let _staffStatusFilter = ["Active"]; // defaults to Active only, per explicit request - "All" is still reachable via Filter & Sort
 
 const STAFF_SORT_LABELS = {
   "role-priority": "Role Priority (default)",
@@ -747,8 +779,8 @@ async function renderStaffSection(wrap) {
     '<div id="staffPaginationNav" class="pagination-nav"></div>' +
     '<div id="staffScrollWrap" style="overflow-x:auto;">' +
       "<table>" +
-        "<thead><tr><th>Code</th><th>Name</th><th>Role(s)</th><th>Contact</th><th>Status</th><th></th></tr></thead>" +
-        '<tbody id="staffTbody"><tr><td colspan="6">Loading...</td></tr></tbody>' +
+        "<thead><tr><th>Name</th><th>Role(s)</th><th>Contact</th><th>Status</th><th></th></tr></thead>" +
+        '<tbody id="staffTbody"><tr><td colspan="5">Loading...</td></tr></tbody>' +
       "</table>" +
     "</div>";
 
@@ -784,7 +816,7 @@ function renderStaffTable() {
   const tbody = document.getElementById("staffTbody");
   if (!tbody) return;
   const rows = sortStaffRows(filterStaffRows(_lastStaffRows), _staffSort);
-  tbody.innerHTML = rows.length ? rows.map(staffRowHtml).join("") : '<tr><td colspan="6">No staff match this filter.</td></tr>';
+  tbody.innerHTML = rows.length ? rows.map(staffRowHtml).join("") : '<tr><td colspan="5">No staff match this filter.</td></tr>';
   paginateTable("staffTbody", "staffPaginationNav", 20);
   enableDragScroll(document.getElementById("staffScrollWrap"));
 }
@@ -846,8 +878,7 @@ function sortStaffRowsByRolePriority(rows) {
 function staffRowHtml(r) {
   return (
     "<tr>" +
-      "<td>" + r.staff_code + "</td>" +
-      "<td>" + r.name + "</td>" +
+      "<td>" + r.name + '<br><span style="color:var(--color-text-muted); font-size:12px;">' + r.staff_code + "</span></td>" +
       "<td>" + (r.roles || []).join(", ") + "</td>" +
       "<td>" + formatPhoneDisplay(r.contact) + "</td>" +
       "<td>" + (r.is_active ? "Active" : "Inactive") + "</td>" +

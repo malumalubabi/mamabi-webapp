@@ -293,6 +293,9 @@ let _purchasePaginationTargetSize = 20;
 let _lastPurchaseRows = [];
 let _purchaseCategoryFilter = []; // empty = show every Category (default)
 let _purchaseStatusFilter = []; // empty = show every Status (default)
+let _purchaseSupplierFilter = []; // empty = show every Supplier (default)
+let _purchaseDateFrom = "";
+let _purchaseDateTo = "";
 let _purchaseSort = "date-desc";
 
 const PURCHASE_SORT_LABELS = { "date-desc": "Date (Newest)", "date-asc": "Date (Oldest)" };
@@ -594,7 +597,10 @@ function flattenPurchaseGroups(groups) {
 function visiblePurchaseRows() {
   const filtered = _lastPurchaseRows.filter((r) =>
     (!_purchaseCategoryFilter.length || _purchaseCategoryFilter.indexOf(r.category || "") !== -1) &&
-    (!_purchaseStatusFilter.length || _purchaseStatusFilter.indexOf(r.status) !== -1)
+    (!_purchaseStatusFilter.length || _purchaseStatusFilter.indexOf(r.status) !== -1) &&
+    (!_purchaseSupplierFilter.length || _purchaseSupplierFilter.indexOf(r.supplier || "") !== -1) &&
+    (!_purchaseDateFrom || r.date >= _purchaseDateFrom) &&
+    (!_purchaseDateTo || r.date <= _purchaseDateTo)
   );
   const groups = regroupPurchaseRows(filtered);
   groups.sort((a, b) => {
@@ -611,8 +617,12 @@ function renderPurchaseLogRows() {
 
   const badge = document.getElementById("purchaseFilterSortBadge");
   if (badge) {
-    const filterParts = [].concat(_purchaseCategoryFilter, _purchaseStatusFilter);
-    badge.textContent = (filterParts.length ? filterParts.join(", ") : "All") + " | " + PURCHASE_SORT_LABELS[_purchaseSort];
+    const dateParts = [];
+    if (_purchaseDateFrom) dateParts.push("from " + _purchaseDateFrom);
+    if (_purchaseDateTo) dateParts.push("to " + _purchaseDateTo);
+    const dateText = dateParts.length ? dateParts.join(" ") : "All dates";
+    const filterParts = [].concat(_purchaseCategoryFilter, _purchaseStatusFilter, _purchaseSupplierFilter);
+    badge.textContent = dateText + " | " + (filterParts.length ? filterParts.join(", ") : "All") + " | " + PURCHASE_SORT_LABELS[_purchaseSort];
   }
 
   const rows = visiblePurchaseRows();
@@ -627,6 +637,7 @@ function renderPurchaseLogRows() {
 function openPurchaseFilterSortModal() {
   const categories = [...new Set(_lastPurchaseRows.map((r) => r.category || "").filter(Boolean))].sort();
   const statuses = [...new Set(_lastPurchaseRows.map((r) => r.status).filter(Boolean))].sort();
+  const suppliers = [...new Set(_lastPurchaseRows.map((r) => r.supplier || "").filter(Boolean))].sort();
   const sortOptions = [["date-desc", "Date (Newest)"], ["date-asc", "Date (Oldest)"]];
 
   const categoryChecks = categories.map((c) =>
@@ -635,16 +646,27 @@ function openPurchaseFilterSortModal() {
   const statusChecks = statuses.map((s) =>
     '<label style="display:block; margin:4px 0;"><input type="checkbox" class="purchaseStatusFilterCheck" value="' + s + '"' + (_purchaseStatusFilter.indexOf(s) !== -1 ? " checked" : "") + "> " + s + "</label>"
   ).join("");
+  const supplierChecks = suppliers.map((s) =>
+    '<label style="display:block; margin:4px 0;"><input type="checkbox" class="purchaseSupplierFilterCheck" value="' + s + '"' + (_purchaseSupplierFilter.indexOf(s) !== -1 ? " checked" : "") + "> " + s + "</label>"
+  ).join("");
   const sortRadios = sortOptions.map(([val, label]) =>
     '<label style="display:block; margin:6px 0;"><input type="radio" name="purchaseSortOption" value="' + val + '"' + (_purchaseSort === val ? " checked" : "") + "> " + label + "</label>"
   ).join("");
 
   openModal(
     "<h2>Filter &amp; Sort - Purchase Log</h2>" +
+    "<label>Date Range</label><br>" +
+    '<div style="display:flex; align-items:center; gap:8px;">' +
+      '<input type="date" id="purchaseDateFrom" value="' + _purchaseDateFrom + '">' +
+      "<span>to</span>" +
+      '<input type="date" id="purchaseDateTo" value="' + _purchaseDateTo + '">' +
+    "</div><br><br>" +
     "<label>Category</label>" +
     "<div>" + categoryChecks + "</div><br>" +
     "<label>Status</label>" +
     "<div>" + statusChecks + "</div><br>" +
+    "<label>Supplier</label>" +
+    "<div>" + supplierChecks + "</div><br>" +
     "<label>Sort</label>" +
     "<div>" + sortRadios + "</div>" +
     '<div style="margin-top:16px;">' +
@@ -654,8 +676,11 @@ function openPurchaseFilterSortModal() {
 }
 
 function applyPurchaseFilterSort() {
+  _purchaseDateFrom = document.getElementById("purchaseDateFrom").value || "";
+  _purchaseDateTo = document.getElementById("purchaseDateTo").value || "";
   _purchaseCategoryFilter = Array.from(document.querySelectorAll(".purchaseCategoryFilterCheck:checked")).map((cb) => cb.value);
   _purchaseStatusFilter = Array.from(document.querySelectorAll(".purchaseStatusFilterCheck:checked")).map((cb) => cb.value);
+  _purchaseSupplierFilter = Array.from(document.querySelectorAll(".purchaseSupplierFilterCheck:checked")).map((cb) => cb.value);
   const selectedSort = document.querySelector('input[name="purchaseSortOption"]:checked');
   if (selectedSort) _purchaseSort = selectedSort.value;
   closeModal();
@@ -1087,11 +1112,19 @@ async function saveStockOpname() {
 
 // ---------- Opname log table ----------
 
+let _lastOpnameRows = [];
+let _opnameDateFrom = "";
+let _opnameDateTo = "";
+
 function buildOpnameTableShellHtml() {
   return (
     // No section title - the "Stock Opname" tab already marks the active
     // page, per explicit request.
-    '<div style="display:flex; justify-content:flex-end; align-items:center;">' +
+    '<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">' +
+      '<div style="display:flex; align-items:center; gap:10px;">' +
+        '<span id="opnameFilterSortBadge" style="color:var(--color-text-muted); font-size:12px;"></span>' +
+        '<button onclick="openOpnameFilterModal()">Filter</button>' +
+      "</div>" +
       '<button class="btn-primary" onclick="openOpnameModal()">+ Input Stock Opname</button>' +
     "</div>" +
     '<div id="opnamePaginationNav" class="pagination-nav"></div>' +
@@ -1106,12 +1139,53 @@ function buildOpnameTableShellHtml() {
 }
 
 async function loadOpnameTable() {
-  const rows = await api("opname");
+  _lastOpnameRows = await api("opname");
+  if (!document.getElementById("opnameLogTbody")) return;
+  renderOpnameLogRows();
+}
+
+function renderOpnameLogRows() {
   const tbody = document.getElementById("opnameLogTbody");
   if (!tbody) return;
-  tbody.innerHTML = rows.length ? rows.map(opnameRowHtml).join("") : '<tr><td colspan="8">No opname entries yet.</td></tr>';
+
+  const badge = document.getElementById("opnameFilterSortBadge");
+  if (badge) {
+    const dateParts = [];
+    if (_opnameDateFrom) dateParts.push("from " + _opnameDateFrom);
+    if (_opnameDateTo) dateParts.push("to " + _opnameDateTo);
+    badge.textContent = dateParts.length ? dateParts.join(" ") : "All dates";
+  }
+
+  const rows = _lastOpnameRows.filter((r) =>
+    (!_opnameDateFrom || r.date >= _opnameDateFrom) &&
+    (!_opnameDateTo || r.date <= _opnameDateTo)
+  );
+
+  tbody.innerHTML = rows.length ? rows.map(opnameRowHtml).join("") : '<tr><td colspan="8">No opname entries match this filter.</td></tr>';
   paginateTable("opnameLogTbody", "opnamePaginationNav", 20);
   enableDragScroll(document.getElementById("opnameLogScrollWrap"));
+}
+
+function openOpnameFilterModal() {
+  openModal(
+    "<h2>Filter - Stock Opname Log</h2>" +
+    "<label>Date Range</label><br>" +
+    '<div style="display:flex; align-items:center; gap:8px;">' +
+      '<input type="date" id="opnameDateFrom" value="' + _opnameDateFrom + '">' +
+      "<span>to</span>" +
+      '<input type="date" id="opnameDateTo" value="' + _opnameDateTo + '">' +
+    "</div>" +
+    '<div style="margin-top:16px;">' +
+      '<button class="btn-primary" onclick="applyOpnameFilter()">Apply</button>' +
+    "</div>"
+  );
+}
+
+function applyOpnameFilter() {
+  _opnameDateFrom = document.getElementById("opnameDateFrom").value || "";
+  _opnameDateTo = document.getElementById("opnameDateTo").value || "";
+  closeModal();
+  renderOpnameLogRows();
 }
 
 function opnameRowHtml(r) {
@@ -1141,7 +1215,8 @@ let _invValueTypeFilter = []; // empty = show every Item Type (default)
 let _invValueSort = "value-desc";
 const INV_VALUE_SORT_LABELS = {
   "value-desc": "Value (High-Low)", "value-asc": "Value (Low-High)",
-  "name-asc": "Item Name (A-Z)", "name-desc": "Item Name (Z-A)"
+  "name-asc": "Item Name (A-Z)", "name-desc": "Item Name (Z-A)",
+  "category-asc": "Category (A-Z)", "category-desc": "Category (Z-A)"
 };
 
 async function renderInventoryValueTab(wrap) {
@@ -1214,6 +1289,8 @@ function renderInventoryValueRows() {
       case "value-asc": return a.value - b.value;
       case "name-asc": return a.name.localeCompare(b.name);
       case "name-desc": return b.name.localeCompare(a.name);
+      case "category-asc": return (a.category || "").localeCompare(b.category || "");
+      case "category-desc": return (b.category || "").localeCompare(a.category || "");
       default: return b.value - a.value; // value-desc
     }
   });
@@ -1224,7 +1301,7 @@ function renderInventoryValueRows() {
 
 function openInvValueFilterSortModal() {
   const types = [...new Set(_lastInvValueRows.map((r) => r.itemType))];
-  const sortOptions = [["value-desc", "Value (High-Low)"], ["value-asc", "Value (Low-High)"], ["name-asc", "Item Name (A-Z)"], ["name-desc", "Item Name (Z-A)"]];
+  const sortOptions = [["value-desc", "Value (High-Low)"], ["value-asc", "Value (Low-High)"], ["name-asc", "Item Name (A-Z)"], ["name-desc", "Item Name (Z-A)"], ["category-asc", "Category (A-Z)"], ["category-desc", "Category (Z-A)"]];
 
   const checkboxes = types.map((t) =>
     '<label style="display:block; margin:4px 0;"><input type="checkbox" class="invValueTypeFilterCheck" value="' + t + '"' + (_invValueTypeFilter.indexOf(t) !== -1 ? " checked" : "") + "> " + t + "</label>"
@@ -1277,6 +1354,8 @@ function invValueRowHtml(r) {
 
 let _lastConsumptionRows = [];
 let _consumptionSourceFilter = []; // empty = show every Source (default)
+let _consumptionDateFrom = "";
+let _consumptionDateTo = "";
 let _consumptionSort = "date-desc";
 const CONSUMPTION_SORT_LABELS = { "date-desc": "Date (Newest)", "date-asc": "Date (Oldest)" };
 
@@ -1310,11 +1389,19 @@ function renderConsumptionLogRows() {
   if (!tbody) return;
 
   const badge = document.getElementById("consumptionFilterSortBadge");
-  if (badge) badge.textContent = (_consumptionSourceFilter.length ? _consumptionSourceFilter.join(", ") : "All") + " | " + CONSUMPTION_SORT_LABELS[_consumptionSort];
+  if (badge) {
+    const dateParts = [];
+    if (_consumptionDateFrom) dateParts.push("from " + _consumptionDateFrom);
+    if (_consumptionDateTo) dateParts.push("to " + _consumptionDateTo);
+    const dateText = dateParts.length ? dateParts.join(" ") : "All dates";
+    badge.textContent = dateText + " | " + (_consumptionSourceFilter.length ? _consumptionSourceFilter.join(", ") : "All") + " | " + CONSUMPTION_SORT_LABELS[_consumptionSort];
+  }
 
-  const filtered = _consumptionSourceFilter.length
-    ? _lastConsumptionRows.filter((r) => _consumptionSourceFilter.indexOf(r.source || "") !== -1)
-    : _lastConsumptionRows;
+  const filtered = _lastConsumptionRows.filter((r) =>
+    (!_consumptionSourceFilter.length || _consumptionSourceFilter.indexOf(r.source || "") !== -1) &&
+    (!_consumptionDateFrom || r.date >= _consumptionDateFrom) &&
+    (!_consumptionDateTo || r.date <= _consumptionDateTo)
+  );
   const rows = filtered.slice().sort((a, b) => {
     if (a.date === b.date) return 0;
     const cmp = a.date < b.date ? -1 : 1;
@@ -1338,6 +1425,12 @@ function openConsumptionFilterSortModal() {
 
   openModal(
     "<h2>Filter &amp; Sort - Consumption Log</h2>" +
+    "<label>Date Range</label><br>" +
+    '<div style="display:flex; align-items:center; gap:8px;">' +
+      '<input type="date" id="consumptionDateFrom" value="' + _consumptionDateFrom + '">' +
+      "<span>to</span>" +
+      '<input type="date" id="consumptionDateTo" value="' + _consumptionDateTo + '">' +
+    "</div><br><br>" +
     "<label>Source</label>" +
     "<div>" + checkboxes + "</div><br>" +
     "<label>Sort</label>" +
@@ -1349,6 +1442,8 @@ function openConsumptionFilterSortModal() {
 }
 
 function applyConsumptionFilterSort() {
+  _consumptionDateFrom = document.getElementById("consumptionDateFrom").value || "";
+  _consumptionDateTo = document.getElementById("consumptionDateTo").value || "";
   _consumptionSourceFilter = Array.from(document.querySelectorAll(".consumptionSourceFilterCheck:checked")).map((cb) => cb.value);
   const selectedSort = document.querySelector('input[name="consumptionSortOption"]:checked');
   if (selectedSort) _consumptionSort = selectedSort.value;
@@ -1377,7 +1472,7 @@ function consumptionRowHtml(r) {
 
 let _lastCurrentCostRows = [];
 let _currentCostCategoryFilter = []; // empty = show every Category (default)
-let _currentCostSort = "name-asc";
+let _currentCostSort = "category-asc";
 const CURRENT_COST_SORT_LABELS = {
   "name-asc": "Item Name (A-Z)", "name-desc": "Item Name (Z-A)",
   "cost-desc": "Unit Cost (High-Low)", "cost-asc": "Unit Cost (Low-High)",
@@ -1440,7 +1535,7 @@ function renderCurrentCostRows() {
 
 function openCurrentCostFilterSortModal() {
   const categories = [...new Set(_lastCurrentCostRows.map((r) => r.category || "").filter(Boolean))].sort();
-  const sortOptions = [["name-asc", "Item Name (A-Z)"], ["name-desc", "Item Name (Z-A)"], ["cost-desc", "Unit Cost (High-Low)"], ["cost-asc", "Unit Cost (Low-High)"], ["category-asc", "Category (A-Z)"], ["category-desc", "Category (Z-A)"]];
+  const sortOptions = [["category-asc", "Category (A-Z)"], ["category-desc", "Category (Z-A)"], ["name-asc", "Item Name (A-Z)"], ["name-desc", "Item Name (Z-A)"], ["cost-desc", "Unit Cost (High-Low)"], ["cost-asc", "Unit Cost (Low-High)"]];
 
   const checkboxes = categories.map((c) =>
     '<label style="display:block; margin:4px 0;"><input type="checkbox" class="currentCostCategoryFilterCheck" value="' + c + '"' + (_currentCostCategoryFilter.indexOf(c) !== -1 ? " checked" : "") + "> " + c + "</label>"
@@ -1493,6 +1588,8 @@ function currentCostRowHtml(r) {
 
 let _lastCostUpdateRows = [];
 let _costUpdateSupplierFilter = []; // empty = show every Supplier (default)
+let _costUpdateDateFrom = "";
+let _costUpdateDateTo = "";
 let _costUpdateSort = "date-desc";
 const COST_UPDATE_SORT_LABELS = { "date-desc": "Date (Newest)", "date-asc": "Date (Oldest)" };
 
@@ -1530,11 +1627,19 @@ function renderCostUpdateRows() {
   if (!tbody) return;
 
   const badge = document.getElementById("costUpdateFilterSortBadge");
-  if (badge) badge.textContent = (_costUpdateSupplierFilter.length ? _costUpdateSupplierFilter.join(", ") : "All Suppliers") + " | " + COST_UPDATE_SORT_LABELS[_costUpdateSort];
+  if (badge) {
+    const dateParts = [];
+    if (_costUpdateDateFrom) dateParts.push("from " + _costUpdateDateFrom);
+    if (_costUpdateDateTo) dateParts.push("to " + _costUpdateDateTo);
+    const dateText = dateParts.length ? dateParts.join(" ") : "All dates";
+    badge.textContent = dateText + " | " + (_costUpdateSupplierFilter.length ? _costUpdateSupplierFilter.join(", ") : "All Suppliers") + " | " + COST_UPDATE_SORT_LABELS[_costUpdateSort];
+  }
 
-  const filtered = _costUpdateSupplierFilter.length
-    ? _lastCostUpdateRows.filter((r) => _costUpdateSupplierFilter.indexOf(r.supplier || "") !== -1)
-    : _lastCostUpdateRows;
+  const filtered = _lastCostUpdateRows.filter((r) =>
+    (!_costUpdateSupplierFilter.length || _costUpdateSupplierFilter.indexOf(r.supplier || "") !== -1) &&
+    (!_costUpdateDateFrom || r.date >= _costUpdateDateFrom) &&
+    (!_costUpdateDateTo || r.date <= _costUpdateDateTo)
+  );
   const rows = filtered.slice().sort((a, b) => {
     if (a.date === b.date) return 0;
     const cmp = a.date < b.date ? -1 : 1;
@@ -1558,6 +1663,12 @@ function openCostUpdateFilterSortModal() {
 
   openModal(
     "<h2>Filter &amp; Sort - Cost Update Log</h2>" +
+    "<label>Date Range</label><br>" +
+    '<div style="display:flex; align-items:center; gap:8px;">' +
+      '<input type="date" id="costUpdateDateFrom" value="' + _costUpdateDateFrom + '">' +
+      "<span>to</span>" +
+      '<input type="date" id="costUpdateDateTo" value="' + _costUpdateDateTo + '">' +
+    "</div><br><br>" +
     "<label>Supplier</label>" +
     "<div>" + checkboxes + "</div><br>" +
     "<label>Sort</label>" +
@@ -1569,6 +1680,8 @@ function openCostUpdateFilterSortModal() {
 }
 
 function applyCostUpdateFilterSort() {
+  _costUpdateDateFrom = document.getElementById("costUpdateDateFrom").value || "";
+  _costUpdateDateTo = document.getElementById("costUpdateDateTo").value || "";
   _costUpdateSupplierFilter = Array.from(document.querySelectorAll(".costUpdateSupplierFilterCheck:checked")).map((cb) => cb.value);
   const selectedSort = document.querySelector('input[name="costUpdateSortOption"]:checked');
   if (selectedSort) _costUpdateSort = selectedSort.value;

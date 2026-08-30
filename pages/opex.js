@@ -124,6 +124,8 @@ function renderOpexSummary(wrap) {
 // ---------- Log ----------
 
 let _opexCategoryFilter = []; // empty = show every Category (default)
+let _opexDateFrom = "";
+let _opexDateTo = "";
 let _opexSort = "date-desc";
 
 const OPEX_SORT_LABELS = {
@@ -153,11 +155,19 @@ function renderOpexLogRows() {
   if (!tbody) return;
 
   const badge = document.getElementById("opexFilterSortBadge");
-  if (badge) badge.textContent = (_opexCategoryFilter.length ? _opexCategoryFilter.join(", ") : "All") + " | " + OPEX_SORT_LABELS[_opexSort];
+  if (badge) {
+    const dateParts = [];
+    if (_opexDateFrom) dateParts.push("from " + _opexDateFrom);
+    if (_opexDateTo) dateParts.push("to " + _opexDateTo);
+    const dateText = dateParts.length ? dateParts.join(" ") : "All dates";
+    badge.textContent = dateText + " | " + (_opexCategoryFilter.length ? _opexCategoryFilter.join(", ") : "All") + " | " + OPEX_SORT_LABELS[_opexSort];
+  }
 
-  const filtered = _opexCategoryFilter.length
-    ? _lastOpexRows.filter((r) => _opexCategoryFilter.indexOf(r.category) !== -1)
-    : _lastOpexRows;
+  const filtered = _lastOpexRows.filter((r) =>
+    (!_opexCategoryFilter.length || _opexCategoryFilter.indexOf(r.category) !== -1) &&
+    (!_opexDateFrom || r.date >= _opexDateFrom) &&
+    (!_opexDateTo || r.date <= _opexDateTo)
+  );
   const rows = sortOpexRows(filtered, _opexSort);
 
   tbody.innerHTML = rows.length ? rows.map(opexRowHtml).join("") : '<tr><td colspan="9">No expenses match this filter.</td></tr>';
@@ -204,6 +214,12 @@ function openOpexFilterSortModal() {
 
   openModal(
     "<h2>Filter &amp; Sort - OpEx Log</h2>" +
+    "<label>Date Range</label><br>" +
+    '<div style="display:flex; align-items:center; gap:8px;">' +
+      '<input type="date" id="opexDateFrom" value="' + _opexDateFrom + '">' +
+      "<span>to</span>" +
+      '<input type="date" id="opexDateTo" value="' + _opexDateTo + '">' +
+    "</div><br><br>" +
     "<label>Category</label>" +
     "<div>" + checkboxes + "</div><br>" +
     "<label>Sort</label>" +
@@ -215,6 +231,8 @@ function openOpexFilterSortModal() {
 }
 
 function applyOpexFilterSort() {
+  _opexDateFrom = document.getElementById("opexDateFrom").value || "";
+  _opexDateTo = document.getElementById("opexDateTo").value || "";
   _opexCategoryFilter = Array.from(document.querySelectorAll(".opexCategoryFilterCheck:checked")).map((cb) => cb.value);
   const selectedSort = document.querySelector('input[name="opexSortOption"]:checked');
   if (selectedSort) _opexSort = selectedSort.value;

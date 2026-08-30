@@ -125,6 +125,8 @@ function switchCashflowLedgerTab(account) {
 
 let _lastCashflowLedgerRows = [];
 let _cashflowLedgerCategoryFilter = []; // empty = show every Category (default)
+let _cashflowLedgerDateFrom = "";
+let _cashflowLedgerDateTo = "";
 let _cashflowLedgerSort = "date-desc";
 const CASHFLOW_LEDGER_SORT_LABELS = { "date-desc": "Date (Newest)", "date-asc": "Date (Oldest)" };
 
@@ -148,11 +150,19 @@ function renderCashflowLedgerRows() {
   if (!tbody) return;
 
   const badge = document.getElementById("cashflowFilterSortBadge");
-  if (badge) badge.textContent = (_cashflowLedgerCategoryFilter.length ? _cashflowLedgerCategoryFilter.join(", ") : "All") + " | " + CASHFLOW_LEDGER_SORT_LABELS[_cashflowLedgerSort];
+  if (badge) {
+    const dateParts = [];
+    if (_cashflowLedgerDateFrom) dateParts.push("from " + _cashflowLedgerDateFrom);
+    if (_cashflowLedgerDateTo) dateParts.push("to " + _cashflowLedgerDateTo);
+    const dateText = dateParts.length ? dateParts.join(" ") : "All dates";
+    badge.textContent = dateText + " | " + (_cashflowLedgerCategoryFilter.length ? _cashflowLedgerCategoryFilter.join(", ") : "All") + " | " + CASHFLOW_LEDGER_SORT_LABELS[_cashflowLedgerSort];
+  }
 
-  const filtered = _cashflowLedgerCategoryFilter.length
-    ? _lastCashflowLedgerRows.filter((r) => _cashflowLedgerCategoryFilter.indexOf(r.category) !== -1)
-    : _lastCashflowLedgerRows;
+  const filtered = _lastCashflowLedgerRows.filter((r) =>
+    (!_cashflowLedgerCategoryFilter.length || _cashflowLedgerCategoryFilter.indexOf(r.category) !== -1) &&
+    (!_cashflowLedgerDateFrom || r.date >= _cashflowLedgerDateFrom) &&
+    (!_cashflowLedgerDateTo || r.date <= _cashflowLedgerDateTo)
+  );
   const rows = filtered.slice().sort((a, b) => {
     if (a.date === b.date) return 0;
     const cmp = a.date < b.date ? -1 : 1;
@@ -176,6 +186,12 @@ function openCashflowLogFilterSortModal() {
 
   openModal(
     "<h2>Filter &amp; Sort - Cashflow Ledger</h2>" +
+    "<label>Date Range</label><br>" +
+    '<div style="display:flex; align-items:center; gap:8px;">' +
+      '<input type="date" id="cashflowLedgerDateFrom" value="' + _cashflowLedgerDateFrom + '">' +
+      "<span>to</span>" +
+      '<input type="date" id="cashflowLedgerDateTo" value="' + _cashflowLedgerDateTo + '">' +
+    "</div><br><br>" +
     "<label>Category</label>" +
     "<div>" + checkboxes + "</div><br>" +
     "<label>Sort</label>" +
@@ -187,6 +203,8 @@ function openCashflowLogFilterSortModal() {
 }
 
 function applyCashflowLedgerFilterSort() {
+  _cashflowLedgerDateFrom = document.getElementById("cashflowLedgerDateFrom").value || "";
+  _cashflowLedgerDateTo = document.getElementById("cashflowLedgerDateTo").value || "";
   _cashflowLedgerCategoryFilter = Array.from(document.querySelectorAll(".cashflowCategoryFilterCheck:checked")).map((cb) => cb.value);
   const selectedSort = document.querySelector('input[name="cashflowLedgerSortOption"]:checked');
   if (selectedSort) _cashflowLedgerSort = selectedSort.value;

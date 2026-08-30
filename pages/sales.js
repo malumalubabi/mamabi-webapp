@@ -17,6 +17,8 @@ registerPage("sales", renderSalesPage);
 let _salesLookups = null;
 let _lastSalesRows = [];
 let _salesLogChannelFilter = []; // empty = show every Channel (default)
+let _salesLogDateFrom = "";
+let _salesLogDateTo = "";
 let _salesLogSort = "date-desc";
 const SALES_LOG_SORT_LABELS = { "date-desc": "Date (Newest)", "date-asc": "Date (Oldest)" };
 
@@ -151,6 +153,12 @@ function openSalesLogFilterSortModal() {
 
   openModal(
     "<h2>Filter &amp; Sort - Sales Log</h2>" +
+    "<label>Date Range</label><br>" +
+    '<div style="display:flex; align-items:center; gap:8px;">' +
+      '<input type="date" id="salesLogDateFrom" value="' + _salesLogDateFrom + '">' +
+      "<span>to</span>" +
+      '<input type="date" id="salesLogDateTo" value="' + _salesLogDateTo + '">' +
+    "</div><br><br>" +
     "<label>Channel</label>" +
     "<div>" + checkboxes + "</div><br>" +
     "<label>Sort</label>" +
@@ -162,6 +170,8 @@ function openSalesLogFilterSortModal() {
 }
 
 function applySalesLogFilterSort() {
+  _salesLogDateFrom = document.getElementById("salesLogDateFrom").value || "";
+  _salesLogDateTo = document.getElementById("salesLogDateTo").value || "";
   _salesLogChannelFilter = Array.from(document.querySelectorAll(".salesLogChannelCheck:checked")).map((cb) => cb.value);
   const selectedSort = document.querySelector('input[name="salesLogSortOption"]:checked');
   if (selectedSort) _salesLogSort = selectedSort.value;
@@ -197,9 +207,11 @@ function renderSalesLogTab(wrap) {
     return;
   }
 
-  const filteredRows = _salesLogChannelFilter.length
-    ? _lastSalesRows.filter((r) => _salesLogChannelFilter.indexOf(r.platform) !== -1)
-    : _lastSalesRows;
+  const filteredRows = _lastSalesRows.filter((r) =>
+    (!_salesLogChannelFilter.length || _salesLogChannelFilter.indexOf(r.platform) !== -1) &&
+    (!_salesLogDateFrom || r.date >= _salesLogDateFrom) &&
+    (!_salesLogDateTo || r.date <= _salesLogDateTo)
+  );
   const rows = withGroupMergeInfo(withGroupRevenueTotals(sortSalesGroups(filteredRows)));
 
   // table-layout:fixed + an explicit colgroup - pagination hides rows via
@@ -235,7 +247,13 @@ function renderSalesLogTab(wrap) {
       : "<p>No sales match this filter.</p>");
 
   const badge = document.getElementById("salesLogFilterSortBadge");
-  if (badge) badge.textContent = (_salesLogChannelFilter.length ? _salesLogChannelFilter.join(", ") : "All") + " | " + SALES_LOG_SORT_LABELS[_salesLogSort];
+  if (badge) {
+    const dateParts = [];
+    if (_salesLogDateFrom) dateParts.push("from " + _salesLogDateFrom);
+    if (_salesLogDateTo) dateParts.push("to " + _salesLogDateTo);
+    const dateText = dateParts.length ? dateParts.join(" ") : "All dates";
+    badge.textContent = dateText + " | " + (_salesLogChannelFilter.length ? _salesLogChannelFilter.join(", ") : "All") + " | " + SALES_LOG_SORT_LABELS[_salesLogSort];
+  }
 
   if (rows.length) {
     paginateGroupedTable("salesLogTbody", "salesPaginationNav", 5);
