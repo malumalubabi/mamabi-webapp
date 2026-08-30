@@ -519,8 +519,12 @@ function paginateTable(tbodyId, navId, pageSize) {
 // Same as paginateTable, but for tables that merge rows with rowspan (e.g.
 // Orders - one order, multiple items). paginateTable slices every N rows
 // regardless of rowspan and can cut a group in half. This version keeps
-// groups intact (rows carry a "group-start" class) - targetPageSize is a
-// floor per page, not exact, since a group is never split.
+// groups intact (rows carry a "group-start" class) - targetPageSize counts
+// GROUPS per page (e.g. 5 purchase batches, however many item rows that
+// comes out to), not raw rows. It was previously comparing targetPageSize
+// against accumulated row count instead of group count, which for a
+// grouped table (multiple item rows per batch) put far fewer groups per
+// page than asked for - fixed per explicit bug report.
 function paginateGroupedTable(tbodyId, navId, targetPageSize) {
   targetPageSize = targetPageSize || 20;
   const tbody = document.getElementById(tbodyId);
@@ -536,11 +540,16 @@ function paginateGroupedTable(tbodyId, navId, targetPageSize) {
 
   const pages = [];
   let current = [];
+  let groupCount = 0;
   rows.forEach(function (row) {
     const isGroupStart = row.classList.contains("group-start");
-    if (isGroupStart && current.length >= targetPageSize) {
-      pages.push(current);
-      current = [];
+    if (isGroupStart) {
+      if (groupCount >= targetPageSize) {
+        pages.push(current);
+        current = [];
+        groupCount = 0;
+      }
+      groupCount++;
     }
     current.push(row);
   });
