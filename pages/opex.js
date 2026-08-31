@@ -14,7 +14,8 @@
 // read-only here - functions/api/opex/[code].js rejects direct edit/delete
 // server-side, not just hidden client-side, so go edit the source
 // (Order/Sales Batch) instead. The old app never guarded this at all.
-registerPage("finance-opex", renderOpexPage);
+// Registered as a Finance tab, not its own top-level route - see
+// pages/cashflow.js's renderFinancePage/loadFinanceTab.
 
 let _lastOpexRows = [];
 let _opexCategoryOptions = null;
@@ -39,7 +40,6 @@ async function ensureOpexDescriptionOptions() {
 
 async function renderOpexPage(content) {
   content.innerHTML =
-    "<h2>Operational Expenses</h2>" +
     buildOpexSummaryShellHtml() +
     buildOpexLogShellHtml();
   enableDragScroll(document.getElementById("opexLogScrollWrap"));

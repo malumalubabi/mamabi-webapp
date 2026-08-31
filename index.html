@@ -36,9 +36,9 @@
     <div class="navbar-item">
       <button onclick="toggleNavDropdown(this)">Finance &#9662;</button>
       <div class="navbar-dropdown">
-        <button data-page="cashflow" onclick="navigateTo('cashflow'); closeNavDropdowns();">Cashflow</button>
-        <button data-page="finance-opex" onclick="navigateTo('finance-opex'); closeNavDropdowns();">OpEx</button>
-        <button data-page="finance-pnl" onclick="navigateTo('finance-pnl'); closeNavDropdowns();">P&amp;L</button>
+        <button data-page="finance" data-tab="cashflow" onclick="navigateTo('finance?tab=cashflow'); closeNavDropdowns();">Cashflow</button>
+        <button data-page="finance" data-tab="opex" onclick="navigateTo('finance?tab=opex'); closeNavDropdowns();">OpEx</button>
+        <button data-page="finance" data-tab="pnl" onclick="navigateTo('finance?tab=pnl'); closeNavDropdowns();">P&amp;L</button>
       </div>
     </div>
 
@@ -49,31 +49,31 @@
     <div class="navbar-item">
       <button onclick="toggleNavDropdown(this)">Inventory &#9662;</button>
       <div class="navbar-dropdown">
-        <button data-page="inventory-stock" onclick="navigateTo('inventory-stock'); closeNavDropdowns();">Inventory Stock</button>
-        <button data-page="inventory-cost" onclick="navigateTo('inventory-cost'); closeNavDropdowns();">Inventory Cost</button>
+        <button data-page="inventory" data-tab="stock" onclick="navigateTo('inventory?tab=stock'); closeNavDropdowns();">Inventory Stock</button>
+        <button data-page="inventory" data-tab="cost" onclick="navigateTo('inventory?tab=cost'); closeNavDropdowns();">Inventory Cost</button>
       </div>
     </div>
 
     <div class="navbar-item">
       <button onclick="toggleNavDropdown(this)">Orders &#9662;</button>
       <div class="navbar-dropdown">
-        <button data-page="orders-platform" onclick="navigateTo('orders-platform'); closeNavDropdowns();">Platform Orders</button>
-        <button data-page="orders" onclick="navigateTo('orders'); closeNavDropdowns();">Online Orders</button>
-        <button data-page="orders-dinein" onclick="navigateTo('orders-dinein'); closeNavDropdowns();">Dine-In</button>
-        <button data-page="orders-payout" onclick="navigateTo('orders-payout'); closeNavDropdowns();">Driver Payout</button>
+        <button data-page="orders" data-tab="platform" onclick="navigateTo('orders?tab=platform'); closeNavDropdowns();">Platform Orders</button>
+        <button data-page="orders" data-tab="online" onclick="navigateTo('orders?tab=online'); closeNavDropdowns();">Online Orders</button>
+        <button data-page="orders" data-tab="dinein" onclick="navigateTo('orders?tab=dinein'); closeNavDropdowns();">Dine-In</button>
+        <button data-page="orders" data-tab="payout" onclick="navigateTo('orders?tab=payout'); closeNavDropdowns();">Driver Payout</button>
       </div>
     </div>
 
     <div class="navbar-item">
       <button onclick="toggleNavDropdown(this)">Menu &#9662;</button>
       <div class="navbar-dropdown">
-        <button data-page="batch-production" onclick="navigateTo('batch-production'); closeNavDropdowns();">Batch Production</button>
+        <button data-page="menu" data-tab="batch" onclick="navigateTo('menu?tab=batch'); closeNavDropdowns();">Batch Production</button>
         <div class="navbar-subitem">
           <button onclick="toggleNavSubmenu(this, event)">Menu Engineering</button>
           <div class="navbar-subdropdown">
-            <button data-page="menu-engineering" data-tab="pricing" onclick="navigateTo('menu-engineering?tab=pricing'); closeNavDropdowns();">Pricing</button>
-            <button data-page="menu-engineering" data-tab="platform" onclick="navigateTo('menu-engineering?tab=platform'); closeNavDropdowns();">Platform Pricing</button>
-            <button data-page="menu-engineering" data-tab="costing" onclick="navigateTo('menu-engineering?tab=costing'); closeNavDropdowns();">Costing</button>
+            <button data-page="menu" data-tab="pricing" onclick="navigateTo('menu?tab=pricing'); closeNavDropdowns();">Pricing</button>
+            <button data-page="menu" data-tab="platform" onclick="navigateTo('menu?tab=platform'); closeNavDropdowns();">Platform Pricing</button>
+            <button data-page="menu" data-tab="costing" onclick="navigateTo('menu?tab=costing'); closeNavDropdowns();">Costing</button>
           </div>
         </div>
       </div>

@@ -712,7 +712,7 @@ function dv2ActionOrdersSection(orders) {
   if (!orders.length) return "<p>No orders need action right now.</p>";
   return (
     orders.map(dv2ActionOrderRowHtml).join("") +
-    '<p style="margin:12px 0 0;"><button onclick="navigateTo(\'orders\')">View all Orders</button></p>'
+    '<p style="margin:12px 0 0;"><button onclick="navigateTo(\'orders?tab=online\')">View all Orders</button></p>'
   );
 }
 
@@ -771,7 +771,7 @@ function dv2UnpaidDriverPayoutCard(unpaidTotal, monthSplit) {
     ratio,
     "#ec8888",
     caption,
-    "navigateTo('orders-payout')"
+    "navigateTo('orders?tab=payout')"
   );
 }
 
@@ -788,6 +788,6 @@ function dv2StockAlertCard(items, totalTracked) {
     ratio,
     "#faca79",
     caption,
-    count > 0 ? "navigateTo('inventory-stock?tab=overview&filter=low')" : null
+    count > 0 ? "navigateTo('inventory?tab=overview&filter=low')" : null
   );
 }

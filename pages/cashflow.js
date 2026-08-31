@@ -1,4 +1,61 @@
-registerPage("cashflow", renderCashflowPage);
+// Finance nav is one page (Cashflow/OpEx/P&L tabs) - matches the main
+// nav's own "Finance" dropdown grouping, same pattern as Database/
+// Inventory/Menu below their own dropdown groupings. Shell lives here
+// (first of the three Finance files) since it needs to be defined
+// somewhere; the tab renderers are just the pre-existing per-module page
+// functions (their own top-level <h2> stripped - the tab strip already
+// marks which section is active, same "no redundant heading" convention
+// used throughout the app).
+registerPage("finance", renderFinancePage);
+
+let _activeFinanceTab = "cashflow";
+const FINANCE_TABS = ["cashflow", "opex", "pnl"];
+const FINANCE_TAB_LABELS = { cashflow: "Cashflow", opex: "OpEx", pnl: "P&L" };
+
+async function renderFinancePage(content) {
+  const query = location.hash.split("?")[1] || "";
+  const tabParam = new URLSearchParams(query).get("tab");
+  _activeFinanceTab = FINANCE_TABS.indexOf(tabParam) !== -1 ? tabParam : "cashflow";
+
+  content.innerHTML = "<h2>Finance</h2>" + buildFinanceTabsHtml();
+  wireFinanceTabs();
+  await loadFinanceTab(_activeFinanceTab);
+}
+
+function buildFinanceTabsHtml() {
+  return (
+    '<div class="tabs">' +
+      FINANCE_TABS.map((t) => '<button id="financeTab-' + t + '" onclick="switchFinanceTab(\'' + t + '\')">' + FINANCE_TAB_LABELS[t] + "</button>").join("") +
+    "</div>" +
+    '<div id="financeTabContent"><p>Loading...</p></div>'
+  );
+}
+
+function wireFinanceTabs() {
+  FINANCE_TABS.forEach((t) => document.getElementById("financeTab-" + t).classList.toggle("tab-active", t === _activeFinanceTab));
+}
+
+function switchFinanceTab(tab) {
+  if (tab === _activeFinanceTab) return;
+  _activeFinanceTab = tab;
+  wireFinanceTabs();
+  loadFinanceTab(tab);
+}
+
+// Dispatches to the pre-existing per-module render function (cashflow.js/
+// opex.js/pnl.js each still own their full section logic, just no longer
+// registered as their own top-level route) - all three already only touch
+// document.getElementById lookups internally, never content.querySelector,
+// so calling them with this sub-wrap instead of the top-level #content
+// element works with no changes to their own bodies beyond dropping the
+// <h2>.
+async function loadFinanceTab(tab) {
+  const wrap = document.getElementById("financeTabContent");
+  wrap.innerHTML = "<p>Loading...</p>";
+  if (tab === "opex") return renderOpexPage(wrap);
+  if (tab === "pnl") return renderPnlPage(wrap);
+  return renderCashflowPage(wrap);
+}
 
 // Category -> Type/Flow reference now lives in settings_lists (list_name
 // "Cashflow Category", meta = "Type - Flow") instead of being hardcoded
@@ -37,7 +94,6 @@ async function ensureCashflowDescriptionOptions() {
 
 async function renderCashflowPage(content) {
   content.innerHTML =
-    "<h2>Cashflow</h2>" +
     buildCashflowSummaryShellHtml() +
     buildCashflowLedgerShellHtml();
   wireCashflowLedgerTabs();

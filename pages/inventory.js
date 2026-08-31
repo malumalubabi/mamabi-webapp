@@ -1,10 +1,62 @@
-// Inventory nav is split into two pages - "Stock" (Overview/Purchase Log/
-// Opname/Consumption Log - what's physically on hand and moving) and "Cost"
-// (Current Cost/Cost Update Log - what it's valued at) - each with its own
-// tab shell, ported from the old app's Inventory_Nav.html grouping (which
-// had all six as one flat nav instead).
-registerPage("inventory-stock", renderInventoryStockPage);
-registerPage("inventory-cost", renderInventoryCostPage);
+// Inventory nav is one page (Stock/Cost tabs, matching the main nav's own
+// "Inventory" dropdown grouping - see index.html), each of those two tabs
+// keeping its own already-built sub-tab shell exactly as before: "Stock"
+// (Overview/Purchase Log/Opname/Inventory Value/Consumption Log - what's
+// physically on hand and moving) and "Cost" (Current Cost/Cost Update Log -
+// what it's valued at), ported from the old app's Inventory_Nav.html
+// grouping (which had all six as one flat nav instead).
+registerPage("inventory", renderInventoryHubPage);
+
+let _activeInventoryTab = "stock";
+const INVENTORY_TABS = ["stock", "cost"];
+const INVENTORY_TAB_LABELS = { stock: "Stock", cost: "Cost" };
+
+async function renderInventoryHubPage(content) {
+  const query = location.hash.split("?")[1] || "";
+  const tabParam = new URLSearchParams(query).get("tab");
+  // tab= might be this hub's own "stock"/"cost", OR one of Stock's/Cost's
+  // own sub-tab values (deep-linked straight to a sub-tab, e.g. the
+  // Dashboard Stock Alert card's ?tab=overview&filter=low) - resolve which
+  // top tab that sub-tab actually belongs to instead of only matching the
+  // top-level names.
+  _activeInventoryTab = INV_COST_TABS.indexOf(tabParam) !== -1 || tabParam === "cost" ? "cost" : "stock";
+
+  content.innerHTML = "<h2>Inventory</h2>" + buildInventoryHubTabsHtml();
+  wireInventoryHubTabs();
+  await loadInventoryHubTab(_activeInventoryTab);
+}
+
+function buildInventoryHubTabsHtml() {
+  return (
+    '<div class="tabs">' +
+      INVENTORY_TABS.map((t) => '<button id="inventoryHubTab-' + t + '" onclick="switchInventoryHubTab(\'' + t + '\')">' + INVENTORY_TAB_LABELS[t] + "</button>").join("") +
+    "</div>" +
+    '<div id="inventoryHubTabContent"><p>Loading...</p></div>'
+  );
+}
+
+function wireInventoryHubTabs() {
+  INVENTORY_TABS.forEach((t) => document.getElementById("inventoryHubTab-" + t).classList.toggle("tab-active", t === _activeInventoryTab));
+}
+
+function switchInventoryHubTab(tab) {
+  if (tab === _activeInventoryTab) return;
+  _activeInventoryTab = tab;
+  wireInventoryHubTabs();
+  loadInventoryHubTab(tab);
+}
+
+// Dispatches to the pre-existing renderInventoryStockPage/
+// renderInventoryCostPage below (own <h2> stripped - the outer tab strip
+// already marks the active section) - each keeps its own full sub-tab
+// shell/logic completely unchanged, just rendering into this sub-wrap
+// instead of the top-level #content.
+async function loadInventoryHubTab(tab) {
+  const wrap = document.getElementById("inventoryHubTabContent");
+  wrap.innerHTML = "<p>Loading...</p>";
+  if (tab === "cost") return renderInventoryCostPage(wrap);
+  return renderInventoryStockPage(wrap);
+}
 
 // Ingredient/Packaging/Operating only - Semi-Finished and Component are
 // produced via Batch Production, never bought from a supplier, so they
@@ -34,7 +86,7 @@ let _activeInvStockTab = "overview";
 // "?tab=" convention as pages/sales.js/database.js. filter=low sets
 // _overviewStatusFilter (see below) before that tab renders.
 async function renderInventoryStockPage(content) {
-  content.innerHTML = "<h2>Inventory Stock</h2>" + buildInventoryStockTabsHtml();
+  content.innerHTML = buildInventoryStockTabsHtml();
   await ensureInvLookups();
 
   const query = location.hash.split("?")[1] || "";
@@ -88,7 +140,7 @@ async function switchInventoryStockTab(tab, force) {
 let _activeInvCostTab = "current";
 
 async function renderInventoryCostPage(content) {
-  content.innerHTML = "<h2>Inventory Cost</h2>" + buildInventoryCostTabsHtml();
+  content.innerHTML = buildInventoryCostTabsHtml();
   await switchInventoryCostTab(_activeInvCostTab, true);
 }
 

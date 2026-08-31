@@ -12,8 +12,59 @@
 // _ordersShowNewOrderBtn since loadOrdersData() is also re-called (with no
 // args) after every row action (Mark Paid, Cancel, etc.) from whichever page
 // is currently active.
-registerPage("orders", renderOrdersPage);
-registerPage("orders-platform", renderPlatformOrdersPage);
+// Orders nav is one page (Platform Orders/Online Orders/Dine-In/Driver
+// Payout tabs) - matches the main nav's own "Orders" dropdown grouping,
+// same pattern as Finance/Database/Inventory/Menu below their own
+// dropdown groupings. Tab order matches the navbar dropdown's own order.
+registerPage("orders", renderOrdersHubPage);
+
+let _activeOrdersTab = "platform";
+const ORDERS_TABS = ["platform", "online", "dinein", "payout"];
+const ORDERS_TAB_LABELS = { platform: "Platform Orders", online: "Online Orders", dinein: "Dine-In", payout: "Driver Payout" };
+
+async function renderOrdersHubPage(content) {
+  const query = location.hash.split("?")[1] || "";
+  const tabParam = new URLSearchParams(query).get("tab");
+  _activeOrdersTab = ORDERS_TABS.indexOf(tabParam) !== -1 ? tabParam : "platform";
+
+  content.innerHTML = "<h2>Orders</h2>" + buildOrdersHubTabsHtml();
+  wireOrdersHubTabs();
+  await loadOrdersHubTab(_activeOrdersTab);
+}
+
+function buildOrdersHubTabsHtml() {
+  return (
+    '<div class="tabs">' +
+      ORDERS_TABS.map((t) => '<button id="ordersHubTab-' + t + '" onclick="switchOrdersHubTab(\'' + t + '\')">' + ORDERS_TAB_LABELS[t] + "</button>").join("") +
+    "</div>" +
+    '<div id="ordersHubTabContent"><p>Loading...</p></div>'
+  );
+}
+
+function wireOrdersHubTabs() {
+  ORDERS_TABS.forEach((t) => document.getElementById("ordersHubTab-" + t).classList.toggle("tab-active", t === _activeOrdersTab));
+}
+
+function switchOrdersHubTab(tab) {
+  if (tab === _activeOrdersTab) return;
+  _activeOrdersTab = tab;
+  wireOrdersHubTabs();
+  loadOrdersHubTab(tab);
+}
+
+// Dispatches to the pre-existing per-section render functions below (own
+// <h2> stripped from each - the tab strip already marks the active
+// section). All of them only ever touch document.getElementById, never
+// content.querySelector, so calling them with this sub-wrap works with no
+// further changes to their own bodies.
+async function loadOrdersHubTab(tab) {
+  const wrap = document.getElementById("ordersHubTabContent");
+  wrap.innerHTML = "<p>Loading...</p>";
+  if (tab === "online") return renderOrdersPage(wrap);
+  if (tab === "dinein") return renderDineInPage(wrap);
+  if (tab === "payout") return renderDriverPayoutPage(wrap);
+  return renderPlatformOrdersPage(wrap);
+}
 
 let _ordersLookups = null;
 let _customerCombo = null;
@@ -46,7 +97,6 @@ async function renderOrdersPage(content) {
   _ordersHistoryFulfillmentTypeFilter = [];
 
   content.innerHTML =
-    "<h2>Online Orders</h2>" +
     '<div id="ordersOngoingWrap"><p>Loading...</p></div>' +
     '<div id="ordersHistoryWrap" style="margin-top:28px;"></div>';
   await loadOrdersData();
@@ -68,7 +118,6 @@ async function renderPlatformOrdersPage(content) {
   _ordersHistoryFulfillmentTypeFilter = [];
 
   content.innerHTML =
-    "<h2>Platform Orders</h2>" +
     '<div id="ordersOngoingWrap"><p>Loading...</p></div>' +
     '<div id="ordersHistoryWrap" style="margin-top:28px;"></div>';
   await loadOrdersData();
@@ -989,10 +1038,11 @@ function renderOrdersTable(wrap, orders, scope) {
 // ("nanti kalau ada dine in tinggal ditambahin page baru lagi") - just the
 // nav entry + Coming Soon so the final 3-way Platform/Online/Dine-In split
 // is visible now, no backend/data model yet.
-registerPage("orders-dinein", renderDineInPage);
+// Registered as an Orders tab, not its own top-level route - see
+// renderOrdersHubPage/loadOrdersHubTab above.
 
 function renderDineInPage(content) {
-  content.innerHTML = "<h2>Dine-In</h2><p>Coming soon.</p>";
+  content.innerHTML = "<p>Coming soon.</p>";
 }
 
 // ================================================================
@@ -1005,11 +1055,12 @@ function renderDineInPage(content) {
 // order that's otherwise done, or vice versa), split by driver_payout_status.
 // ================================================================
 
-registerPage("orders-payout", renderDriverPayoutPage);
+// Registered as an Orders tab, not its own top-level route - see
+// renderOrdersHubPage/loadOrdersHubTab above.
 
 async function renderDriverPayoutPage(content) {
   await ensureOrdersLookups();
-  content.innerHTML = "<h2>Driver Payout</h2>" + '<div id="driverPayoutWrap"><p>Loading...</p></div>';
+  content.innerHTML = '<div id="driverPayoutWrap"><p>Loading...</p></div>';
   await loadDriverPayoutData();
 }
 

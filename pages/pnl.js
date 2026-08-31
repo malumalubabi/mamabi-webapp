@@ -6,13 +6,13 @@
 // The report itself (rows/months/values shape) is built entirely server-side
 // (functions/api/pnl.js) - this file just renders it and drives the
 // Close/Recalculate actions per month.
-registerPage("finance-pnl", renderPnlPage);
+// Registered as a Finance tab, not its own top-level route - see
+// pages/cashflow.js's renderFinancePage/loadFinanceTab.
 
 let _lastPnlData = null;
 
 async function renderPnlPage(content) {
   content.innerHTML =
-    "<h2>Profit and Loss</h2>" +
     '<div style="margin-bottom:8px;"><button onclick="loadPnl()">Refresh</button></div>' +
     '<div id="pnlWrap"><p>Loading...</p></div>';
   await loadPnl();

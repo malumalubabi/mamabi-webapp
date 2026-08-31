@@ -1,5 +1,59 @@
-registerPage("batch-production", renderBatchProductionPage);
-registerPage("menu-engineering", renderMenuEngineeringPage);
+// Menu nav is one page (Batch Production/Menu Engineering tabs, matching
+// the main nav's own "Menu" dropdown grouping - see index.html). Menu
+// Engineering keeps its own already-built sub-tab shell exactly as before
+// (Pricing/Platform Pricing/Costing); Batch Production has none.
+registerPage("menu", renderMenuHubPage);
+
+let _activeMenuTab = "batch";
+const MENU_TABS = ["batch", "engineering"];
+const MENU_TAB_LABELS = { batch: "Batch Production", engineering: "Menu Engineering" };
+const MENU_ENGINEERING_SUBTABS = ["pricing", "platform", "costing"];
+
+async function renderMenuHubPage(content) {
+  const query = location.hash.split("?")[1] || "";
+  const tabParam = new URLSearchParams(query).get("tab");
+  // tab= might be this hub's own "batch"/"engineering", OR one of Menu
+  // Engineering's own sub-tab values (deep-linked straight to a sub-tab via
+  // the navbar's Menu Engineering submenu) - resolve which top tab that
+  // sub-tab actually belongs to instead of only matching the top-level names.
+  _activeMenuTab = tabParam === "engineering" || MENU_ENGINEERING_SUBTABS.indexOf(tabParam) !== -1 ? "engineering" : "batch";
+
+  content.innerHTML = "<h2>Menu</h2>" + buildMenuHubTabsHtml();
+  wireMenuHubTabs();
+  await loadMenuHubTab(_activeMenuTab);
+}
+
+function buildMenuHubTabsHtml() {
+  return (
+    '<div class="tabs">' +
+      MENU_TABS.map((t) => '<button id="menuHubTab-' + t + '" onclick="switchMenuHubTab(\'' + t + '\')">' + MENU_TAB_LABELS[t] + "</button>").join("") +
+    "</div>" +
+    '<div id="menuHubTabContent"><p>Loading...</p></div>'
+  );
+}
+
+function wireMenuHubTabs() {
+  MENU_TABS.forEach((t) => document.getElementById("menuHubTab-" + t).classList.toggle("tab-active", t === _activeMenuTab));
+}
+
+function switchMenuHubTab(tab) {
+  if (tab === _activeMenuTab) return;
+  _activeMenuTab = tab;
+  wireMenuHubTabs();
+  loadMenuHubTab(tab);
+}
+
+// Dispatches to the pre-existing renderBatchProductionPage/
+// renderMenuEngineeringPage below (own <h2> stripped - the outer tab strip
+// already marks the active section) - Menu Engineering keeps its own full
+// sub-tab shell/logic completely unchanged, just rendering into this
+// sub-wrap instead of the top-level #content.
+async function loadMenuHubTab(tab) {
+  const wrap = document.getElementById("menuHubTabContent");
+  wrap.innerHTML = "<p>Loading...</p>";
+  if (tab === "engineering") return renderMenuEngineeringPage(wrap);
+  return renderBatchProductionPage(wrap);
+}
 
 // Recipe/BOM-driven Batch Production (06 Menu/MenuBatchProduction.html -
 // startBatch/markBatchDone, scaled off recipe_lines). Pick the output SKU
@@ -18,7 +72,6 @@ let _lastHistoryBatches = []; // History only, for toggleShowCancelledBatches' r
 
 async function renderBatchProductionPage(content) {
   content.innerHTML =
-    "<h2>Batch Production</h2>" +
     '<div id="batchOngoingWrap"><p>Loading...</p></div>' +
     '<div id="batchHistoryWrap" style="margin-top:28px;"></div>';
   await ensureBatchLookups();
@@ -662,7 +715,7 @@ async function renderMenuEngineeringPage(content) {
   const tabParam = new URLSearchParams(query).get("tab");
   _activeMenuEngTab = ["pricing", "platform", "costing"].indexOf(tabParam) !== -1 ? tabParam : "pricing";
 
-  content.innerHTML = "<h2>Menu Engineering</h2>" + buildMenuEngTabsShellHtml();
+  content.innerHTML = buildMenuEngTabsShellHtml();
   wireMenuEngTabs();
   await loadMenuEngTab(_activeMenuEngTab);
 }
