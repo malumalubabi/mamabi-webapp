@@ -98,16 +98,18 @@ header h2 {
 header h2 .brand-icon {
   /* Meant to match .brand-name's "M" cap-height (top of the pig's head
      level with the top of the M, bottom level with the bottom of the M).
-     Two things tried and rejected against real screenshots already: the
-     `cap` unit (rendered much smaller than the M), then 0.85em in this same
-     1.725em context (turned out to compute almost identical to the very
-     first, never-fixed 1.5em-off-h2 size, so it looked unchanged - not
-     actually a caching issue, confirmed against desktop Chrome too). This
-     jumps height substantially higher instead of another small nudge. */
+     Height got to a reasonable size (1.4em in this 1.725em context) but sat
+     too low with vertical-align:middle - that keyword centers against the
+     PARENT's x-height midpoint, not the baseline, so a tall icon like this
+     one drops well below where a capital letter's bottom actually sits.
+     baseline is the far more predictable anchor here: it's literal - an
+     inline-replaced element's bottom edge lands exactly on the text
+     baseline, which for a capital letter (no descender) IS its bottom
+     edge. */
   font-size: 1.725em;
   height: 1.4em;
   width: auto;
-  vertical-align: middle;
+  vertical-align: baseline;
   margin-right: 2px;
 }
 header h2 .brand-suffix {
