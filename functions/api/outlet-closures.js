@@ -1,7 +1,6 @@
 // HR > Attendance - dates the outlet itself is closed (holidays, planned
-// off-days). Doesn't count against any staff's attendance - Payroll's
-// present-days calc treats these as non-working days for everyone, on top
-// of each staff's own scheduled_days pattern (see staff.js).
+// off-days). Doesn't count against any staff's attendance, and blocks
+// creating a staff_shifts row on that date (see staff-shifts.js's POST).
 import { getSupabase, getBrandId, jsonResponse, errorResponse } from "./_lib/supabase.js";
 import { nextCode } from "./_lib/codes.js";
 

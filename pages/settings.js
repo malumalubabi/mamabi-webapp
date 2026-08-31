@@ -20,6 +20,12 @@ const SETTINGS_LIST_SPECS = ["Payment Method", "Sales Platform", "PnL Categories
 const LIST_META_OPTIONS = {
   "Sales Platform": { label: "Pricing", options: ["Base Pricing", "Platform Pricing"], default: "Base Pricing" },
   "PnL Categories": { label: "Type", options: ["Fixed", "Variable"], default: "Fixed" },
+  // Free-number type (not a fixed options list, like every other entry
+  // here) - HR > Attendance's staff_shifts.role looks this up per shift to
+  // pay Daily-rate staff, since rate now depends on which role they covered
+  // that day rather than being one flat number per staff (see staff.js's
+  // base_rate, which only Monthly staff still use).
+  "Staff Roles": { label: "Daily Rate", type: "number", default: "0" },
   // Type and Flow folded into one tag (settings_lists only has one `meta`
   // column per row) - drives both functions/api/cashflow.js's flow-direction
   // logic (In/Out, parsed back out of this string) and pages/cashflow.js's
@@ -138,7 +144,7 @@ function renderSettingsListBody(listName) {
     return;
   }
   tbody.innerHTML = items.map((value) =>
-    "<tr><td>" + value + "</td>" + (metaSpec ? ('<td style="color:var(--color-text-muted); font-size:12px;">' + (metaMap[value] || "") + "</td>") : "") + "</tr>"
+    "<tr><td>" + value + "</td>" + (metaSpec ? ('<td style="color:var(--color-text-muted); font-size:12px;">' + metaDisplayHtml(metaSpec, metaMap[value]) + "</td>") : "") + "</tr>"
   ).join("");
 }
 
@@ -173,10 +179,7 @@ function renderManageSettingsListModal() {
 
   const addFieldHtml =
     '<input type="text" id="newSettingsListValue" placeholder="New value"> ' +
-    (metaSpec
-      ? ('<select id="newSettingsListMeta">' + metaSpec.options.map((o) => "<option" + (o === metaSpec.default ? " selected" : "") + ">" + o + "</option>").join("") + "</select> ")
-      : ""
-    );
+    (metaSpec ? (metaFieldInputHtml(metaSpec, "newSettingsListMeta", metaSpec.default) + " ") : "");
 
   const rowsHtml = rows.length
     ? rows.map((value, i) => manageListRowHtml(value, i, arranging, rows.length, metaMap, metaSpec)).join("")
@@ -203,6 +206,22 @@ function renderManageSettingsListModal() {
   );
 }
 
+// Free-number meta (Staff Roles' Daily Rate) vs. the original fixed-options
+// dropdown (Sales Platform/PnL Categories/Cashflow Category) - same `meta`
+// text column either way, just a different input widget and (for display)
+// Rupiah formatting instead of the raw string.
+function metaFieldInputHtml(metaSpec, id, currentValue) {
+  if (metaSpec.type === "number") {
+    return '<input type="number" id="' + id + '" value="' + (currentValue || metaSpec.default || "0") + '" style="width:120px;">';
+  }
+  return '<select id="' + id + '">' + metaSpec.options.map((o) => "<option" + (o === currentValue ? " selected" : "") + ">" + o + "</option>").join("") + "</select>";
+}
+
+function metaDisplayHtml(metaSpec, rawValue) {
+  if (metaSpec.type === "number") return formatRupiah(Number(rawValue || 0));
+  return rawValue || "";
+}
+
 function manageListRowHtml(value, index, arranging, total, metaMap, metaSpec) {
   const escaped = value.replace(/'/g, "\\'");
 
@@ -213,7 +232,7 @@ function manageListRowHtml(value, index, arranging, total, metaMap, metaSpec) {
       "</td>")
     : "";
 
-  const metaCell = metaSpec ? ('<td style="color:var(--color-text-muted); font-size:12px;">' + (metaMap[value] || "") + "</td>") : "";
+  const metaCell = metaSpec ? ('<td style="color:var(--color-text-muted); font-size:12px;">' + metaDisplayHtml(metaSpec, metaMap[value]) + "</td>") : "";
 
   const actionsCell = arranging
     ? ""
@@ -290,8 +309,7 @@ function openEditSettingsListItem(oldValue) {
     "<label>Value</label><br>" +
     '<input type="text" id="editSettingsListValue" value="' + oldValue + '"><br><br>' +
     (metaSpec
-      ? ("<label>" + metaSpec.label + "</label><br>" +
-          '<select id="editSettingsListMeta">' + metaSpec.options.map((o) => "<option" + (o === currentMeta ? " selected" : "") + ">" + o + "</option>").join("") + "</select><br><br>")
+      ? ("<label>" + metaSpec.label + "</label><br>" + metaFieldInputHtml(metaSpec, "editSettingsListMeta", currentMeta) + "<br><br>")
       : ""
     ) +
     '<button id="editSettingsListItemBtn" onclick="saveEditSettingsListItem(\'' + oldValue.replace(/'/g, "\\'") + '\')">Save</button> ' +
