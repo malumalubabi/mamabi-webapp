@@ -98,13 +98,14 @@ header h2 {
 header h2 .brand-icon {
   /* Meant to match .brand-name's "M" cap-height (top of the pig's head
      level with the top of the M, bottom level with the bottom of the M).
-     First tried the `cap` unit for this (sized exactly off the M's own
-     glyph metrics) but it rendered much smaller than the M in practice -
-     this is a manually-tuned plain-em value instead, checked against a
-     real screenshot. font-size still matches .brand-name's own 1.725em
-     override so the icon scales the same way the brand text does. */
+     Two things tried and rejected against real screenshots already: the
+     `cap` unit (rendered much smaller than the M), then 0.85em in this same
+     1.725em context (turned out to compute almost identical to the very
+     first, never-fixed 1.5em-off-h2 size, so it looked unchanged - not
+     actually a caching issue, confirmed against desktop Chrome too). This
+     jumps height substantially higher instead of another small nudge. */
   font-size: 1.725em;
-  height: 0.85em;
+  height: 1.4em;
   width: auto;
   vertical-align: middle;
   margin-right: 2px;
