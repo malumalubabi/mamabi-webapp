@@ -4,6 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MaluMaluBabi WebApp</title>
+  <meta name="theme-color" content="#1B2833">
+  <link rel="manifest" href="/manifest.json">
+  <!-- Favicon (browser tab, next to the page title) uses the transparent
+       Logo B - blends into the tab strip regardless of light/dark browser
+       theme. The installed-app icon (manifest.json/apple-touch-icon below)
+       stays the gradient version - that one needs to read as a solid tile
+       on a home screen, not blend into anything. -->
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/nobg/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/icons/nobg/favicon-16.png">
+  <link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png">
   <!-- Quicksand - used only for the header title (see shared.css's
        "header h2"), not applied app-wide. -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14,7 +24,7 @@
 <body>
 
   <header>
-    <h2><span class="brand-name">MaluMaluBabi</span> <span class="brand-suffix">WebApp</span></h2>
+    <h2><img src="/assets/icons/nobg/icon-192.png" alt="" class="brand-icon"> <span class="brand-name">MaluMaluBabi</span> <span class="brand-suffix">WebApp</span></h2>
   </header>
 
   <nav id="navbar">
@@ -127,6 +137,13 @@
     // this adds click-and-drag on top of that (same helper Stock Opname's
     // wide table uses).
     enableDragScroll(document.getElementById("navbar"));
+
+    // Registered after load so it never competes with the page's own
+    // first-paint scripts above - installability only needs it registered
+    // at some point, not immediately.
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js"));
+    }
   </script>
 
 </body>

@@ -95,6 +95,12 @@ header h2 {
   font-family: "Quicksand", Arial, sans-serif;
   letter-spacing: 0.08em;
 }
+header h2 .brand-icon {
+  height: 1.5em;
+  width: 1.5em;
+  vertical-align: middle;
+  margin-right: 2px;
+}
 header h2 .brand-suffix {
   /* Its own dedicated muted tone (--color-header-subtitle), not an opacity
      wash of the title color - the two aren't just light/dark variants of
