@@ -10,7 +10,7 @@ registerPage("finance", renderFinancePage);
 
 let _activeFinanceTab = "cashflow";
 const FINANCE_TABS = ["cashflow", "opex", "pnl"];
-const FINANCE_TAB_LABELS = { cashflow: "Cashflow", opex: "OpEx", pnl: "P&L" };
+const FINANCE_TAB_LABELS = { cashflow: "Cashflow", opex: "Operational Expenses", pnl: "Profit and Loss" };
 
 async function renderFinancePage(content) {
   const query = location.hash.split("?")[1] || "";

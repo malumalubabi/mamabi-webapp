@@ -413,7 +413,7 @@ async function openSalesEntryModal() {
       '<div><label>Gross Revenue</label><br><strong id="saleGrossRevenue" class="font-number" style="font-size:12px;">Rp 0</strong></div>' +
       '<div><label>Net Revenue</label><br><strong id="saleNetRevenue" class="font-number" style="font-size:12px;">Rp 0</strong></div>' +
     "</div>" +
-    '<p style="font-size:12px; color:var(--color-text-muted); max-width:480px;">Net Revenue = Gross Revenue - (Platform Fee + Marketing Fee). It\'s not Net Profit yet — Food/Packaging Cost and other Opex aren\'t subtracted here (look up to P&amp;L for that).</p><br>' +
+    '<p style="font-size:12px; color:var(--color-text-muted); max-width:480px;">Net Revenue = Gross Revenue - (Platform Fee + Marketing Fee). It\'s not Net Profit yet — Food/Packaging Cost and other Operational Expenses aren\'t subtracted here (look up to Profit and Loss for that).</p><br>' +
 
     "<label>Notes</label><br>" +
     '<input type="text" id="saleNotes"><br><br>' +

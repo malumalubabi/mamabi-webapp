@@ -49,7 +49,7 @@ async function renderOpexPage(content) {
 
 function buildOpexSummaryShellHtml() {
   return (
-    "<h3>OpEx Summary</h3>" +
+    "<h3>Operational Expenses Summary</h3>" +
     '<div id="opexSummaryWrap"><p>Loading...</p></div>' +
     '<hr style="margin:24px 0;">'
   );
@@ -58,7 +58,7 @@ function buildOpexSummaryShellHtml() {
 function buildOpexLogShellHtml() {
   return (
     '<div style="display:flex; justify-content:space-between; align-items:center;">' +
-      "<h3>OpEx Log</h3>" +
+      "<h3>Operational Expenses Log</h3>" +
       '<div style="display:flex; align-items:center; gap:10px;">' +
         '<span id="opexFilterSortBadge" style="color:var(--color-text-muted); font-size:12px;">' + (_opexCategoryFilter.length ? _opexCategoryFilter.join(", ") : "All") + " | " + OPEX_SORT_LABELS[_opexSort] + "</span>" +
         '<button onclick="openOpexFilterSortModal()">Filter &amp; Sort</button>' +
@@ -213,7 +213,7 @@ function openOpexFilterSortModal() {
   ).join("");
 
   openModal(
-    "<h2>Filter &amp; Sort - OpEx Log</h2>" +
+    "<h2>Filter &amp; Sort - Operational Expenses Log</h2>" +
     "<label>Date Range</label><br>" +
     '<div style="display:flex; align-items:center; gap:8px;">' +
       '<input type="date" id="opexDateFrom" value="' + _opexDateFrom + '">' +
