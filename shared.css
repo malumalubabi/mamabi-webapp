@@ -96,17 +96,15 @@ header h2 {
   letter-spacing: 0.08em;
 }
 header h2 .brand-icon {
-  /* Meant to match .brand-name's "M" cap-height (top of the pig's head
-     level with the top of the M, bottom level with the bottom of the M).
-     vertical-align:baseline anchors the icon's BOTTOM edge to the text
-     baseline (= a capital letter's own bottom edge, no descender) -
-     confirmed correct against a real screenshot. 1.4em height then
-     overshot the M's top since baseline only fixes the bottom anchor, not
-     the height - scaled down from there. */
+  /* 1.4em is the right SIZE (confirmed) - baseline-anchored, it sat a
+     touch too high (top past the M's top), and shrinking the height down
+     to "fix" that was wrong (made the icon read as too small overall).
+     Keeping the size and nudging the position down instead, via a
+     negative vertical-align offset off the baseline anchor. */
   font-size: 1.725em;
-  height: 1.1em;
+  height: 1.4em;
   width: auto;
-  vertical-align: baseline;
+  vertical-align: -0.15em;
   margin-right: 2px;
 }
 header h2 .brand-suffix {
