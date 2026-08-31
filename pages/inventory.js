@@ -1192,7 +1192,7 @@ function opnameRowHtml(r) {
   return (
     "<tr>" +
       "<td>" + r.opnameCode + "</td>" +
-      "<td>" + r.date + "</td>" +
+      '<td style="white-space:nowrap; width:1%;">' + r.date + "</td>" +
       "<td>" + r.itemName + '<br><span style="color:var(--color-text-muted); font-size:12px;">' + r.sku + "</span></td>" +
       "<td>" + r.bookBalance + "</td>" +
       "<td>" + r.physicalCount + "</td>" +
@@ -1455,7 +1455,7 @@ function consumptionRowHtml(r) {
   return (
     "<tr>" +
       "<td>" + r.refId + "</td>" +
-      "<td>" + r.date + "</td>" +
+      '<td style="white-space:nowrap; width:1%;">' + r.date + "</td>" +
       "<td>" + r.itemName + '<br><span style="color:var(--color-text-muted); font-size:12px;">' + r.sku + "</span></td>" +
       "<td>" + r.qty + "</td>" +
       "<td>" + (r.source || "") + "</td>" +
@@ -1692,7 +1692,7 @@ function applyCostUpdateFilterSort() {
 function costUpdateRowHtml(r) {
   return (
     "<tr>" +
-      "<td>" + r.date + "</td>" +
+      '<td style="white-space:nowrap; width:1%;">' + r.date + "</td>" +
       "<td>" + r.sku + "</td>" +
       "<td>" + r.itemName + "</td>" +
       "<td>" + (r.supplier || "") + "</td>" +

@@ -1236,7 +1236,7 @@ function unpaidDriverGroupRowsHtml(group) {
 function unpaidPayoutRowHtml(o) {
   return (
     "<tr>" +
-      "<td>" + o.orderDate + "</td>" +
+      '<td style="white-space:nowrap; width:1%;">' + o.orderDate + "</td>" +
       "<td>" + o.customerName + "</td>" +
       '<td><span class="font-number">' + formatRupiah(o.deliveryFee) + "</span></td>" +
       "<td>" + o.orderCode + "</td>" +
@@ -1353,7 +1353,7 @@ function buildPayoutHistoryTableHtml(rows) {
 function payoutHistoryRowHtml(o) {
   return (
     '<tr data-order="' + o.orderCode + '">' +
-      "<td>" + o.orderDate + "</td>" +
+      '<td style="white-space:nowrap; width:1%;">' + o.orderDate + "</td>" +
       "<td>" + o.customerName + "</td>" +
       "<td>" +
         '<span class="payoutFeeDisplay font-number">' + formatRupiah(o.deliveryFee) + "</span>" +

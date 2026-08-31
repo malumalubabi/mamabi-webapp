@@ -222,7 +222,7 @@ function ongoingBatchRowHtml(b) {
   return (
     "<tr>" +
       "<td>" + b.batchCode + "</td>" +
-      "<td>" + b.date + "</td>" +
+      '<td style="white-space:nowrap; width:1%;">' + b.date + "</td>" +
       "<td>" + (b.category || "") + "</td>" +
       "<td>" + itemNameCell(b) + "</td>" +
       "<td>" + (b.batchSize === null ? "" : b.batchSize) + "</td>" +
@@ -240,7 +240,7 @@ function batchHistoryRowHtml(b) {
   return (
     "<tr>" +
       "<td>" + b.batchCode + "</td>" +
-      "<td>" + b.date + "</td>" +
+      '<td style="white-space:nowrap; width:1%;">' + b.date + "</td>" +
       "<td>" + (b.category || "") + "</td>" +
       "<td>" + itemNameCell(b) + "</td>" +
       "<td>" + (b.batchSize === null ? "" : b.batchSize) + "</td>" +

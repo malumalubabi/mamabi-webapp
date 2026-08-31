@@ -29,7 +29,9 @@ self.addEventListener("fetch", (event) => {
     fetch(event.request)
       .then((res) => {
         const copy = res.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        caches.open(CACHE_NAME)
+          .then((cache) => cache.put(event.request, copy))
+          .catch(() => {}); // best-effort - a failed cache write shouldn't affect what the page actually gets
         return res;
       })
       .catch(() => caches.match(event.request))
