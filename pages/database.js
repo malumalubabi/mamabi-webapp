@@ -897,6 +897,17 @@ function staffRoleCheckboxesHtml(selectedRoles) {
   ).join("");
 }
 
+const STAFF_WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function staffScheduledDaysCheckboxesHtml(selectedDays) {
+  selectedDays = selectedDays && selectedDays.length ? selectedDays : [0, 1, 2, 3, 4, 5, 6];
+  return STAFF_WEEKDAY_LABELS.map((label, idx) =>
+    '<label style="display:inline-flex; align-items:center; gap:4px; font-weight:normal; margin-right:12px;">' +
+      '<input type="checkbox" class="staffScheduledDayCheck" value="' + idx + '"' + (selectedDays.indexOf(idx) !== -1 ? " checked" : "") + "> " + label +
+    "</label>"
+  ).join("");
+}
+
 function openStaffModal(code) {
   const row = code ? _lastStaffRows.find((r) => r.staff_code === code) : null;
 
@@ -909,6 +920,18 @@ function openStaffModal(code) {
     '<div id="staffRoleChecks">' + staffRoleCheckboxesHtml(row ? row.roles : []) + "</div><br>" +
     "<label>Contact</label><br>" +
     '<input type="text" id="staffContact" value="' + (row ? (row.contact || "") : "") + '"><br><br>' +
+    "<label>Employment Type</label><br>" +
+    '<select id="staffEmploymentType">' +
+      ["Monthly", "Daily"].map((t) => "<option" + (row && row.employment_type === t ? " selected" : "") + ">" + t + "</option>").join("") +
+    "</select><br><br>" +
+    "<label>Base Rate</label><br>" +
+    '<p style="font-size:12px; color:var(--color-text-muted); margin:0 0 4px;">Monthly salary, or daily rate if Employment Type is Daily.</p>' +
+    '<input type="text" id="staffBaseRate" inputmode="numeric" value="' + (row ? formatRupiah(row.base_rate || 0) : "") + '" oninput="formatAmount(this)"><br><br>' +
+    "<label>Join Date</label><br>" +
+    '<input type="date" id="staffJoinDate" value="' + (row ? (row.join_date || "") : "") + '"><br><br>' +
+    "<label>Scheduled Days</label><br>" +
+    '<p style="font-size:12px; color:var(--color-text-muted); margin:0 0 4px;">Days this staff is expected to work - used by Attendance/Payroll. Defaults to every day.</p>' +
+    '<div id="staffScheduledDayChecks">' + staffScheduledDaysCheckboxesHtml(row ? row.scheduled_days : null) + "</div><br>" +
     (row
       ? ('<label style="font-weight:normal;"><input type="checkbox" id="staffActive"' + (row.is_active ? " checked" : "") + '> Active</label><br><br>')
       : ""
@@ -923,10 +946,15 @@ function saveStaff(code) {
   if (!name) { alert("Please enter a staff name."); return; }
 
   const roles = Array.from(document.querySelectorAll(".staffRoleCheck:checked")).map((cb) => cb.value);
+  const scheduledDays = Array.from(document.querySelectorAll(".staffScheduledDayCheck:checked")).map((cb) => Number(cb.value));
   const body = {
     name: name,
     roles: roles,
-    contact: document.getElementById("staffContact").value.trim()
+    contact: document.getElementById("staffContact").value.trim(),
+    employmentType: document.getElementById("staffEmploymentType").value,
+    baseRate: parseAmount(document.getElementById("staffBaseRate").value),
+    joinDate: document.getElementById("staffJoinDate").value || null,
+    scheduledDays: scheduledDays
   };
   if (code) body.isActive = document.getElementById("staffActive").checked;
 

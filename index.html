@@ -80,6 +80,14 @@
     </div>
 
     <div class="navbar-item">
+      <button onclick="toggleNavDropdown(this)">HR &#9662;</button>
+      <div class="navbar-dropdown">
+        <button data-page="hr" data-tab="attendance" onclick="navigateTo('hr?tab=attendance'); closeNavDropdowns();">Attendance</button>
+        <button data-page="hr" data-tab="payroll" onclick="navigateTo('hr?tab=payroll'); closeNavDropdowns();">Payroll</button>
+      </div>
+    </div>
+
+    <div class="navbar-item">
       <button onclick="toggleNavDropdown(this)">Database &#9662;</button>
       <div class="navbar-dropdown">
         <div class="navbar-subitem">
@@ -123,6 +131,7 @@
   <script src="/pages/opex.js"></script>
   <script src="/pages/pnl.js"></script>
   <script src="/pages/sales.js"></script>
+  <script src="/pages/hr.js"></script>
   <script src="/pages/database.js"></script>
   <script src="/pages/settings.js"></script>
   <script>

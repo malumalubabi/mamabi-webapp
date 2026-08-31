@@ -10,7 +10,7 @@ export async function onRequestGet({ env }) {
 
     const { data, error } = await supabase
       .from("staff")
-      .select("id, staff_code, name, roles, contact, is_active")
+      .select("id, staff_code, name, roles, contact, is_active, employment_type, base_rate, join_date, scheduled_days")
       .eq("brand_id", brandId)
       .order("name");
     if (error) throw error;
@@ -38,9 +38,13 @@ export async function onRequestPost({ request, env }) {
         staff_code: staffCode,
         name,
         roles: Array.isArray(body.roles) ? body.roles : [],
-        contact: body.contact || null
+        contact: body.contact || null,
+        employment_type: body.employmentType === "Daily" ? "Daily" : "Monthly",
+        base_rate: Number(body.baseRate) || 0,
+        join_date: body.joinDate || null,
+        scheduled_days: Array.isArray(body.scheduledDays) && body.scheduledDays.length ? body.scheduledDays : [0, 1, 2, 3, 4, 5, 6]
       })
-      .select("id, staff_code, name, roles, contact, is_active")
+      .select("id, staff_code, name, roles, contact, is_active, employment_type, base_rate, join_date, scheduled_days")
       .single();
     if (error) throw error;
 

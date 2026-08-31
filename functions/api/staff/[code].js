@@ -21,13 +21,17 @@ export async function onRequestPatch({ request, env, params }) {
     if (body.roles !== undefined) update.roles = Array.isArray(body.roles) ? body.roles : [];
     if (body.contact !== undefined) update.contact = body.contact || null;
     if (body.isActive !== undefined) update.is_active = !!body.isActive;
+    if (body.employmentType !== undefined) update.employment_type = body.employmentType === "Daily" ? "Daily" : "Monthly";
+    if (body.baseRate !== undefined) update.base_rate = Number(body.baseRate) || 0;
+    if (body.joinDate !== undefined) update.join_date = body.joinDate || null;
+    if (body.scheduledDays !== undefined) update.scheduled_days = Array.isArray(body.scheduledDays) && body.scheduledDays.length ? body.scheduledDays : [0, 1, 2, 3, 4, 5, 6];
 
     const { data, error } = await supabase
       .from("staff")
       .update(update)
       .eq("brand_id", brandId)
       .eq("staff_code", staffCode)
-      .select("id, staff_code, name, roles, contact, is_active")
+      .select("id, staff_code, name, roles, contact, is_active, employment_type, base_rate, join_date, scheduled_days")
       .maybeSingle();
     if (error) throw error;
     if (!data) return jsonResponse({ error: "Staff not found: " + staffCode }, 404);
