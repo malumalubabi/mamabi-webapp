@@ -469,9 +469,12 @@ function renderShiftsCalendar(wrap) {
 
   wrap.innerHTML =
     '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">' +
-      '<button onclick="shiftCalendarMonthNav(-1)">&laquo; Prev</button>' +
-      "<strong>" + monthLabel + "</strong>" +
-      '<button onclick="shiftCalendarMonthNav(1)">Next &raquo;</button>' +
+      '<div style="display:flex; align-items:center; gap:10px;">' +
+        '<button onclick="shiftCalendarMonthNav(-1)">&laquo; Prev</button>' +
+        "<strong>" + monthLabel + "</strong>" +
+        '<button onclick="shiftCalendarMonthNav(1)">Next &raquo;</button>' +
+      "</div>" +
+      '<button class="btn-primary" onclick="openShiftModal(null)">+ Add Shift</button>' +
     "</div>" +
     '<div style="display:grid; grid-template-columns:repeat(7, 1fr); gap:6px; font-size:11px; color:var(--color-text-muted); margin-bottom:4px; text-align:center;">' +
       ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => "<div>" + d + "</div>").join("") +
@@ -551,8 +554,19 @@ function openShiftModal(code, prefillDate) {
       ? ('<input type="text" value="' + row.staffName + '" disabled><br><br>')
       : ('<select id="shiftStaffId" onchange="updateShiftRoleOptions()"><option value="">Select staff...</option>' + staffOptions + "</select><br><br>")
     ) +
-    "<label>Date</label><br>" +
-    '<input type="date" id="shiftDate" value="' + (row ? row.date : (prefillDate || "")) + '"><br><br>' +
+    (row
+      ? ('<label>Date</label><br>' +
+          '<input type="date" id="shiftDate" value="' + row.date + '"><br><br>')
+      // New shift only - a range creates one shift per date in it (skipping
+      // whichever ones fail their own guard, e.g. already-scheduled/outlet
+      // closed that day), rather than forcing one Add per day.
+      : ('<label>Date Range</label><br>' +
+          '<div style="display:flex; align-items:center; gap:8px;">' +
+            '<input type="date" id="shiftDateFrom" value="' + (prefillDate || "") + '">' +
+            "<span>to</span>" +
+            '<input type="date" id="shiftDateTo" value="' + (prefillDate || "") + '">' +
+          "</div><br><br>")
+    ) +
     "<label>Role</label><br>" +
     '<select id="shiftRole"></select><br><br>' +
     "<label>Status</label><br>" +
@@ -581,29 +595,62 @@ function updateShiftRoleOptions() {
   populateShiftRoleOptions(staffId ? rolesForStaffId(staffId) : []);
 }
 
+// Inclusive list of "YYYY-MM-DD" strings from fromStr to toStr - UTC to
+// match the rest of this file's date-math (renderShiftsCalendar etc.).
+function dateRangeArray(fromStr, toStr) {
+  const dates = [];
+  const from = new Date(fromStr + "T00:00:00Z");
+  const to = new Date(toStr + "T00:00:00Z");
+  for (let d = from; d <= to; d.setUTCDate(d.getUTCDate() + 1)) {
+    dates.push(d.toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
 function saveShift(existingCode) {
-  const date = document.getElementById("shiftDate").value;
   const role = document.getElementById("shiftRole").value;
   const status = document.getElementById("shiftStatus").value;
   const notes = document.getElementById("shiftNotes").value.trim();
-  if (!date) { alert("Please select a date."); return; }
   if (!role) { alert("Please select a role."); return; }
-
-  const body = { date: date, role: role, status: status, notes: notes };
-  if (!existingCode) {
-    const staffId = document.getElementById("shiftStaffId").value;
-    if (!staffId) { alert("Please select a staff member."); return; }
-    body.staffId = staffId;
-  }
 
   const btn = document.getElementById("saveShiftBtn");
   const statusEl = document.getElementById("saveShiftStatus");
 
+  if (existingCode) {
+    const date = document.getElementById("shiftDate").value;
+    if (!date) { alert("Please select a date."); return; }
+    const body = { date: date, role: role, status: status, notes: notes };
+
+    withSaveStatus(btn, statusEl, "Shift", async function () {
+      await api("staff-shifts/" + encodeURIComponent(existingCode), { method: "PATCH", body: body });
+      closeModal();
+      await reloadShiftsAndRefresh();
+    });
+    return;
+  }
+
+  const staffId = document.getElementById("shiftStaffId").value;
+  if (!staffId) { alert("Please select a staff member."); return; }
+  const dateFrom = document.getElementById("shiftDateFrom").value;
+  const dateTo = document.getElementById("shiftDateTo").value;
+  if (!dateFrom || !dateTo) { alert("Please select a date range."); return; }
+  if (dateTo < dateFrom) { alert("The end date can't be before the start date."); return; }
+
+  const dates = dateRangeArray(dateFrom, dateTo);
+
   withSaveStatus(btn, statusEl, "Shift", async function () {
-    if (existingCode) await api("staff-shifts/" + encodeURIComponent(existingCode), { method: "PATCH", body: body });
-    else await api("staff-shifts", { method: "POST", body: body });
+    const results = await Promise.allSettled(
+      dates.map((date) => api("staff-shifts", { method: "POST", body: { staffId: staffId, date: date, role: role, status: status, notes: notes } }))
+    );
+    const failed = results.map((r, i) => ({ r, date: dates[i] })).filter((x) => x.r.status === "rejected");
     closeModal();
     await reloadShiftsAndRefresh();
+    if (failed.length) {
+      alert(
+        (dates.length - failed.length) + " of " + dates.length + " shift(s) created. Skipped:\n" +
+        failed.map((f) => f.date + " - " + f.r.reason.message).join("\n")
+      );
+    }
   });
 }
 
