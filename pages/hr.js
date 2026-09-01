@@ -493,8 +493,11 @@ function renderShiftsCalendar(wrap) {
       "</div>" +
       '<button class="btn-primary" onclick="openShiftModal(null)">+ Add Shift</button>' +
     "</div>" +
-    '<div style="display:grid; grid-template-columns:repeat(7, 1fr); gap:6px; font-size:11px; color:var(--color-text-muted); margin-bottom:4px; text-align:center;">' +
-      WEEKDAY_SHORT_LABELS.map((d) => "<div>" + d + "</div>").join("") +
+    '<div style="display:grid; grid-template-columns:repeat(7, 1fr); gap:6px; font-size:11px; margin-bottom:4px; text-align:center;">' +
+      // Sunday's header label in red, matching the wall-calendar convention
+      // (also carried through to Sunday's own day number below) - not
+      // conditional on Outlet Hours, unlike the closed/gray background.
+      WEEKDAY_SHORT_LABELS.map((d, idx) => '<div style="color:' + (idx === 0 ? "#c0392b" : "var(--color-text-muted)") + ';">' + d + "</div>").join("") +
     "</div>" +
     '<div style="display:grid; grid-template-columns:repeat(7, 1fr); gap:6px;">' + cells + "</div>";
 }
@@ -515,6 +518,11 @@ function shiftsCalendarCellHtml(dateStr, dayNum, isToday) {
   const closedInfo = isDateClosed(dateStr);
   const dayShifts = _lastShifts.filter((s) => s.date === dateStr && s.status !== "Cancelled");
   const border = isToday ? "border:2px solid var(--color-primary, #333);" : "border:1px solid var(--color-border, #ddd);";
+  // Red day number for Sunday (wall-calendar convention, unconditional) or
+  // any closed date (holiday/ad-hoc closure/regular weekly off day) - not
+  // the same signal as the gray background, which is closed-only.
+  const isSunday = new Date(dateStr + "T00:00:00Z").getUTCDay() === 0;
+  const dayNumColor = (isSunday || closedInfo.closed) ? "#c0392b" : "inherit";
 
   const namesHtml = dayShifts.length
     ? dayShifts.map((s) => '<div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + (s.staffName || "?") + "</div>").join("")
@@ -522,7 +530,7 @@ function shiftsCalendarCellHtml(dateStr, dayNum, isToday) {
 
   return (
     '<div style="' + border + ' border-radius:6px; padding:6px; min-height:60px; cursor:pointer;' + (closedInfo.closed ? " background:var(--color-surface-muted, #f2f2f2);" : "") + '" onclick="openDayShiftsModal(\'' + dateStr + '\')">' +
-      '<div style="font-size:12px; font-weight:600;">' + dayNum + "</div>" +
+      '<div style="font-size:12px; font-weight:600; color:' + dayNumColor + ';">' + dayNum + "</div>" +
       (closedInfo.closed
         ? '<div style="font-size:11px; color:var(--color-text-muted);">Closed</div>'
         : ('<div style="font-size:11px;">' + namesHtml + "</div>")
@@ -540,7 +548,9 @@ function shiftCalendarMonthNav(delta) {
 
 function openDayShiftsModal(dateStr) {
   const closedInfo = isDateClosed(dateStr);
-  const dayShifts = _lastShifts.filter((s) => s.date === dateStr);
+  const dayShifts = _lastShifts
+    .filter((s) => s.date === dateStr)
+    .sort((a, b) => (a.staffName || "").localeCompare(b.staffName || ""));
 
   openModal(
     "<h2>" + dateStr + "</h2>" +
