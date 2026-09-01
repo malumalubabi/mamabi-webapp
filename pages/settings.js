@@ -464,24 +464,29 @@ function renderSkuConfigSection() {
       "<h3>SKU Configuration</h3>" +
       '<p style="font-size:12px; color:var(--color-text-muted); max-width:600px;">Type/Category/Unit codes used to auto-generate new SKU codes in Database &gt; SKU &gt; Add SKU.</p>' +
 
-      "<h4>Type Codes</h4>" +
-      '<table style="max-width:300px;"><thead><tr><th>Type</th><th>Code</th></tr></thead><tbody>' +
-        SKU_TYPES.map((t) => "<tr><td>" + t + "</td><td style=\"color:var(--color-text-muted); font-size:12px;\">" + (typeMeta[t] || "-") + "</td></tr>").join("") +
-      "</tbody></table>" +
+      // Indented so these three read as sub-parts of SKU Configuration,
+      // not as their own top-level sections at the same visual rank as
+      // General/Calendar/each list/SKU Configuration itself.
+      '<div style="padding-left:16px;">' +
+        "<h4>Type Codes</h4>" +
+        '<table style="max-width:300px;"><thead><tr><th>Type</th><th>Code</th></tr></thead><tbody>' +
+          SKU_TYPES.map((t) => "<tr><td>" + t + "</td><td style=\"color:var(--color-text-muted); font-size:12px;\">" + (typeMeta[t] || "-") + "</td></tr>").join("") +
+        "</tbody></table>" +
 
-      "<h4 style=\"margin-top:16px;\">Category Codes</h4>" +
-      '<table style="max-width:420px;"><thead><tr><th>Type</th><th>Category</th><th>Code</th></tr></thead><tbody>' +
-        (categoryRows.length
-          ? categoryRows.map((r) => "<tr><td>" + r.type + "</td><td>" + r.category + "</td><td style=\"color:var(--color-text-muted); font-size:12px;\">" + (r.code || "-") + "</td></tr>").join("")
-          : '<tr><td colspan="3" style="color:var(--color-text-muted); font-size:12px;">None configured yet.</td></tr>') +
-      "</tbody></table>" +
+        "<h4 style=\"margin-top:16px;\">Category Codes</h4>" +
+        '<table style="max-width:420px;"><thead><tr><th>Type</th><th>Category</th><th>Code</th></tr></thead><tbody>' +
+          (categoryRows.length
+            ? categoryRows.map((r) => "<tr><td>" + r.type + "</td><td>" + r.category + "</td><td style=\"color:var(--color-text-muted); font-size:12px;\">" + (r.code || "-") + "</td></tr>").join("")
+            : '<tr><td colspan="3" style="color:var(--color-text-muted); font-size:12px;">None configured yet.</td></tr>') +
+        "</tbody></table>" +
 
-      "<h4 style=\"margin-top:16px;\">Unit Codes</h4>" +
-      '<table style="max-width:300px;"><thead><tr><th>Unit</th><th>Code</th></tr></thead><tbody>' +
-        (unitItems.length
-          ? unitItems.map((u) => "<tr><td>" + u + "</td><td style=\"color:var(--color-text-muted); font-size:12px;\">" + (unitMeta[u] || "-") + "</td></tr>").join("")
-          : '<tr><td colspan="2" style="color:var(--color-text-muted); font-size:12px;">None configured yet.</td></tr>') +
-      "</tbody></table>" +
+        "<h4 style=\"margin-top:16px;\">Unit Codes</h4>" +
+        '<table style="max-width:300px;"><thead><tr><th>Unit</th><th>Code</th></tr></thead><tbody>' +
+          (unitItems.length
+            ? unitItems.map((u) => "<tr><td>" + u + "</td><td style=\"color:var(--color-text-muted); font-size:12px;\">" + (unitMeta[u] || "-") + "</td></tr>").join("")
+            : '<tr><td colspan="2" style="color:var(--color-text-muted); font-size:12px;">None configured yet.</td></tr>') +
+        "</tbody></table>" +
+      "</div>" +
 
       '<div style="margin-top:8px;"><button onclick="openSkuConfigModal()">Manage SKU Config</button></div>' +
     "</div>";
