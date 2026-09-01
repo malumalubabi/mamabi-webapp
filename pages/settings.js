@@ -55,26 +55,42 @@ async function renderSettingsPage(content) {
   renderSkuConfigSection();
 }
 
-// ---------- Manage Calendar (imports a holiday calendar straight into
-// HR > Attendance's Outlet Closures - see functions/api/national-
-// holidays.js). Only one source (Indonesia's national calendar) for now -
-// "calendar" left generic since a second source is a plausible follow-up. ----------
+// ---------- Calendar (imports a holiday calendar straight into HR >
+// Attendance's Outlet Closures - see functions/api/national-holidays.js).
+// Page itself stays read-only, same convention as Outlet Hours (pages/
+// hr.js) - editing lives in the Manage Calendar modal only. Only one
+// source (Indonesia's national calendar) for now - CALENDAR_SOURCES left
+// as a list since a second source is a plausible follow-up. ----------
+
+const CALENDAR_SOURCES = { "id-national": "Indonesia National" };
 
 function renderManageCalendarSection() {
   const wrap = document.getElementById("manageCalendarWrap");
   if (!wrap) return;
-  const thisYear = new Date().getFullYear();
 
   wrap.innerHTML =
-    "<h3>Manage Calendar</h3>" +
-    '<p style="font-size:12px; color:var(--color-text-muted); max-width:600px;">Imports a holiday calendar for a year straight into HR &gt; Attendance\'s Outlet Closures.</p>' +
-    '<div style="display:flex; align-items:center; gap:8px;">' +
-      "<label style=\"font-weight:normal;\">Calendar</label>" +
-      '<select id="manageCalendarSource"><option value="id-national">Indonesia National</option></select>' +
-      '<input type="number" id="nationalHolidaysYear" value="' + thisYear + '" style="width:100px;">' +
-      '<button id="importNationalHolidaysBtn" class="btn-primary" onclick="importNationalHolidays()">Import</button>' +
-      '<span id="importNationalHolidaysStatus" class="save-status"></span>' +
-    "</div>";
+    '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+      "<h3>Calendar</h3>" +
+      '<button onclick="openManageCalendarModal()">Manage Calendar</button>' +
+    "</div>" +
+    '<table style="max-width:300px;"><tbody><tr><td>Source</td><td>' + CALENDAR_SOURCES["id-national"] + "</td></tr></tbody></table>";
+}
+
+function openManageCalendarModal() {
+  const thisYear = new Date().getFullYear();
+
+  openModal(
+    "<h2>Manage Calendar</h2>" +
+    "<label>Calendar</label><br>" +
+    '<select id="manageCalendarSource">' +
+      Object.entries(CALENDAR_SOURCES).map(([val, label]) => '<option value="' + val + '">' + label + "</option>").join("") +
+    "</select><br><br>" +
+    "<label>Year</label><br>" +
+    '<input type="number" id="nationalHolidaysYear" value="' + thisYear + '" style="width:100px;"><br><br>' +
+    '<p style="font-size:12px; color:var(--color-text-muted); max-width:400px;">Imports that year\'s holidays straight into HR &gt; Attendance\'s Outlet Closures - dates already closed are skipped, not duplicated.</p>' +
+    '<button id="importNationalHolidaysBtn" class="btn-primary" onclick="importNationalHolidays()">Import</button>' +
+    '<span id="importNationalHolidaysStatus" class="save-status"></span>'
+  );
 }
 
 function importNationalHolidays() {
