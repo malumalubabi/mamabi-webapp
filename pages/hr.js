@@ -334,11 +334,9 @@ const SHIFT_STATUSES = ["Scheduled", "Absent", "Leave", "Sick", "Cancelled"];
 
 function renderShiftsLog(wrap) {
   wrap.innerHTML =
-    '<div style="display:flex; justify-content:space-between; align-items:center;">' +
-      '<div style="display:flex; align-items:center; gap:10px;">' +
-        '<span id="shiftsFilterSortBadge" style="color:var(--color-text-muted); font-size:12px;"></span>' +
-        '<button onclick="openShiftsFilterSortModal()">Filter &amp; Sort</button>' +
-      "</div>" +
+    '<div style="display:flex; justify-content:flex-end; align-items:center; gap:10px;">' +
+      '<span id="shiftsFilterSortBadge" style="color:var(--color-text-muted); font-size:12px;"></span>' +
+      '<button onclick="openShiftsFilterSortModal()">Filter &amp; Sort</button>' +
       '<button class="btn-primary" onclick="openShiftModal(null)">+ Add Shift</button>' +
     "</div>" +
     '<div id="shiftsPaginationNav" class="pagination-nav"></div>' +
