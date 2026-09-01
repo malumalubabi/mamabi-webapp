@@ -59,14 +59,23 @@ export async function onRequestPost({ request, env }) {
       return jsonResponse({ error: "This staff doesn't have the \"" + body.role + "\" role - add it in Database > Staff first." }, 400);
     }
 
-    const { data: closure, error: closureErr } = await supabase
-      .from("outlet_closures")
-      .select("closure_code, reason")
-      .eq("brand_id", brandId)
-      .eq("closure_date", body.date)
-      .maybeSingle();
-    if (closureErr) throw closureErr;
-    if (closure) {
+    // Two independent reasons a date can be closed: the regular weekly
+    // pattern (outlet_hours - e.g. always closed Sundays) or a one-off
+    // exception on top of it (outlet_closures - a holiday landing on an
+    // otherwise-open weekday). Either blocks scheduling here.
+    const weekday = new Date(body.date + "T00:00:00Z").getUTCDay();
+    const [hoursRes, closureRes] = await Promise.all([
+      supabase.from("outlet_hours").select("is_open").eq("brand_id", brandId).eq("weekday", weekday).maybeSingle(),
+      supabase.from("outlet_closures").select("closure_code, reason").eq("brand_id", brandId).eq("closure_date", body.date).maybeSingle()
+    ]);
+    if (hoursRes.error) throw hoursRes.error;
+    if (closureRes.error) throw closureRes.error;
+
+    if (hoursRes.data && hoursRes.data.is_open === false) {
+      return jsonResponse({ error: "Outlet is regularly closed on this weekday (HR > Attendance > Outlet Hours) - update Outlet Hours first if this shift is intentional." }, 400);
+    }
+    if (closureRes.data) {
+      const closure = closureRes.data;
       return jsonResponse({ error: "Outlet is closed on this date (" + closure.closure_code + (closure.reason ? " - " + closure.reason : "") + ") - remove the closure first if this shift is intentional." }, 400);
     }
 

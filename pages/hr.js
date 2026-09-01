@@ -77,18 +77,80 @@ function rolesForStaffId(staffId) {
 
 async function renderAttendanceTab(wrap) {
   wrap.innerHTML =
+    buildOutletHoursShellHtml() +
+    '<hr style="margin:24px 0;">' +
     buildOutletClosuresShellHtml() +
     '<hr style="margin:24px 0;">' +
     buildShiftsSubTabsHtml();
+  enableDragScroll(document.getElementById("outletHoursScrollWrap"));
   enableDragScroll(document.getElementById("closuresScrollWrap"));
 
   await ensureHrStaffList();
-  await Promise.all([loadClosures(), loadShifts()]);
+  await Promise.all([loadOutletHours(), loadClosures(), loadShifts()]);
   wireShiftsSubTabs();
   loadShiftsSubTab(_activeShiftsSubTab);
 }
 
-// ---------- Outlet Closures ----------
+// ---------- Outlet Hours (regular weekly pattern - Gmaps-style) ----------
+
+const WEEKDAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+let _lastOutletHours = [];
+
+function buildOutletHoursShellHtml() {
+  return (
+    "<h3>Outlet Hours</h3>" +
+    '<p style="font-size:12px; color:var(--color-text-muted); max-width:520px;">Regular weekly operating days/hours. A day marked closed here blocks scheduling shifts on it, same as a one-off closure below.</p>' +
+    '<div id="outletHoursScrollWrap" style="overflow-x:auto;">' +
+      "<table>" +
+        "<thead><tr><th>Day</th><th>Open</th><th>Opens</th><th>Closes</th><th></th></tr></thead>" +
+        '<tbody id="outletHoursTbody"><tr><td colspan="5">Loading...</td></tr></tbody>' +
+      "</table>" +
+    "</div>"
+  );
+}
+
+async function loadOutletHours() {
+  _lastOutletHours = await api("outlet-hours");
+  if (!document.getElementById("outletHoursTbody")) return;
+  renderOutletHoursRows();
+}
+
+function renderOutletHoursRows() {
+  const tbody = document.getElementById("outletHoursTbody");
+  if (!tbody) return;
+  tbody.innerHTML = _lastOutletHours.map(outletHoursRowHtml).join("");
+}
+
+function outletHoursRowHtml(h) {
+  return (
+    "<tr>" +
+      "<td>" + WEEKDAY_LABELS[h.weekday] + "</td>" +
+      '<td><input type="checkbox" class="outletHoursOpenCheck" data-weekday="' + h.weekday + '"' + (h.isOpen ? " checked" : "") + ' onchange="toggleOutletHoursRowTimes(' + h.weekday + ')"></td>' +
+      '<td><input type="time" id="outletHoursOpen-' + h.weekday + '" value="' + (h.openTime || "") + '"' + (h.isOpen ? "" : " disabled") + "></td>" +
+      '<td><input type="time" id="outletHoursClose-' + h.weekday + '" value="' + (h.closeTime || "") + '"' + (h.isOpen ? "" : " disabled") + "></td>" +
+      '<td class="compact-cell"><button class="btn-compact" onclick="saveOutletHoursRow(' + h.weekday + ', this)">Save</button></td>' +
+    "</tr>"
+  );
+}
+
+function toggleOutletHoursRowTimes(weekday) {
+  const isOpen = document.querySelector('.outletHoursOpenCheck[data-weekday="' + weekday + '"]').checked;
+  document.getElementById("outletHoursOpen-" + weekday).disabled = !isOpen;
+  document.getElementById("outletHoursClose-" + weekday).disabled = !isOpen;
+}
+
+function saveOutletHoursRow(weekday, btn) {
+  const isOpen = document.querySelector('.outletHoursOpenCheck[data-weekday="' + weekday + '"]').checked;
+  const openTime = document.getElementById("outletHoursOpen-" + weekday).value || null;
+  const closeTime = document.getElementById("outletHoursClose-" + weekday).value || null;
+
+  withInlineSaveStatus(btn, "Hours", async function () {
+    await api("outlet-hours/" + weekday, { method: "PATCH", body: { isOpen: isOpen, openTime: openTime, closeTime: closeTime } });
+    await loadOutletHours();
+  });
+}
+
+// ---------- Outlet Closures (ad-hoc exceptions on top of Outlet Hours) ----------
 
 function buildOutletClosuresShellHtml() {
   return (
@@ -371,15 +433,27 @@ function renderShiftsCalendar(wrap) {
     '<div style="display:grid; grid-template-columns:repeat(7, 1fr); gap:6px;">' + cells + "</div>";
 }
 
-function shiftsCalendarCellHtml(dateStr, dayNum, isToday) {
+// Two independent reasons a date can be closed - the regular weekly
+// pattern (Outlet Hours) or a one-off exception on top of it (Outlet
+// Closures) - same pair the backend checks in staff-shifts.js's POST.
+function isDateClosed(dateStr) {
+  const weekday = new Date(dateStr + "T00:00:00Z").getUTCDay();
+  const hoursRow = _lastOutletHours.find((h) => h.weekday === weekday);
+  if (hoursRow && hoursRow.isOpen === false) return { closed: true, reason: "Regularly closed on " + WEEKDAY_LABELS[weekday] + "s" };
   const closure = _lastClosures.find((c) => c.date === dateStr);
+  if (closure) return { closed: true, reason: closure.reason || null };
+  return { closed: false, reason: null };
+}
+
+function shiftsCalendarCellHtml(dateStr, dayNum, isToday) {
+  const closedInfo = isDateClosed(dateStr);
   const dayShifts = _lastShifts.filter((s) => s.date === dateStr && s.status !== "Cancelled");
   const border = isToday ? "border:2px solid var(--color-primary, #333);" : "border:1px solid var(--color-border, #ddd);";
 
   return (
-    '<div style="' + border + ' border-radius:6px; padding:6px; min-height:60px; cursor:pointer;' + (closure ? " background:var(--color-surface-muted, #f2f2f2);" : "") + '" onclick="openDayShiftsModal(\'' + dateStr + '\')">' +
+    '<div style="' + border + ' border-radius:6px; padding:6px; min-height:60px; cursor:pointer;' + (closedInfo.closed ? " background:var(--color-surface-muted, #f2f2f2);" : "") + '" onclick="openDayShiftsModal(\'' + dateStr + '\')">' +
       '<div style="font-size:12px; font-weight:600;">' + dayNum + "</div>" +
-      (closure
+      (closedInfo.closed
         ? '<div style="font-size:11px; color:var(--color-text-muted);">Closed</div>'
         : ('<div style="font-size:11px; color:var(--color-text-muted);">' + (dayShifts.length ? dayShifts.length + " staff" : "-") + "</div>")
       ) +
@@ -395,12 +469,12 @@ function shiftCalendarMonthNav(delta) {
 }
 
 function openDayShiftsModal(dateStr) {
-  const closure = _lastClosures.find((c) => c.date === dateStr);
+  const closedInfo = isDateClosed(dateStr);
   const dayShifts = _lastShifts.filter((s) => s.date === dateStr);
 
   openModal(
     "<h2>" + dateStr + "</h2>" +
-    (closure ? ('<p style="color:var(--color-text-muted); font-size:13px;">Outlet closed' + (closure.reason ? " - " + closure.reason : "") + "</p>") : "") +
+    (closedInfo.closed ? ('<p style="color:var(--color-text-muted); font-size:13px;">Outlet closed' + (closedInfo.reason ? " - " + closedInfo.reason : "") + "</p>") : "") +
     (dayShifts.length
       ? ('<table style="width:100%;"><thead><tr><th>Staff</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>' +
           dayShifts.map((s) =>
@@ -411,7 +485,7 @@ function openDayShiftsModal(dateStr) {
         "</tbody></table><br>")
       : '<p style="color:var(--color-text-muted); font-size:13px;">No shifts yet.</p>'
     ) +
-    (closure ? "" : ('<button class="btn-primary" onclick="openShiftModal(null, \'' + dateStr + '\')">+ Add Shift</button>'))
+    (closedInfo.closed ? "" : ('<button class="btn-primary" onclick="openShiftModal(null, \'' + dateStr + '\')">+ Add Shift</button>'))
   );
 }
 
