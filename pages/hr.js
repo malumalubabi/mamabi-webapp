@@ -518,11 +518,14 @@ function shiftsCalendarCellHtml(dateStr, dayNum, isToday) {
   const closedInfo = isDateClosed(dateStr);
   const dayShifts = _lastShifts.filter((s) => s.date === dateStr && s.status !== "Cancelled");
   const border = isToday ? "border:2px solid var(--color-primary, #333);" : "border:1px solid var(--color-border, #ddd);";
-  // Red day number for Sunday (wall-calendar convention, unconditional) or
-  // any closed date (holiday/ad-hoc closure/regular weekly off day) - not
-  // the same signal as the gray background, which is closed-only.
+  // Red day number = wall-calendar "tanggal merah" - Sunday (always) or an
+  // actual Outlet Closures date (holiday/ad-hoc). Deliberately NOT the same
+  // as closedInfo.closed above, which also covers a regular Outlet Hours
+  // weekly off day (a business choice, not a "tanggal merah") - that one
+  // still gets the gray background, just not the red number.
   const isSunday = new Date(dateStr + "T00:00:00Z").getUTCDay() === 0;
-  const dayNumColor = (isSunday || closedInfo.closed) ? "#c0392b" : "inherit";
+  const isMarkedClosure = _lastClosures.some((c) => c.date === dateStr);
+  const dayNumColor = (isSunday || isMarkedClosure) ? "#c0392b" : "inherit";
 
   const namesHtml = dayShifts.length
     ? dayShifts.map((s) => '<div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + (s.staffName || "?") + "</div>").join("")
