@@ -140,9 +140,11 @@ function outletHoursDisplayRowHtml(h) {
 function openManageOutletHoursModal() {
   openModal(
     "<h2>Manage Outlet Hours</h2>" +
-    '<table style="width:100%;"><thead><tr><th>Day</th><th>Open</th><th>Opens</th><th>Closes</th><th></th></tr></thead>' +
+    '<table style="width:100%;"><thead><tr><th>Day</th><th>Open</th><th>Opens</th><th>Closes</th></tr></thead>' +
       '<tbody id="manageOutletHoursTbody">' + _lastOutletHours.map(outletHoursEditRowHtml).join("") + "</tbody>" +
-    "</table>"
+    "</table><br>" +
+    '<button id="saveOutletHoursBtn" class="btn-primary" onclick="saveAllOutletHours()">Save</button>' +
+    '<span id="saveOutletHoursStatus" class="save-status"></span>'
   );
 }
 
@@ -151,9 +153,10 @@ function outletHoursEditRowHtml(h) {
     "<tr>" +
       "<td>" + WEEKDAY_LABELS[h.weekday] + "</td>" +
       '<td><input type="checkbox" class="outletHoursOpenCheck" data-weekday="' + h.weekday + '"' + (h.isOpen ? " checked" : "") + ' onchange="toggleOutletHoursRowTimes(' + h.weekday + ')"></td>' +
-      '<td><input type="time" id="outletHoursOpen-' + h.weekday + '" value="' + (h.openTime || "") + '"' + (h.isOpen ? "" : " disabled") + "></td>" +
-      '<td><input type="time" id="outletHoursClose-' + h.weekday + '" value="' + (h.closeTime || "") + '"' + (h.isOpen ? "" : " disabled") + "></td>" +
-      '<td class="compact-cell"><button class="btn-compact" onclick="saveOutletHoursRow(' + h.weekday + ', this)">Save</button></td>' +
+      // step=1800s (30 min) - snaps the native time picker's minute spinner
+      // to 30-minute increments, per explicit request.
+      '<td><input type="time" step="1800" id="outletHoursOpen-' + h.weekday + '" value="' + (h.openTime || "") + '"' + (h.isOpen ? "" : " disabled") + "></td>" +
+      '<td><input type="time" step="1800" id="outletHoursClose-' + h.weekday + '" value="' + (h.closeTime || "") + '"' + (h.isOpen ? "" : " disabled") + "></td>" +
     "</tr>"
   );
 }
@@ -164,16 +167,21 @@ function toggleOutletHoursRowTimes(weekday) {
   document.getElementById("outletHoursClose-" + weekday).disabled = !isOpen;
 }
 
-function saveOutletHoursRow(weekday, btn) {
-  const isOpen = document.querySelector('.outletHoursOpenCheck[data-weekday="' + weekday + '"]').checked;
-  const openTime = document.getElementById("outletHoursOpen-" + weekday).value || null;
-  const closeTime = document.getElementById("outletHoursClose-" + weekday).value || null;
+function saveAllOutletHours() {
+  const rows = _lastOutletHours.map((h) => ({
+    weekday: h.weekday,
+    isOpen: document.querySelector('.outletHoursOpenCheck[data-weekday="' + h.weekday + '"]').checked,
+    openTime: document.getElementById("outletHoursOpen-" + h.weekday).value || null,
+    closeTime: document.getElementById("outletHoursClose-" + h.weekday).value || null
+  }));
 
-  withInlineSaveStatus(btn, "Hours", async function () {
-    await api("outlet-hours/" + weekday, { method: "PATCH", body: { isOpen: isOpen, openTime: openTime, closeTime: closeTime } });
+  const btn = document.getElementById("saveOutletHoursBtn");
+  const statusEl = document.getElementById("saveOutletHoursStatus");
+
+  withSaveStatus(btn, statusEl, "Hours", async function () {
+    await Promise.all(rows.map((r) => api("outlet-hours/" + r.weekday, { method: "PATCH", body: { isOpen: r.isOpen, openTime: r.openTime, closeTime: r.closeTime } })));
     await loadOutletHours();
-    const modalTbody = document.getElementById("manageOutletHoursTbody");
-    if (modalTbody) modalTbody.innerHTML = _lastOutletHours.map(outletHoursEditRowHtml).join("");
+    closeModal();
   });
 }
 
