@@ -72,15 +72,14 @@ function renderManageCalendarSection() {
 
   wrap.innerHTML =
     "<h3>Calendar</h3>" +
-    "<label>Source</label><br>" +
-    "<span>" + CALENDAR_SOURCES["id-national"] + "</span>" +
+    '<table style="max-width:300px;"><thead><tr><th>Source</th></tr></thead><tbody><tr><td>' + CALENDAR_SOURCES["id-national"] + "</td></tr></tbody></table>" +
     '<div style="margin-top:8px;"><button onclick="openManageCalendarModal()">Manage Calendar</button></div>';
 }
 
 async function openManageCalendarModal() {
   renderManageCalendarModal();
   _manageCalendarEventsList = await api("calendar-events");
-  renderManageCalendarEventsList();
+  renderManageCalendarBatchesList();
 }
 
 function renderManageCalendarModal() {
@@ -97,24 +96,35 @@ function renderManageCalendarModal() {
     '<button id="importNationalHolidaysBtn" class="btn-primary" onclick="importNationalHolidays()">Import</button>' +
     '<span id="importNationalHolidaysStatus" class="save-status"></span><br><br>' +
     "<label>Imported</label>" +
-    '<div id="manageCalendarEventsScrollWrap" style="overflow-x:auto; max-height:260px; overflow-y:auto;">' +
-      "<table>" +
-        "<thead><tr><th>Date</th><th>Name</th><th></th></tr></thead>" +
-        '<tbody id="manageCalendarEventsTbody"><tr><td colspan="3">Loading...</td></tr></tbody>' +
-      "</table>" +
-    "</div>"
+    '<table style="width:100%;"><thead><tr><th>Source</th><th>Year</th><th>Events</th><th></th></tr></thead>' +
+      '<tbody id="manageCalendarBatchesTbody"><tr><td colspan="4">Loading...</td></tr></tbody>' +
+    "</table>"
   );
 }
 
-function renderManageCalendarEventsList() {
-  const tbody = document.getElementById("manageCalendarEventsTbody");
+// Grouped by (source, year) - a whole import run, not individual days -
+// per explicit request ("yg imported jadi list si calendarnya, bukan
+// hari2nya"). Deleting a batch removes every event that import created.
+function calendarBatches() {
+  const map = {};
+  _manageCalendarEventsList.forEach((e) => {
+    const key = e.source + "|" + e.year;
+    if (!map[key]) map[key] = { source: e.source, year: e.year, count: 0 };
+    map[key].count++;
+  });
+  return Object.values(map).sort((a, b) => b.year - a.year);
+}
+
+function renderManageCalendarBatchesList() {
+  const tbody = document.getElementById("manageCalendarBatchesTbody");
   if (!tbody) return;
-  tbody.innerHTML = _manageCalendarEventsList.length
-    ? _manageCalendarEventsList.map((e) =>
-        "<tr><td style=\"white-space:nowrap;\">" + e.date + "</td><td>" + e.name + "</td>" +
-        '<td class="compact-cell">' + calendarEventActionsHtml(e.eventCode) + "</td></tr>"
+  const batches = calendarBatches();
+  tbody.innerHTML = batches.length
+    ? batches.map((b) =>
+        "<tr><td>" + (CALENDAR_SOURCES[b.source] || b.source) + "</td><td>" + b.year + "</td><td>" + b.count + "</td>" +
+        '<td class="compact-cell">' + calendarBatchActionsHtml(b.source, b.year) + "</td></tr>"
       ).join("")
-    : '<tr><td colspan="3" style="color:var(--color-text-muted); font-size:12px;">None imported yet.</td></tr>';
+    : '<tr><td colspan="4" style="color:var(--color-text-muted); font-size:12px;">None imported yet.</td></tr>';
 }
 
 // Inline expand-in-place confirm, not openConfirmModal - this row lives
@@ -122,29 +132,29 @@ function renderManageCalendarEventsList() {
 // closes whatever modal is currently open before showing a new one, so a
 // stacked confirm modal would discard this one from underneath even on
 // Cancel (same reasoning as settingsListActionsHtml above).
-function calendarEventActionsHtml(code) {
-  return '<button class="btn-compact" onclick="confirmRemoveCalendarEvent(this, \'' + code + '\')">Delete</button>';
+function calendarBatchActionsHtml(source, year) {
+  return '<button class="btn-compact" onclick="confirmRemoveCalendarBatch(this, \'' + source + "', " + year + ')">Delete</button>';
 }
 
-function confirmRemoveCalendarEvent(btn, code) {
+function confirmRemoveCalendarBatch(btn, source, year) {
   btn.closest("td").innerHTML =
-    '<span style="color:#b00020; font-size:11px; display:block; margin-bottom:4px;">Remove?</span>' +
-    '<button class="btn-compact" style="color:#b00020;" onclick="removeCalendarEvent(\'' + code + '\', this)">Yes, Remove</button> ' +
-    '<button class="btn-compact" onclick="cancelRemoveCalendarEvent(this, \'' + code + '\')">Cancel</button>' +
+    '<span style="color:#b00020; font-size:11px; display:block; margin-bottom:4px;">Remove all ' + year + ' events?</span>' +
+    '<button class="btn-compact" style="color:#b00020;" onclick="removeCalendarBatch(\'' + source + "', " + year + ', this)">Yes, Remove</button> ' +
+    '<button class="btn-compact" onclick="cancelRemoveCalendarBatch(this, \'' + source + "', " + year + ')">Cancel</button>' +
     '<span class="save-status" style="display:block;"></span>';
 }
 
-function cancelRemoveCalendarEvent(btn, code) {
-  btn.closest("td").innerHTML = calendarEventActionsHtml(code);
+function cancelRemoveCalendarBatch(btn, source, year) {
+  btn.closest("td").innerHTML = calendarBatchActionsHtml(source, year);
 }
 
-function removeCalendarEvent(code, btn) {
+function removeCalendarBatch(source, year, btn) {
   const statusEl = btn.closest("td").querySelector(".save-status");
 
   withSaveStatus(btn, statusEl, "Removal", async function () {
-    await api("calendar-events/" + encodeURIComponent(code), { method: "DELETE" });
+    await api("calendar-events?source=" + encodeURIComponent(source) + "&year=" + year, { method: "DELETE" });
     _manageCalendarEventsList = await api("calendar-events");
-    renderManageCalendarEventsList();
+    renderManageCalendarBatchesList();
   });
 }
 

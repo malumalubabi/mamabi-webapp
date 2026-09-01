@@ -82,7 +82,9 @@ export async function onRequestPost({ request, env }) {
         brand_id: brandId,
         event_code: "EVT-" + String(startN + i).padStart(4, "0"),
         event_date: h.date,
-        name: h.name
+        name: h.name,
+        source: "id-national",
+        year: year
       }));
       const { error } = await supabase.from("calendar_events").insert(toInsert);
       if (error) throw error;
