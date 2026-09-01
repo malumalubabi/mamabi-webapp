@@ -527,13 +527,25 @@ function shiftsCalendarCellHtml(dateStr, dayNum, isToday) {
   const isMarkedClosure = _lastClosures.some((c) => c.date === dateStr);
   const dayNumColor = (isSunday || isMarkedClosure) ? "#c0392b" : "inherit";
 
+  // Separate signal from both of the above - purely "does Outlet Hours'
+  // weekly pattern say this weekday is open or closed", as a small fixed-
+  // position dot so it never shifts with the day number's own digit count
+  // (1 vs 28) the way plain inline text next to it would.
+  const weekday = new Date(dateStr + "T00:00:00Z").getUTCDay();
+  const hoursRow = _lastOutletHours.find((h) => h.weekday === weekday);
+  const weeklyOpen = !hoursRow || hoursRow.isOpen !== false;
+  const hoursDot = '<span title="' + (weeklyOpen ? "Open" : "Closed") + ' (Outlet Hours)" style="width:8px; height:8px; border-radius:50%; flex:0 0 8px; background:' + (weeklyOpen ? "#2e7d32" : "#999") + ';"></span>';
+
   const namesHtml = dayShifts.length
     ? dayShifts.map((s) => '<div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + (s.staffName || "?") + "</div>").join("")
     : '<div style="color:var(--color-text-muted);">-</div>';
 
   return (
     '<div style="' + border + ' border-radius:6px; padding:6px; min-height:60px; cursor:pointer;' + (closedInfo.closed ? " background:var(--color-surface-muted, #f2f2f2);" : "") + '" onclick="openDayShiftsModal(\'' + dateStr + '\')">' +
-      '<div style="font-size:12px; font-weight:600; color:' + dayNumColor + ';">' + dayNum + "</div>" +
+      '<div style="display:flex; align-items:center; justify-content:space-between;">' +
+        '<span style="font-size:12px; font-weight:600; color:' + dayNumColor + ';">' + dayNum + "</span>" +
+        hoursDot +
+      "</div>" +
       (closedInfo.closed
         ? '<div style="font-size:11px; color:var(--color-text-muted);">Closed</div>'
         : ('<div style="font-size:11px;">' + namesHtml + "</div>")
