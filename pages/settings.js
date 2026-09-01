@@ -69,11 +69,9 @@ function renderManageCalendarSection() {
   if (!wrap) return;
 
   wrap.innerHTML =
-    '<div style="display:flex; justify-content:space-between; align-items:center;">' +
-      "<h3>Calendar</h3>" +
-      '<button onclick="openManageCalendarModal()">Manage Calendar</button>' +
-    "</div>" +
-    '<table style="max-width:300px;"><tbody><tr><td>Source</td><td>' + CALENDAR_SOURCES["id-national"] + "</td></tr></tbody></table>";
+    "<h3>Calendar</h3>" +
+    '<table style="max-width:300px;"><tbody><tr><td>Source</td><td>' + CALENDAR_SOURCES["id-national"] + "</td></tr></tbody></table>" +
+    '<div style="margin-top:8px;"><button onclick="openManageCalendarModal()">Manage Calendar</button></div>';
 }
 
 function openManageCalendarModal() {
