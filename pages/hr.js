@@ -94,6 +94,7 @@ async function renderAttendanceTab(wrap) {
 // ---------- Outlet Hours (regular weekly pattern - Gmaps-style) ----------
 
 const WEEKDAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const WEEKDAY_SHORT_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 let _lastOutletHours = [];
 
 function buildOutletHoursShellHtml() {
@@ -478,7 +479,7 @@ function renderShiftsCalendar(wrap) {
       '<button class="btn-primary" onclick="openShiftModal(null)">+ Add Shift</button>' +
     "</div>" +
     '<div style="display:grid; grid-template-columns:repeat(7, 1fr); gap:6px; font-size:11px; color:var(--color-text-muted); margin-bottom:4px; text-align:center;">' +
-      ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => "<div>" + d + "</div>").join("") +
+      WEEKDAY_SHORT_LABELS.map((d) => "<div>" + d + "</div>").join("") +
     "</div>" +
     '<div style="display:grid; grid-template-columns:repeat(7, 1fr); gap:6px;">' + cells + "</div>";
 }
@@ -566,7 +567,14 @@ function openShiftModal(code, prefillDate) {
             '<input type="date" id="shiftDateFrom" value="' + (prefillDate || "") + '">' +
             "<span>to</span>" +
             '<input type="date" id="shiftDateTo" value="' + (prefillDate || "") + '">' +
-          "</div><br><br>")
+          "</div><br><br>" +
+          "<label>Days</label><br>" +
+          '<p style="font-size:12px; color:var(--color-text-muted); margin:0 0 4px;">Only these weekdays within the range get a shift - uncheck to skip a day (e.g. a weekly off day).</p>' +
+          '<div>' + WEEKDAY_SHORT_LABELS.map((label, idx) =>
+            '<label style="display:inline-flex; align-items:center; gap:4px; font-weight:normal; margin-right:12px;">' +
+              '<input type="checkbox" class="shiftWeekdayCheck" value="' + idx + '" checked> ' + label +
+            "</label>"
+          ).join("") + "</div><br>")
     ) +
     "<label>Role</label><br>" +
     '<select id="shiftRole"></select><br><br>' +
@@ -637,7 +645,11 @@ function saveShift(existingCode) {
   if (!dateFrom || !dateTo) { alert("Please select a date range."); return; }
   if (dateTo < dateFrom) { alert("The end date can't be before the start date."); return; }
 
-  const dates = dateRangeArray(dateFrom, dateTo);
+  const selectedWeekdays = Array.from(document.querySelectorAll(".shiftWeekdayCheck:checked")).map((cb) => Number(cb.value));
+  if (!selectedWeekdays.length) { alert("Please select at least one day."); return; }
+
+  const dates = dateRangeArray(dateFrom, dateTo).filter((d) => selectedWeekdays.indexOf(new Date(d + "T00:00:00Z").getUTCDay()) !== -1);
+  if (!dates.length) { alert("No dates in this range match the selected days."); return; }
 
   withSaveStatus(btn, statusEl, "Shift", async function () {
     const results = await Promise.allSettled(
