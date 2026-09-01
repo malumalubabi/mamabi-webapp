@@ -42,36 +42,38 @@ async function renderSettingsPage(content) {
     "<h2>Settings</h2>" +
     "<p>Global config used across the app - Payment Method, Sales Platform, Staff Roles, and similar option lists.</p>" +
     '<div id="settingsGeneralWrap" style="margin-bottom:32px;"><p>Loading...</p></div>' +
+    '<div id="manageCalendarWrap" style="margin-bottom:32px;"></div>' +
     '<div id="settingsListsWrap"></div>' +
-    '<div id="nationalHolidaysWrap"></div>' +
     '<div id="skuConfigWrap"></div>';
 
   _lastSettingsData = await api("settings");
   if (!document.getElementById("settingsGeneralWrap")) return;
 
   renderGeneralSettings();
+  renderManageCalendarSection();
   renderAllSettingsLists();
-  renderNationalHolidaysSection();
   renderSkuConfigSection();
 }
 
-// ---------- National Holidays (imports straight into HR > Attendance's
-// Outlet Closures - see functions/api/national-holidays.js) ----------
+// ---------- Manage Calendar (imports a holiday calendar straight into
+// HR > Attendance's Outlet Closures - see functions/api/national-
+// holidays.js). Only one source (Indonesia's national calendar) for now -
+// "calendar" left generic since a second source is a plausible follow-up. ----------
 
-function renderNationalHolidaysSection() {
-  const wrap = document.getElementById("nationalHolidaysWrap");
+function renderManageCalendarSection() {
+  const wrap = document.getElementById("manageCalendarWrap");
   if (!wrap) return;
   const thisYear = new Date().getFullYear();
 
   wrap.innerHTML =
-    '<div class="settings-list-section" style="margin-bottom:28px;">' +
-      "<h3>National Holidays</h3>" +
-      '<p style="font-size:12px; color:var(--color-text-muted); max-width:600px;">Imports Indonesia\'s public holidays for a year straight into HR &gt; Attendance\'s Outlet Closures. Only covers fixed-date holidays (New Year, Labour Day, Independence Day, Christmas, etc.) - moveable religious ones (Idul Fitri, Nyepi, Waisak, Isra Miraj, Maulid Nabi, Imlek) aren\'t in this data source and still need adding by hand there.</p>' +
-      '<div style="display:flex; align-items:center; gap:8px;">' +
-        '<input type="number" id="nationalHolidaysYear" value="' + thisYear + '" style="width:100px;">' +
-        '<button id="importNationalHolidaysBtn" class="btn-primary" onclick="importNationalHolidays()">Import</button>' +
-        '<span id="importNationalHolidaysStatus" class="save-status"></span>' +
-      "</div>" +
+    "<h3>Manage Calendar</h3>" +
+    '<p style="font-size:12px; color:var(--color-text-muted); max-width:600px;">Imports a holiday calendar for a year straight into HR &gt; Attendance\'s Outlet Closures.</p>' +
+    '<div style="display:flex; align-items:center; gap:8px;">' +
+      "<label style=\"font-weight:normal;\">Calendar</label>" +
+      '<select id="manageCalendarSource"><option value="id-national">Indonesia National</option></select>' +
+      '<input type="number" id="nationalHolidaysYear" value="' + thisYear + '" style="width:100px;">' +
+      '<button id="importNationalHolidaysBtn" class="btn-primary" onclick="importNationalHolidays()">Import</button>' +
+      '<span id="importNationalHolidaysStatus" class="save-status"></span>' +
     "</div>";
 }
 
