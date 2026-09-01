@@ -254,8 +254,12 @@ function closureRowHtml(r) {
 function openClosureModal() {
   openModal(
     "<h2>Add Closure</h2>" +
-    "<label>Date</label><br>" +
-    '<input type="date" id="closureDate"><br><br>' +
+    "<label>Date Range</label><br>" +
+    '<div style="display:flex; align-items:center; gap:8px;">' +
+      '<input type="date" id="closureDateFrom">' +
+      "<span>to</span>" +
+      '<input type="date" id="closureDateTo">' +
+    "</div><br><br>" +
     "<label>Reason</label><br>" +
     '<input type="text" id="closureReason" placeholder="e.g. National Holiday"><br><br>' +
     '<button id="saveClosureBtn" class="btn-primary" onclick="saveClosure()">Save</button>' +
@@ -264,17 +268,37 @@ function openClosureModal() {
 }
 
 function saveClosure() {
-  const date = document.getElementById("closureDate").value;
+  const dateFrom = document.getElementById("closureDateFrom").value;
+  const dateTo = document.getElementById("closureDateTo").value || dateFrom;
   const reason = document.getElementById("closureReason").value.trim();
-  if (!date) { alert("Please select a date."); return; }
+  if (!dateFrom) { alert("Please select a date."); return; }
+  if (dateTo < dateFrom) { alert("The end date can't be before the start date."); return; }
+
+  const dates = dateRangeArray(dateFrom, dateTo);
 
   const btn = document.getElementById("saveClosureBtn");
   const statusEl = document.getElementById("saveClosureStatus");
 
   withSaveStatus(btn, statusEl, "Closure", async function () {
-    await api("outlet-closures", { method: "POST", body: { date: date, reason: reason } });
+    // One at a time, not Promise.all - see saveShift()'s same comment on
+    // why concurrent POSTs to a nextCode()-coded table produce duplicate
+    // codes (fixed there after it actually happened with staff_shifts).
+    const failed = [];
+    for (const date of dates) {
+      try {
+        await api("outlet-closures", { method: "POST", body: { date: date, reason: reason } });
+      } catch (err) {
+        failed.push({ date: date, message: err.message });
+      }
+    }
     closeModal();
     await loadClosures();
+    if (failed.length) {
+      alert(
+        (dates.length - failed.length) + " of " + dates.length + " closure(s) created. Skipped:\n" +
+        failed.map((f) => f.date + " - " + f.message).join("\n")
+      );
+    }
   });
 }
 
