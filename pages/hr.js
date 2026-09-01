@@ -58,9 +58,9 @@ function renderPayrollTab(wrap) {
 let _hrStaffList = null; // active staff, from lookups - {id, name, roles}
 let _lastClosures = [];
 let _lastShifts = [];
-let _activeShiftsSubTab = "log";
+let _activeShiftsSubTab = "calendar";
 
-const SHIFTS_SUBTABS = ["log", "calendar"];
+const SHIFTS_SUBTABS = ["calendar", "log"];
 const SHIFTS_SUBTAB_LABELS = { log: "Log", calendar: "Calendar" };
 
 async function ensureHrStaffList() {
@@ -329,11 +329,26 @@ let _shiftStatusFilter = []; // empty = show every status (default)
 let _shiftDateFrom = "";
 let _shiftDateTo = "";
 let _shiftSort = "date-desc";
+let _shiftFiltersInitialized = false;
 
 const SHIFT_SORT_LABELS = { "date-desc": "Date (Newest)", "date-asc": "Date (Oldest)" };
 const SHIFT_STATUSES = ["Scheduled", "Absent", "Leave", "Sick", "Cancelled"];
 
 function renderShiftsLog(wrap) {
+  // Lazy one-time default (not a plain initializer above - todayISO() isn't
+  // safe to call until Settings > General has loaded, see index.html's
+  // ensureGeneralSettings().then(renderCurrentPage)). Scoped to run once so
+  // it never clobbers a filter the user deliberately cleared afterwards.
+  if (!_shiftFiltersInitialized) {
+    _shiftFiltersInitialized = true;
+    const monthKey = todayISO().slice(0, 7);
+    _shiftDateFrom = monthKey + "-01";
+    _shiftDateTo = monthKey + "-31"; // safe upper bound even on shorter months - plain string comparison
+    // Scheduled = went as planned, already visible at a glance on the
+    // Calendar - the Log defaults to just what actually needs reviewing.
+    _shiftStatusFilter = ["Absent", "Leave", "Sick", "Cancelled"];
+  }
+
   wrap.innerHTML =
     '<div style="display:flex; justify-content:flex-end; align-items:center; gap:10px;">' +
       '<span id="shiftsFilterSortBadge" style="color:var(--color-text-muted); font-size:12px;"></span>' +
@@ -501,12 +516,16 @@ function shiftsCalendarCellHtml(dateStr, dayNum, isToday) {
   const dayShifts = _lastShifts.filter((s) => s.date === dateStr && s.status !== "Cancelled");
   const border = isToday ? "border:2px solid var(--color-primary, #333);" : "border:1px solid var(--color-border, #ddd);";
 
+  const namesHtml = dayShifts.length
+    ? dayShifts.map((s) => '<div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + (s.staffName || "?") + "</div>").join("")
+    : '<div style="color:var(--color-text-muted);">-</div>';
+
   return (
     '<div style="' + border + ' border-radius:6px; padding:6px; min-height:60px; cursor:pointer;' + (closedInfo.closed ? " background:var(--color-surface-muted, #f2f2f2);" : "") + '" onclick="openDayShiftsModal(\'' + dateStr + '\')">' +
       '<div style="font-size:12px; font-weight:600;">' + dayNum + "</div>" +
       (closedInfo.closed
         ? '<div style="font-size:11px; color:var(--color-text-muted);">Closed</div>'
-        : ('<div style="font-size:11px; color:var(--color-text-muted);">' + (dayShifts.length ? dayShifts.length + " staff" : "-") + "</div>")
+        : ('<div style="font-size:11px;">' + namesHtml + "</div>")
       ) +
     "</div>"
   );
