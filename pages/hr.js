@@ -49,8 +49,126 @@ async function loadHrTab(tab) {
   return renderAttendanceTab(wrap);
 }
 
-function renderPayrollTab(wrap) {
-  wrap.innerHTML = '<p style="color:var(--color-text-muted);">Payroll is coming soon - runs off Attendance (staff_shifts) + per-Role Daily Rate (Settings &gt; Staff Roles) once it ships.</p>';
+// ---------- Payroll tab ----------
+// One run per month (payroll_runs + payroll_lines) - computed from
+// staff_shifts + Settings > Staff Roles' Daily Rate, see
+// functions/api/_lib/payroll.js for the actual formula. Draft runs can be
+// recalculated (regenerating replaces every line from scratch) and have
+// per-staff Bonus editable; Close freezes it and syncs one opex_entries row
+// per staff with gross pay > 0.
+
+let _activePayrollMonth = null;
+let _lastPayrollRun = null;
+
+async function renderPayrollTab(wrap) {
+  if (!_activePayrollMonth) _activePayrollMonth = todayISO().slice(0, 7);
+  wrap.innerHTML =
+    '<div style="display:flex; align-items:center; gap:8px; margin-bottom:16px;">' +
+      "<label style=\"font-weight:normal;\">Month</label>" +
+      '<input type="month" id="payrollMonth" value="' + _activePayrollMonth + '" onchange="switchPayrollMonth(this.value)">' +
+      '<button class="btn-primary" onclick="generatePayrollRun()">Generate / Recalculate</button>' +
+    "</div>" +
+    '<div id="payrollRunContent"><p>Loading...</p></div>';
+  await loadPayrollMonth(_activePayrollMonth);
+}
+
+function switchPayrollMonth(month) {
+  if (!month) return;
+  _activePayrollMonth = month;
+  loadPayrollMonth(month);
+}
+
+async function loadPayrollMonth(month) {
+  const contentEl = document.getElementById("payrollRunContent");
+  if (contentEl) contentEl.innerHTML = "<p>Loading...</p>";
+
+  const runs = await api("payroll-runs");
+  const match = runs.find((r) => r.month === month);
+  if (!match) {
+    _lastPayrollRun = null;
+    if (contentEl) contentEl.innerHTML = '<p style="color:var(--color-text-muted);">No payroll run for this month yet - click Generate / Recalculate.</p>';
+    return;
+  }
+
+  _lastPayrollRun = await api("payroll-runs/" + encodeURIComponent(match.runCode));
+  renderPayrollRunContent();
+}
+
+function generatePayrollRun() {
+  const month = document.getElementById("payrollMonth").value;
+  if (!month) { alert("Please select a month."); return; }
+  _activePayrollMonth = month;
+
+  api("payroll-runs", { method: "POST", body: { month: month } })
+    .then(function () { return loadPayrollMonth(month); })
+    .catch(function (err) { alert(err.message); });
+}
+
+function renderPayrollRunContent() {
+  const contentEl = document.getElementById("payrollRunContent");
+  if (!contentEl || !_lastPayrollRun) return;
+  const run = _lastPayrollRun;
+
+  contentEl.innerHTML =
+    '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">' +
+      "<span>" + run.runCode + " - <strong>" + run.status + "</strong></span>" +
+      (run.status === "Draft" ? '<button class="btn-primary" onclick="closePayrollRun()">Close Payroll</button>' : "") +
+    "</div>" +
+    '<div style="overflow-x:auto;">' +
+      "<table>" +
+        "<thead><tr><th>Staff</th><th>Type</th><th>Base Pay</th><th>Worked Days</th><th>Absent Days</th><th>Deduction</th><th>Bonus</th><th>Gross Pay</th></tr></thead>" +
+        "<tbody>" + (run.lines.length ? run.lines.map(payrollLineRowHtml).join("") : '<tr><td colspan="8">No active staff.</td></tr>') + "</tbody>" +
+      "</table>" +
+    "</div>";
+}
+
+function payrollLineRowHtml(l) {
+  const bonusCell = _lastPayrollRun.status === "Draft"
+    ? ('<div style="display:flex; align-items:center; gap:4px;">' +
+        '<input type="text" class="payrollBonusInput" data-staff="' + l.staffId + '" value="' + formatRupiah(l.bonus) + '" inputmode="numeric" oninput="formatAmount(this)" style="width:100px;">' +
+        '<button class="btn-compact" onclick="savePayrollBonus(\'' + l.staffId + '\')">Save</button>' +
+      "</div>")
+    : ('<span class="font-number">' + formatRupiah(l.bonus) + "</span>");
+
+  return (
+    "<tr>" +
+      "<td>" + (l.staffName || "") + "</td>" +
+      "<td>" + l.employmentType + "</td>" +
+      '<td><span class="font-number">' + formatRupiah(l.basePay) + "</span></td>" +
+      "<td>" + l.workedDays + "</td>" +
+      "<td>" + l.absentDays + "</td>" +
+      '<td><span class="font-number">' + formatRupiah(l.deduction) + "</span></td>" +
+      "<td>" + bonusCell + "</td>" +
+      '<td><strong><span class="font-number">' + formatRupiah(l.grossPay) + "</span></strong></td>" +
+    "</tr>"
+  );
+}
+
+function savePayrollBonus(staffId) {
+  const input = document.querySelector('.payrollBonusInput[data-staff="' + staffId + '"]');
+  const bonus = parseAmount(input.value);
+
+  api("payroll-runs/" + encodeURIComponent(_lastPayrollRun.runCode), { method: "PATCH", body: { action: "updateBonus", staffId: staffId, bonus: bonus } })
+    .then(async function () {
+      _lastPayrollRun = await api("payroll-runs/" + encodeURIComponent(_lastPayrollRun.runCode));
+      renderPayrollRunContent();
+    })
+    .catch(function (err) { alert(err.message); });
+}
+
+function closePayrollRun() {
+  openConfirmModal({
+    title: "Close this payroll run?",
+    body: "This creates one OpEx entry per staff with gross pay above zero, and freezes the run - no more edits or regenerating afterward.",
+    chip: _lastPayrollRun.runCode,
+    confirmLabel: "Close Payroll",
+    danger: true,
+    onConfirm: async function () {
+      await api("payroll-runs/" + encodeURIComponent(_lastPayrollRun.runCode), { method: "PATCH", body: { action: "close" } });
+      closeModal();
+      await loadPayrollMonth(_activePayrollMonth);
+    }
+  });
 }
 
 // ---------- Attendance tab ----------

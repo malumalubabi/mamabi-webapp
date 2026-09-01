@@ -45,12 +45,14 @@ export async function isValidOpexCategory(supabase, brandId, category) {
 // together at Mark Paid time, but a later per-order edit in Payout History
 // can in theory diverge them).
 export async function getOpexLinkMap(supabase, brandId) {
-  const [ordersRes, batchesRes] = await Promise.all([
+  const [ordersRes, batchesRes, payrollRes] = await Promise.all([
     supabase.from("orders").select("order_code, driver_payout_opex_code, driver_payout_method").eq("brand_id", brandId).not("driver_payout_opex_code", "is", null),
-    supabase.from("sales_batches").select("batch_code, platform_fee_opex_code, marketing_fee_opex_code").eq("brand_id", brandId)
+    supabase.from("sales_batches").select("batch_code, platform_fee_opex_code, marketing_fee_opex_code").eq("brand_id", brandId),
+    supabase.from("payroll_lines").select("payout_opex_code, payroll_runs!inner(run_code, brand_id)").eq("payroll_runs.brand_id", brandId).not("payout_opex_code", "is", null)
   ]);
   if (ordersRes.error) throw ordersRes.error;
   if (batchesRes.error) throw batchesRes.error;
+  if (payrollRes.error) throw payrollRes.error;
 
   const map = {};
   const ordersByCode = {};
@@ -69,6 +71,9 @@ export async function getOpexLinkMap(supabase, brandId) {
   batchesRes.data.forEach((b) => {
     if (b.platform_fee_opex_code) map[b.platform_fee_opex_code] = { source: "Sales", refCode: b.batch_code, paymentMethod: null };
     if (b.marketing_fee_opex_code) map[b.marketing_fee_opex_code] = { source: "Sales", refCode: b.batch_code, paymentMethod: null };
+  });
+  payrollRes.data.forEach((l) => {
+    map[l.payout_opex_code] = { source: "Payroll", refCode: l.payroll_runs.run_code, paymentMethod: null };
   });
   return map;
 }
