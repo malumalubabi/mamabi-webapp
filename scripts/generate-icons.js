@@ -34,8 +34,25 @@ async function squareBuffer(srcPath) {
     .toBuffer();
 }
 
-async function icon(squared, size, outPath) {
-  await sharp(squared).resize(size, size).png().toFile(outPath);
+// Rounded-rect corner radius as a fraction of icon size - ~20% lands close
+// to the common "app icon" rounded-square look (iOS's own squircle mask is
+// closer to 22%, Android's default rounded-icon shape closer to 16-20%).
+const ROUNDED_CORNER_FRACTION = 0.2;
+
+// Only for icon-*/apple-touch-icon/favicon-* - NOT maskable-* (a maskable
+// icon exists so the OS can apply its OWN shape mask over the full safe
+// zone; pre-rounding it here would double-clip and fight that, not help
+// it), and NOT skipped just because iOS re-masks apple-touch-icon anyway -
+// desktop PWA install prompts and some Android launchers use icon-192/512
+// as-is with no automatic rounding, so the shape has to be baked in here.
+async function icon(squared, size, outPath, rounded) {
+  let img = sharp(squared).resize(size, size);
+  if (rounded) {
+    const r = Math.round(size * ROUNDED_CORNER_FRACTION);
+    const mask = Buffer.from('<svg width="' + size + '" height="' + size + '"><rect width="' + size + '" height="' + size + '" rx="' + r + '" ry="' + r + '"/></svg>');
+    img = img.composite([{ input: mask, blend: "dest-in" }]);
+  }
+  await img.png().toFile(outPath);
 }
 
 async function generateSet(srcFile, outDir) {
@@ -44,13 +61,13 @@ async function generateSet(srcFile, outDir) {
   fs.mkdirSync(outDir, { recursive: true });
 
   const squared = await squareBuffer(srcPath);
-  await icon(squared, 192, path.join(outDir, "icon-192.png"));
-  await icon(squared, 512, path.join(outDir, "icon-512.png"));
-  await icon(squared, 180, path.join(outDir, "apple-touch-icon.png"));
-  await icon(squared, 32, path.join(outDir, "favicon-32.png"));
-  await icon(squared, 16, path.join(outDir, "favicon-16.png"));
-  await icon(squared, 192, path.join(outDir, "maskable-192.png"));
-  await icon(squared, 512, path.join(outDir, "maskable-512.png"));
+  await icon(squared, 192, path.join(outDir, "icon-192.png"), true);
+  await icon(squared, 512, path.join(outDir, "icon-512.png"), true);
+  await icon(squared, 180, path.join(outDir, "apple-touch-icon.png"), true);
+  await icon(squared, 32, path.join(outDir, "favicon-32.png"), true);
+  await icon(squared, 16, path.join(outDir, "favicon-16.png"), true);
+  await icon(squared, 192, path.join(outDir, "maskable-192.png"), false);
+  await icon(squared, 512, path.join(outDir, "maskable-512.png"), false);
   console.log("Wrote icon set:", outDir);
 }
 
