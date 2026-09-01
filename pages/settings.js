@@ -64,31 +64,88 @@ async function renderSettingsPage(content) {
 
 const CALENDAR_SOURCES = { "id-national": "Indonesia National" };
 
+let _lastCalendarEvents = [];
+
 function renderManageCalendarSection() {
   const wrap = document.getElementById("manageCalendarWrap");
   if (!wrap) return;
 
   wrap.innerHTML =
     "<h3>Calendar</h3>" +
-    '<table style="max-width:300px;"><tbody><tr><td>Source</td><td>' + CALENDAR_SOURCES["id-national"] + "</td></tr></tbody></table>" +
+    "<label>Source</label><br>" +
+    "<span>" + CALENDAR_SOURCES["id-national"] + "</span>" +
     '<div style="margin-top:8px;"><button onclick="openManageCalendarModal()">Manage Calendar</button></div>';
 }
 
-function openManageCalendarModal() {
+async function openManageCalendarModal() {
+  renderManageCalendarModal();
+  _lastCalendarEvents = await api("calendar-events");
+  renderManageCalendarEventsList();
+}
+
+function renderManageCalendarModal() {
   const thisYear = new Date().getFullYear();
 
   openModal(
     "<h2>Manage Calendar</h2>" +
-    "<label>Calendar</label><br>" +
+    "<label>Source</label><br>" +
     '<select id="manageCalendarSource">' +
       Object.entries(CALENDAR_SOURCES).map(([val, label]) => '<option value="' + val + '">' + label + "</option>").join("") +
     "</select><br><br>" +
     "<label>Year</label><br>" +
     '<input type="number" id="nationalHolidaysYear" value="' + thisYear + '" style="width:100px;"><br><br>' +
-    '<p style="font-size:12px; color:var(--color-text-muted); max-width:400px;">Imports that year\'s holidays straight into HR &gt; Attendance\'s Outlet Closures - dates already closed are skipped, not duplicated.</p>' +
     '<button id="importNationalHolidaysBtn" class="btn-primary" onclick="importNationalHolidays()">Import</button>' +
-    '<span id="importNationalHolidaysStatus" class="save-status"></span>'
+    '<span id="importNationalHolidaysStatus" class="save-status"></span><br><br>' +
+    "<label>Imported</label>" +
+    '<div id="manageCalendarEventsScrollWrap" style="overflow-x:auto; max-height:260px; overflow-y:auto;">' +
+      "<table>" +
+        "<thead><tr><th>Date</th><th>Name</th><th></th></tr></thead>" +
+        '<tbody id="manageCalendarEventsTbody"><tr><td colspan="3">Loading...</td></tr></tbody>' +
+      "</table>" +
+    "</div>"
   );
+}
+
+function renderManageCalendarEventsList() {
+  const tbody = document.getElementById("manageCalendarEventsTbody");
+  if (!tbody) return;
+  tbody.innerHTML = _lastCalendarEvents.length
+    ? _lastCalendarEvents.map((e) =>
+        "<tr><td style=\"white-space:nowrap;\">" + e.date + "</td><td>" + e.name + "</td>" +
+        '<td class="compact-cell">' + calendarEventActionsHtml(e.eventCode) + "</td></tr>"
+      ).join("")
+    : '<tr><td colspan="3" style="color:var(--color-text-muted); font-size:12px;">None imported yet.</td></tr>';
+}
+
+// Inline expand-in-place confirm, not openConfirmModal - this row lives
+// inside the already-open Manage Calendar modal, and openModal() always
+// closes whatever modal is currently open before showing a new one, so a
+// stacked confirm modal would discard this one from underneath even on
+// Cancel (same reasoning as settingsListActionsHtml above).
+function calendarEventActionsHtml(code) {
+  return '<button class="btn-compact" onclick="confirmRemoveCalendarEvent(this, \'' + code + '\')">Delete</button>';
+}
+
+function confirmRemoveCalendarEvent(btn, code) {
+  btn.closest("td").innerHTML =
+    '<span style="color:#b00020; font-size:11px; display:block; margin-bottom:4px;">Remove?</span>' +
+    '<button class="btn-compact" style="color:#b00020;" onclick="removeCalendarEvent(\'' + code + '\', this)">Yes, Remove</button> ' +
+    '<button class="btn-compact" onclick="cancelRemoveCalendarEvent(this, \'' + code + '\')">Cancel</button>' +
+    '<span class="save-status" style="display:block;"></span>';
+}
+
+function cancelRemoveCalendarEvent(btn, code) {
+  btn.closest("td").innerHTML = calendarEventActionsHtml(code);
+}
+
+function removeCalendarEvent(code, btn) {
+  const statusEl = btn.closest("td").querySelector(".save-status");
+
+  withSaveStatus(btn, statusEl, "Removal", async function () {
+    await api("calendar-events/" + encodeURIComponent(code), { method: "DELETE" });
+    _lastCalendarEvents = await api("calendar-events");
+    renderManageCalendarEventsList();
+  });
 }
 
 function importNationalHolidays() {

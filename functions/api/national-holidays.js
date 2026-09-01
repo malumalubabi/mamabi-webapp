@@ -13,6 +13,7 @@
 // Dates that already have an event (same date, from an earlier import) are
 // skipped, not duplicated.
 import { getSupabase, getBrandId, jsonResponse, errorResponse } from "./_lib/supabase.js";
+import { nextCode } from "./_lib/codes.js";
 
 const ID_HOLIDAY_ICS_URL = "https://calendar.google.com/calendar/ical/id.indonesian%23holiday%40group.v.calendar.google.com/public/basic.ics";
 
@@ -69,16 +70,25 @@ export async function onRequestPost({ request, env }) {
     if (existErr) throw existErr;
     const existingDates = new Set(existing.map((r) => r.event_date));
 
-    const toInsert = holidays
-      .filter((h) => !existingDates.has(h.date))
-      .map((h) => ({ brand_id: brandId, event_date: h.date, name: h.name }));
+    const newHolidays = holidays.filter((h) => !existingDates.has(h.date));
 
-    if (toInsert.length) {
+    if (newHolidays.length) {
+      // One nextCode lookup, then assign sequential codes locally for the
+      // whole batch - cheaper than a nextCode round-trip per row, safe
+      // since this is the only writer for calendar_events in one request.
+      const firstCode = await nextCode(supabase, "calendar_events", "event_code", brandId, "EVT", 4);
+      const startN = parseInt(firstCode.split("-")[1], 10);
+      const toInsert = newHolidays.map((h, i) => ({
+        brand_id: brandId,
+        event_code: "EVT-" + String(startN + i).padStart(4, "0"),
+        event_date: h.date,
+        name: h.name
+      }));
       const { error } = await supabase.from("calendar_events").insert(toInsert);
       if (error) throw error;
     }
 
-    return jsonResponse({ imported: toInsert.length, skipped: holidays.length - toInsert.length, total: holidays.length });
+    return jsonResponse({ imported: newHolidays.length, skipped: holidays.length - newHolidays.length, total: holidays.length });
   } catch (err) {
     return errorResponse(err);
   }
