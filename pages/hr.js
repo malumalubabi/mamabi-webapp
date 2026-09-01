@@ -516,7 +516,11 @@ function isDateClosed(dateStr) {
 
 function shiftsCalendarCellHtml(dateStr, dayNum, isToday) {
   const closedInfo = isDateClosed(dateStr);
-  const dayShifts = _lastShifts.filter((s) => s.date === dateStr && s.status !== "Cancelled");
+  // Same alphabetical order as the day-shifts modal this cell opens (see
+  // openDayShiftsModal) - consistent regardless of which one someone looks at.
+  const dayShifts = _lastShifts
+    .filter((s) => s.date === dateStr && s.status !== "Cancelled")
+    .sort((a, b) => (a.staffName || "").localeCompare(b.staffName || ""));
   const border = isToday ? "border:2px solid var(--color-primary, #333);" : "border:1px solid var(--color-border, #ddd);";
   // Red day number = wall-calendar "tanggal merah" - Sunday (always) or an
   // actual Outlet Closures date (holiday/ad-hoc). Deliberately NOT the same
@@ -534,7 +538,14 @@ function shiftsCalendarCellHtml(dateStr, dayNum, isToday) {
   const weekday = new Date(dateStr + "T00:00:00Z").getUTCDay();
   const hoursRow = _lastOutletHours.find((h) => h.weekday === weekday);
   const weeklyOpen = !hoursRow || hoursRow.isOpen !== false;
-  const hoursDot = '<span title="' + (weeklyOpen ? "Open" : "Closed") + ' (Outlet Hours)" style="width:8px; height:8px; border-radius:50%; flex:0 0 8px; background:' + (weeklyOpen ? "#2e7d32" : "#999") + ';"></span>';
+  // Same pastel treatment as Dashboard/Stock Overview's status colors -
+  // 55% the semantic token blended with 45% white (see shared.css's
+  // .status-Safe/.status-Low/.status-Out) - keep new status-style
+  // indicators on this formula going forward instead of a plain flat color.
+  const hoursDotColor = weeklyOpen
+    ? "color-mix(in srgb, var(--color-success) 55%, white 45%)"
+    : "var(--color-text-muted)";
+  const hoursDot = '<span title="' + (weeklyOpen ? "Open" : "Closed") + ' (Outlet Hours)" style="width:8px; height:8px; border-radius:50%; flex:0 0 8px; background:' + hoursDotColor + ';"></span>';
 
   const namesHtml = dayShifts.length
     ? dayShifts.map((s) => '<div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + (s.staffName || "?") + "</div>").join("")
