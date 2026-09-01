@@ -68,7 +68,7 @@ async function renderPayrollTab(wrap) {
     '<div style="display:flex; align-items:center; gap:8px; margin-bottom:16px;">' +
       "<label style=\"font-weight:normal;\">Month</label>" +
       '<input type="month" id="payrollMonth" value="' + _activePayrollMonth + '" onchange="switchPayrollMonth(this.value)">' +
-      '<button class="btn-primary" onclick="generatePayrollRun()">Generate / Recalculate</button>' +
+      '<button class="btn-compact" onclick="generatePayrollRun()">Calculate</button>' +
     "</div>" +
     '<div id="payrollRunContent"><p>Loading...</p></div>';
   await Promise.all([loadStaffPay(), loadPayrollMonth(_activePayrollMonth)]);

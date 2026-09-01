@@ -276,6 +276,8 @@ td.compact-cell {
 input[type="text"],
 input[type="number"],
 input[type="date"],
+input[type="month"],
+input[type="time"],
 textarea {
   padding: 8px 12px;
   border: 1px solid var(--color-text-muted);
@@ -289,6 +291,8 @@ textarea {
 input[type="text"]:focus,
 input[type="number"]:focus,
 input[type="date"]:focus,
+input[type="month"]:focus,
+input[type="time"]:focus,
 textarea:focus {
   outline: 2px solid var(--color-accent);
   outline-offset: 1px;
@@ -300,6 +304,10 @@ input[type="number"]:disabled,
 input[type="number"][readonly],
 input[type="date"]:disabled,
 input[type="date"][readonly],
+input[type="month"]:disabled,
+input[type="month"][readonly],
+input[type="time"]:disabled,
+input[type="time"][readonly],
 textarea:disabled,
 textarea[readonly] {
   background-color: var(--color-disabled-bg);

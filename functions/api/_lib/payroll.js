@@ -8,18 +8,42 @@
 // "Total working days" (the Monthly deduction's denominator) = calendar
 // days in the month Outlet Hours' weekly pattern says the outlet is open -
 // same source the Calendar itself reads for the open/closed dot.
+//
+// Both the shifts counted and totalWorkingDays are capped at today (in the
+// brand's configured Timezone) - a shift dated later this month is still
+// only "Scheduled" (planned), not something that's actually happened yet,
+// so it must not be paid for early. Recalculating mid-month naturally
+// yields a partial, growing total as the month goes on; once the month is
+// fully in the past the cap has no effect (today is past month-end).
 
-function nextMonthKey(monthKey) {
-  const [y, m] = monthKey.split("-").map(Number);
-  const d = new Date(y, m, 1); // m is 1-based here, so this already lands on next month
-  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+async function todayInBrandTimezone(supabase, brandId) {
+  const { data, error } = await supabase.from("settings").select("value").eq("brand_id", brandId).eq("key", "Timezone").maybeSingle();
+  if (error) throw error;
+  const timezone = (data && data.value) || "Asia/Makassar";
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date()); // "YYYY-MM-DD"
+  } catch (err) {
+    return new Date().toISOString().slice(0, 10);
+  }
 }
 
-function totalWorkingDaysInMonth(monthKey, outletHoursByWeekday) {
+function lastDateOfMonth(monthKey) {
+  const [y, m] = monthKey.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return monthKey + "-" + String(lastDay).padStart(2, "0");
+}
+
+// Counts working days from the 1st through cutoff (inclusive) - breaks as
+// soon as a candidate date exceeds cutoff, which also correctly yields 0
+// for a monthKey entirely after cutoff (a future month) without needing a
+// separate special case.
+function totalWorkingDaysUpTo(monthKey, cutoff, outletHoursByWeekday) {
   const [y, m] = monthKey.split("-").map(Number);
   const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
   let count = 0;
   for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = monthKey + "-" + String(d).padStart(2, "0");
+    if (dateStr > cutoff) break;
     const weekday = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
     const row = outletHoursByWeekday[weekday];
     if (!row || row.is_open !== false) count++;
@@ -28,6 +52,10 @@ function totalWorkingDaysInMonth(monthKey, outletHoursByWeekday) {
 }
 
 export async function computePayrollLines(supabase, brandId, monthKey) {
+  const today = await todayInBrandTimezone(supabase, brandId);
+  const monthEnd = lastDateOfMonth(monthKey);
+  const cutoff = today < monthEnd ? today : monthEnd;
+
   const [staffRes, hoursRes, roleRatesRes, shiftsRes] = await Promise.all([
     supabase.from("staff").select("id, name, employment_type, base_rate").eq("brand_id", brandId).eq("is_active", true),
     supabase.from("outlet_hours").select("weekday, is_open").eq("brand_id", brandId),
@@ -35,7 +63,7 @@ export async function computePayrollLines(supabase, brandId, monthKey) {
     supabase.from("staff_shifts").select("staff_id, role, status")
       .eq("brand_id", brandId)
       .gte("shift_date", monthKey + "-01")
-      .lt("shift_date", nextMonthKey(monthKey) + "-01")
+      .lte("shift_date", cutoff)
   ]);
   if (staffRes.error) throw staffRes.error;
   if (hoursRes.error) throw hoursRes.error;
@@ -44,7 +72,7 @@ export async function computePayrollLines(supabase, brandId, monthKey) {
 
   const outletHoursByWeekday = {};
   hoursRes.data.forEach((h) => { outletHoursByWeekday[h.weekday] = h; });
-  const totalWorkingDays = totalWorkingDaysInMonth(monthKey, outletHoursByWeekday);
+  const totalWorkingDays = totalWorkingDaysUpTo(monthKey, cutoff, outletHoursByWeekday);
 
   const roleRateMap = {};
   roleRatesRes.data.forEach((r) => { roleRateMap[r.value] = Number(r.meta) || 0; });
