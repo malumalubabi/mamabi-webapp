@@ -211,14 +211,21 @@ function renderPayrollRunContent() {
     "</div>";
 }
 
-function payrollLineRowHtml(l) {
-  const bonusCell = _lastPayrollRun.status === "Draft"
-    ? ('<div style="display:flex; align-items:center; gap:4px;">' +
-        '<input type="text" class="payrollBonusInput" data-staff="' + l.staffId + '" value="' + formatRupiah(l.bonus) + '" inputmode="numeric" oninput="formatAmount(this)" style="width:100px;">' +
-        '<button class="btn-compact" onclick="savePayrollBonus(\'' + l.staffId + '\')">Save</button>' +
-      "</div>")
-    : ('<span class="font-number">' + formatRupiah(l.bonus) + "</span>");
+// Same icon-only pencil-trigger convention as pages/menu.js's
+// btn-icon-edit/ICON_PENCIL (Change Component/Edit Batch Size) - inlined
+// here rather than a shared top-level const, since a same-named const in
+// two page scripts collides (all page scripts share one global scope; see
+// the earlier _lastCalendarEvents duplicate-declaration bug this session).
+const PAYROLL_BONUS_PENCIL = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
 
+function payrollBonusViewHtml(l) {
+  const pencil = _lastPayrollRun.status === "Draft"
+    ? ('<button class="btn-icon-edit" onclick="startEditPayrollBonus(\'' + l.staffId + '\')" title="Edit Bonus">' + PAYROLL_BONUS_PENCIL + "</button>")
+    : "";
+  return '<span class="font-number">' + formatRupiah(l.bonus) + "</span> " + pencil;
+}
+
+function payrollLineRowHtml(l) {
   return (
     "<tr>" +
       "<td>" + (l.staffName || "") + "</td>" +
@@ -227,22 +234,41 @@ function payrollLineRowHtml(l) {
       "<td>" + l.workedDays + "</td>" +
       "<td>" + l.absentDays + "</td>" +
       '<td><span class="font-number">' + formatRupiah(l.deduction) + "</span></td>" +
-      "<td>" + bonusCell + "</td>" +
+      '<td><span id="payrollBonusCell-' + l.staffId + '">' + payrollBonusViewHtml(l) + "</span></td>" +
       '<td><strong><span class="font-number">' + formatRupiah(l.grossPay) + "</span></strong></td>" +
     "</tr>"
   );
 }
 
-function savePayrollBonus(staffId) {
-  const input = document.querySelector('.payrollBonusInput[data-staff="' + staffId + '"]');
+function startEditPayrollBonus(staffId) {
+  const cell = document.getElementById("payrollBonusCell-" + staffId);
+  const line = _lastPayrollRun.lines.find((l) => l.staffId === staffId);
+  cell.innerHTML =
+    '<div style="display:flex; align-items:center; gap:4px;">' +
+      '<input type="text" class="payrollBonusInput" value="' + formatRupiah(line.bonus) + '" inputmode="numeric" oninput="formatAmount(this)" style="width:100px;">' +
+      '<button class="btn-compact" onclick="savePayrollBonus(\'' + staffId + '\', this)">Save</button>' +
+      '<button class="btn-compact" onclick="cancelEditPayrollBonus(\'' + staffId + '\')">Cancel</button>' +
+      '<span class="save-status"></span>' +
+    "</div>";
+}
+
+function cancelEditPayrollBonus(staffId) {
+  const cell = document.getElementById("payrollBonusCell-" + staffId);
+  const line = _lastPayrollRun.lines.find((l) => l.staffId === staffId);
+  cell.innerHTML = payrollBonusViewHtml(line);
+}
+
+function savePayrollBonus(staffId, btn) {
+  const cell = document.getElementById("payrollBonusCell-" + staffId);
+  const input = cell.querySelector(".payrollBonusInput");
+  const statusEl = cell.querySelector(".save-status");
   const bonus = parseAmount(input.value);
 
-  api("payroll-runs/" + encodeURIComponent(_lastPayrollRun.runCode), { method: "PATCH", body: { action: "updateBonus", staffId: staffId, bonus: bonus } })
-    .then(async function () {
-      _lastPayrollRun = await api("payroll-runs/" + encodeURIComponent(_lastPayrollRun.runCode));
-      renderPayrollRunContent();
-    })
-    .catch(function (err) { alert(err.message); });
+  withSaveStatus(btn, statusEl, "Bonus", async function () {
+    await api("payroll-runs/" + encodeURIComponent(_lastPayrollRun.runCode), { method: "PATCH", body: { action: "updateBonus", staffId: staffId, bonus: bonus } });
+    _lastPayrollRun = await api("payroll-runs/" + encodeURIComponent(_lastPayrollRun.runCode));
+    renderPayrollRunContent();
+  });
 }
 
 function closePayrollRun() {
