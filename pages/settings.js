@@ -64,7 +64,7 @@ async function renderSettingsPage(content) {
 
 const CALENDAR_SOURCES = { "id-national": "Indonesia National" };
 
-let _lastCalendarEvents = [];
+let _manageCalendarEventsList = [];
 
 function renderManageCalendarSection() {
   const wrap = document.getElementById("manageCalendarWrap");
@@ -79,7 +79,7 @@ function renderManageCalendarSection() {
 
 async function openManageCalendarModal() {
   renderManageCalendarModal();
-  _lastCalendarEvents = await api("calendar-events");
+  _manageCalendarEventsList = await api("calendar-events");
   renderManageCalendarEventsList();
 }
 
@@ -109,8 +109,8 @@ function renderManageCalendarModal() {
 function renderManageCalendarEventsList() {
   const tbody = document.getElementById("manageCalendarEventsTbody");
   if (!tbody) return;
-  tbody.innerHTML = _lastCalendarEvents.length
-    ? _lastCalendarEvents.map((e) =>
+  tbody.innerHTML = _manageCalendarEventsList.length
+    ? _manageCalendarEventsList.map((e) =>
         "<tr><td style=\"white-space:nowrap;\">" + e.date + "</td><td>" + e.name + "</td>" +
         '<td class="compact-cell">' + calendarEventActionsHtml(e.eventCode) + "</td></tr>"
       ).join("")
@@ -143,7 +143,7 @@ function removeCalendarEvent(code, btn) {
 
   withSaveStatus(btn, statusEl, "Removal", async function () {
     await api("calendar-events/" + encodeURIComponent(code), { method: "DELETE" });
-    _lastCalendarEvents = await api("calendar-events");
+    _manageCalendarEventsList = await api("calendar-events");
     renderManageCalendarEventsList();
   });
 }
