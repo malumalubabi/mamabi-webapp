@@ -1,6 +1,8 @@
-// HR > Attendance - dates the outlet itself is closed (holidays, planned
-// off-days). Doesn't count against any staff's attendance, and blocks
-// creating a staff_shifts row on that date (see staff-shifts.js's POST).
+// HR > Attendance - ad-hoc closure dates (holidays, planned off-days).
+// Informational only, same as calendar_events - shown on the Calendar as a
+// reason, but does NOT block creating a staff_shifts row on that date. Only
+// Outlet Hours' regular weekly pattern actually blocks scheduling (see
+// staff-shifts.js's POST).
 import { getSupabase, getBrandId, jsonResponse, errorResponse } from "./_lib/supabase.js";
 import { nextCode } from "./_lib/codes.js";
 

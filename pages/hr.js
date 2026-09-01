@@ -104,7 +104,6 @@ function buildOutletHoursShellHtml() {
       "<h3>Outlet Hours</h3>" +
       '<button onclick="openManageOutletHoursModal()">Manage Outlet Hours</button>' +
     "</div>" +
-    '<p style="font-size:12px; color:var(--color-text-muted); max-width:520px;">Regular weekly operating days/hours. A day marked closed here blocks scheduling shifts on it, same as a one-off closure below.</p>' +
     '<div id="outletHoursScrollWrap" style="overflow-x:auto;">' +
       "<table>" +
         "<thead><tr><th>Day</th><th>Open</th><th>Hours</th></tr></thead>" +
@@ -206,7 +205,9 @@ function calendarEventForDate(dateStr) {
   return _lastCalendarEvents.find((e) => e.date === dateStr) || null;
 }
 
-// ---------- Outlet Closures (ad-hoc exceptions on top of Outlet Hours) ----------
+// ---------- Outlet Closures (informational only, same as calendar_events -
+// does NOT block shift scheduling or affect the "closed" background; only
+// Outlet Hours' weekly pattern does that) ----------
 
 function buildOutletClosuresShellHtml() {
   return (
@@ -214,7 +215,6 @@ function buildOutletClosuresShellHtml() {
       "<h3>Outlet Closures</h3>" +
       '<button class="btn-primary" onclick="openClosureModal()">+ Add Closure</button>' +
     "</div>" +
-    '<p style="font-size:12px; color:var(--color-text-muted); max-width:520px;">Dates the outlet itself is closed - doesn\'t count against any staff, and blocks scheduling a shift that day.</p>' +
     '<div id="closuresPaginationNav" class="pagination-nav"></div>' +
     '<div id="closuresScrollWrap" style="overflow-x:auto;">' +
       "<table>" +
@@ -511,16 +511,20 @@ function renderShiftsCalendar(wrap) {
     '<div style="display:grid; grid-template-columns:repeat(7, 1fr); gap:6px;">' + cells + "</div>";
 }
 
-// Two independent reasons a date can be closed - the regular weekly
-// pattern (Outlet Hours) or a one-off exception on top of it (Outlet
-// Closures) - same pair the backend checks in staff-shifts.js's POST.
+// Only Outlet Hours' weekly pattern actually blocks shift scheduling/drives
+// the gray "closed" background - Outlet Closures and calendar_events are
+// both purely informational (a reason/description shown on the day, not an
+// operational block) - same distinction the backend enforces in
+// staff-shifts.js's POST.
 function isDateClosed(dateStr) {
   const weekday = new Date(dateStr + "T00:00:00Z").getUTCDay();
   const hoursRow = _lastOutletHours.find((h) => h.weekday === weekday);
   if (hoursRow && hoursRow.isOpen === false) return { closed: true, reason: "Regularly closed on " + WEEKDAY_LABELS[weekday] + "s" };
-  const closure = _lastClosures.find((c) => c.date === dateStr);
-  if (closure) return { closed: true, reason: closure.reason || null };
   return { closed: false, reason: null };
+}
+
+function outletClosureForDate(dateStr) {
+  return _lastClosures.find((c) => c.date === dateStr) || null;
 }
 
 function shiftsCalendarCellHtml(dateStr, dayNum, isToday) {
@@ -532,17 +536,16 @@ function shiftsCalendarCellHtml(dateStr, dayNum, isToday) {
     .sort((a, b) => (a.staffName || "").localeCompare(b.staffName || ""));
   const border = isToday ? "border:2px solid var(--color-primary, #333);" : "border:1px solid var(--color-border, #ddd);";
   const calendarEvent = calendarEventForDate(dateStr);
+  const outletClosure = outletClosureForDate(dateStr);
   // Red day number = wall-calendar "tanggal merah" - Sunday (always), an
-  // actual Outlet Closures date (ad-hoc), or an imported calendar event
-  // (holiday). Deliberately NOT the same as closedInfo.closed below, which
-  // also covers a regular Outlet Hours weekly off day (a business choice,
-  // not a "tanggal merah") - that one still gets the gray background, just
-  // not the red number. A calendar event also does NOT affect closedInfo -
-  // a public holiday existing doesn't mean this business is actually
-  // closed that day (see functions/api/national-holidays.js's comment).
+  // ad-hoc Outlet Closures date, or an imported calendar event (holiday).
+  // Deliberately NOT the same as closedInfo.closed below, which only
+  // reflects Outlet Hours' weekly pattern - a business's regular off day
+  // isn't a "tanggal merah" (that one still gets the gray background, just
+  // not the red number), and neither Outlet Closures nor a calendar event
+  // affects closedInfo at all - both are informational only.
   const isSunday = new Date(dateStr + "T00:00:00Z").getUTCDay() === 0;
-  const isMarkedClosure = _lastClosures.some((c) => c.date === dateStr);
-  const dayNumColor = (isSunday || isMarkedClosure || calendarEvent) ? "#c0392b" : "inherit";
+  const dayNumColor = (isSunday || outletClosure || calendarEvent) ? "#c0392b" : "inherit";
 
   // Separate signal from both of the above - purely "does Outlet Hours'
   // weekly pattern say this weekday is open or closed", as a small fixed-
@@ -570,11 +573,17 @@ function shiftsCalendarCellHtml(dateStr, dayNum, isToday) {
         '<span style="font-size:12px; font-weight:600; color:' + dayNumColor + ';">' + dayNum + "</span>" +
         hoursDot +
       "</div>" +
-      // Calendar event description (if any) and staff names are shown
-      // together, not one-or-the-other - a holiday no longer implies the
-      // outlet is closed, so staff can very well still be scheduled that day.
+      // Calendar event description and/or Outlet Closure reason (either,
+      // neither, or both - purely informational, not a state that hides
+      // the other) shown above staff names, never instead of them - none
+      // of this implies the outlet is actually closed, so staff can very
+      // well still be scheduled that day.
       (calendarEvent
         ? ('<div style="font-size:11px; color:var(--color-text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="' + calendarEvent.name + '">' + calendarEvent.name + "</div>")
+        : ""
+      ) +
+      (outletClosure && outletClosure.reason
+        ? ('<div style="font-size:11px; color:var(--color-text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="' + outletClosure.reason + '">' + outletClosure.reason + "</div>")
         : ""
       ) +
       '<div style="font-size:11px;">' + namesHtml + "</div>" +
@@ -592,6 +601,7 @@ function shiftCalendarMonthNav(delta) {
 function openDayShiftsModal(dateStr) {
   const closedInfo = isDateClosed(dateStr);
   const calendarEvent = calendarEventForDate(dateStr);
+  const outletClosure = outletClosureForDate(dateStr);
   const dayShifts = _lastShifts
     .filter((s) => s.date === dateStr)
     .sort((a, b) => (a.staffName || "").localeCompare(b.staffName || ""));
@@ -599,7 +609,8 @@ function openDayShiftsModal(dateStr) {
   openModal(
     "<h2>" + dateStr + "</h2>" +
     (calendarEvent ? ('<p style="color:var(--color-text-muted); font-size:13px;">' + calendarEvent.name + "</p>") : "") +
-    (closedInfo.closed ? ('<p style="color:var(--color-text-muted); font-size:13px;">Outlet closed' + (closedInfo.reason ? " - " + closedInfo.reason : "") + "</p>") : "") +
+    (outletClosure && outletClosure.reason ? ('<p style="color:var(--color-text-muted); font-size:13px;">' + outletClosure.reason + "</p>") : "") +
+    (closedInfo.closed ? ('<p style="color:var(--color-text-muted); font-size:13px;">Outlet regularly closed' + (closedInfo.reason ? " - " + closedInfo.reason : "") + "</p>") : "") +
     (dayShifts.length
       ? ('<table style="width:100%;"><thead><tr><th>Staff</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>' +
           dayShifts.map((s) =>
@@ -726,16 +737,26 @@ function saveShift(existingCode) {
   if (!dates.length) { alert("No dates in this range match the selected days."); return; }
 
   withSaveStatus(btn, statusEl, "Shift", async function () {
-    const results = await Promise.allSettled(
-      dates.map((date) => api("staff-shifts", { method: "POST", body: { staffId: staffId, date: date, role: role, status: status, notes: notes } }))
-    );
-    const failed = results.map((r, i) => ({ r, date: dates[i] })).filter((x) => x.r.status === "rejected");
+    // One at a time, not Promise.all - staff-shifts.js's nextCode() reads
+    // the current max code then inserts as two separate steps, so firing
+    // every date's POST concurrently let several of them read the same
+    // "next" code before any had inserted yet, producing duplicate
+    // shift_codes (fixed for existing data via a migration - this loop is
+    // the actual prevention).
+    const failed = [];
+    for (const date of dates) {
+      try {
+        await api("staff-shifts", { method: "POST", body: { staffId: staffId, date: date, role: role, status: status, notes: notes } });
+      } catch (err) {
+        failed.push({ date: date, message: err.message });
+      }
+    }
     closeModal();
     await reloadShiftsAndRefresh();
     if (failed.length) {
       alert(
         (dates.length - failed.length) + " of " + dates.length + " shift(s) created. Skipped:\n" +
-        failed.map((f) => f.date + " - " + f.r.reason.message).join("\n")
+        failed.map((f) => f.date + " - " + f.message).join("\n")
       );
     }
   });
