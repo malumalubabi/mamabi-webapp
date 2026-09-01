@@ -558,7 +558,10 @@ function shiftsCalendarCellHtml(dateStr, dayNum, isToday) {
         hoursDot +
       "</div>" +
       (closedInfo.closed
-        ? '<div style="font-size:11px; color:var(--color-text-muted);">Closed</div>'
+        // The actual reason (e.g. an imported holiday's name) shows right
+        // on the cell now, not just after clicking into it - title carries
+        // the full text for anything the ellipsis truncates.
+        ? ('<div style="font-size:11px; color:var(--color-text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="' + (closedInfo.reason || "Closed") + '">' + (closedInfo.reason || "Closed") + "</div>")
         : ('<div style="font-size:11px;">' + namesHtml + "</div>")
       ) +
     "</div>"
