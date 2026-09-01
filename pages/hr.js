@@ -98,12 +98,15 @@ let _lastOutletHours = [];
 
 function buildOutletHoursShellHtml() {
   return (
-    "<h3>Outlet Hours</h3>" +
+    '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+      "<h3>Outlet Hours</h3>" +
+      '<button onclick="openManageOutletHoursModal()">Manage Outlet Hours</button>' +
+    "</div>" +
     '<p style="font-size:12px; color:var(--color-text-muted); max-width:520px;">Regular weekly operating days/hours. A day marked closed here blocks scheduling shifts on it, same as a one-off closure below.</p>' +
     '<div id="outletHoursScrollWrap" style="overflow-x:auto;">' +
       "<table>" +
-        "<thead><tr><th>Day</th><th>Open</th><th>Opens</th><th>Closes</th><th></th></tr></thead>" +
-        '<tbody id="outletHoursTbody"><tr><td colspan="5">Loading...</td></tr></tbody>' +
+        "<thead><tr><th>Day</th><th>Open</th><th>Hours</th></tr></thead>" +
+        '<tbody id="outletHoursTbody"><tr><td colspan="3">Loading...</td></tr></tbody>' +
       "</table>" +
     "</div>"
   );
@@ -118,10 +121,32 @@ async function loadOutletHours() {
 function renderOutletHoursRows() {
   const tbody = document.getElementById("outletHoursTbody");
   if (!tbody) return;
-  tbody.innerHTML = _lastOutletHours.map(outletHoursRowHtml).join("");
+  tbody.innerHTML = _lastOutletHours.map(outletHoursDisplayRowHtml).join("");
 }
 
-function outletHoursRowHtml(h) {
+function outletHoursDisplayRowHtml(h) {
+  return (
+    "<tr>" +
+      "<td>" + WEEKDAY_LABELS[h.weekday] + "</td>" +
+      "<td>" + (h.isOpen ? "Open" : "Closed") + "</td>" +
+      "<td>" + (h.isOpen && (h.openTime || h.closeTime) ? ((h.openTime || "?") + " - " + (h.closeTime || "?")) : "") + "</td>" +
+    "</tr>"
+  );
+}
+
+// ---------- Manage Outlet Hours modal (editable rows live here only - the
+// page itself stays a read-only display, per explicit request) ----------
+
+function openManageOutletHoursModal() {
+  openModal(
+    "<h2>Manage Outlet Hours</h2>" +
+    '<table style="width:100%;"><thead><tr><th>Day</th><th>Open</th><th>Opens</th><th>Closes</th><th></th></tr></thead>' +
+      '<tbody id="manageOutletHoursTbody">' + _lastOutletHours.map(outletHoursEditRowHtml).join("") + "</tbody>" +
+    "</table>"
+  );
+}
+
+function outletHoursEditRowHtml(h) {
   return (
     "<tr>" +
       "<td>" + WEEKDAY_LABELS[h.weekday] + "</td>" +
@@ -147,6 +172,8 @@ function saveOutletHoursRow(weekday, btn) {
   withInlineSaveStatus(btn, "Hours", async function () {
     await api("outlet-hours/" + weekday, { method: "PATCH", body: { isOpen: isOpen, openTime: openTime, closeTime: closeTime } });
     await loadOutletHours();
+    const modalTbody = document.getElementById("manageOutletHoursTbody");
+    if (modalTbody) modalTbody.innerHTML = _lastOutletHours.map(outletHoursEditRowHtml).join("");
   });
 }
 
