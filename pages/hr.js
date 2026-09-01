@@ -124,12 +124,23 @@ function renderOutletHoursRows() {
   tbody.innerHTML = _lastOutletHours.map(outletHoursDisplayRowHtml).join("");
 }
 
+// The Manage modal's native <input type="time"> already renders AM/PM per
+// the browser/OS locale - this formats the read-only page display to match
+// instead of showing the raw 24h "HH:MM" the input stores/submits.
+function formatTime12h(hhmm) {
+  if (!hhmm) return "";
+  const [hStr, mStr] = hhmm.split(":");
+  let h = Number(hStr) % 12;
+  if (h === 0) h = 12;
+  return h + ":" + mStr + " " + (Number(hStr) >= 12 ? "PM" : "AM");
+}
+
 function outletHoursDisplayRowHtml(h) {
   return (
     "<tr>" +
       "<td>" + WEEKDAY_LABELS[h.weekday] + "</td>" +
       "<td>" + (h.isOpen ? "Open" : "Closed") + "</td>" +
-      "<td>" + (h.isOpen && (h.openTime || h.closeTime) ? ((h.openTime || "?") + " - " + (h.closeTime || "?")) : "") + "</td>" +
+      "<td>" + (h.isOpen && (h.openTime || h.closeTime) ? ((formatTime12h(h.openTime) || "?") + " - " + (formatTime12h(h.closeTime) || "?")) : "") + "</td>" +
     "</tr>"
   );
 }
