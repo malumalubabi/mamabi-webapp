@@ -469,9 +469,12 @@ function renderShiftsCalendar(wrap) {
 
   wrap.innerHTML =
     '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">' +
+      // Fixed-width month label slot, same "flex:0 0 <width>" trick as
+      // .pagination-info - keeps Prev/Next from shifting position as the
+      // label's own text width changes month to month.
       '<div style="display:flex; align-items:center; gap:10px;">' +
         '<button onclick="shiftCalendarMonthNav(-1)">&laquo; Prev</button>' +
-        "<strong>" + monthLabel + "</strong>" +
+        '<strong style="flex:0 0 160px; text-align:center;">' + monthLabel + "</strong>" +
         '<button onclick="shiftCalendarMonthNav(1)">Next &raquo;</button>' +
       "</div>" +
       '<button class="btn-primary" onclick="openShiftModal(null)">+ Add Shift</button>' +
