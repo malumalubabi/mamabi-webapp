@@ -63,13 +63,102 @@ let _lastPayrollRun = null;
 async function renderPayrollTab(wrap) {
   if (!_activePayrollMonth) _activePayrollMonth = todayISO().slice(0, 7);
   wrap.innerHTML =
+    buildStaffPayShellHtml() +
+    '<hr style="margin:24px 0;">' +
     '<div style="display:flex; align-items:center; gap:8px; margin-bottom:16px;">' +
       "<label style=\"font-weight:normal;\">Month</label>" +
       '<input type="month" id="payrollMonth" value="' + _activePayrollMonth + '" onchange="switchPayrollMonth(this.value)">' +
       '<button class="btn-primary" onclick="generatePayrollRun()">Generate / Recalculate</button>' +
     "</div>" +
     '<div id="payrollRunContent"><p>Loading...</p></div>';
-  await loadPayrollMonth(_activePayrollMonth);
+  await Promise.all([loadStaffPay(), loadPayrollMonth(_activePayrollMonth)]);
+}
+
+// ---------- Staff Pay (Employment Type + Base Rate live here, not
+// Database > Staff - that page stays pure identity/contact data) ----------
+
+let _lastStaffPay = [];
+
+function buildStaffPayShellHtml() {
+  return (
+    '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+      "<h3>Staff Pay</h3>" +
+      '<button onclick="openManageStaffPayModal()">Manage Staff Pay</button>' +
+    "</div>" +
+    '<div id="staffPayScrollWrap" style="overflow-x:auto;">' +
+      "<table>" +
+        "<thead><tr><th>Staff</th><th>Employment Type</th><th>Base Rate</th></tr></thead>" +
+        '<tbody id="staffPayTbody"><tr><td colspan="3">Loading...</td></tr></tbody>' +
+      "</table>" +
+    "</div>"
+  );
+}
+
+async function loadStaffPay() {
+  const rows = await api("staff");
+  _lastStaffPay = rows.filter((r) => r.is_active);
+  if (!document.getElementById("staffPayTbody")) return;
+  renderStaffPayRows();
+}
+
+function renderStaffPayRows() {
+  const tbody = document.getElementById("staffPayTbody");
+  if (!tbody) return;
+  tbody.innerHTML = _lastStaffPay.length
+    ? _lastStaffPay.map((r) =>
+        "<tr><td>" + r.name + "</td><td>" + r.employment_type + "</td><td>" +
+        (r.employment_type === "Monthly" ? '<span class="font-number">' + formatRupiah(r.base_rate || 0) + "</span>" : '<span style="color:var(--color-text-muted); font-size:12px;">Per-role Daily Rate</span>') +
+        "</td></tr>"
+      ).join("")
+    : '<tr><td colspan="3" style="color:var(--color-text-muted); font-size:12px;">No active staff.</td></tr>';
+}
+
+function openManageStaffPayModal() {
+  openModal(
+    "<h2>Manage Staff Pay</h2>" +
+    '<table style="width:100%;"><thead><tr><th>Staff</th><th>Employment Type</th><th>Base Rate</th></tr></thead>' +
+      '<tbody id="manageStaffPayTbody">' + _lastStaffPay.map(staffPayEditRowHtml).join("") + "</tbody>" +
+    "</table><br>" +
+    '<button id="saveStaffPayBtn" class="btn-primary" onclick="saveAllStaffPay()">Save</button>' +
+    '<span id="saveStaffPayStatus" class="save-status"></span>'
+  );
+}
+
+function staffPayEditRowHtml(r) {
+  return (
+    "<tr>" +
+      "<td>" + r.name + "</td>" +
+      '<td><select class="staffPayTypeSelect" data-staff="' + r.staff_code + '" onchange="toggleStaffPayRateField(\'' + r.staff_code + '\')">' +
+        ["Monthly", "Daily"].map((t) => "<option" + (r.employment_type === t ? " selected" : "") + ">" + t + "</option>").join("") +
+      "</select></td>" +
+      '<td><input type="text" class="staffPayRateInput" data-staff="' + r.staff_code + '" inputmode="numeric" value="' + formatRupiah(r.base_rate || 0) + '" oninput="formatAmount(this)"' + (r.employment_type === "Daily" ? " disabled" : "") + "></td>" +
+    "</tr>"
+  );
+}
+
+function toggleStaffPayRateField(staffCode) {
+  const type = document.querySelector('.staffPayTypeSelect[data-staff="' + staffCode + '"]').value;
+  document.querySelector('.staffPayRateInput[data-staff="' + staffCode + '"]').disabled = type === "Daily";
+}
+
+function saveAllStaffPay() {
+  const rows = _lastStaffPay.map((r) => ({
+    staffCode: r.staff_code,
+    employmentType: document.querySelector('.staffPayTypeSelect[data-staff="' + r.staff_code + '"]').value,
+    baseRate: parseAmount(document.querySelector('.staffPayRateInput[data-staff="' + r.staff_code + '"]').value)
+  }));
+
+  const btn = document.getElementById("saveStaffPayBtn");
+  const statusEl = document.getElementById("saveStaffPayStatus");
+
+  withSaveStatus(btn, statusEl, "Staff Pay", async function () {
+    await Promise.all(rows.map((r) => api("staff/" + encodeURIComponent(r.staffCode), {
+      method: "PATCH",
+      body: { employmentType: r.employmentType, baseRate: r.employmentType === "Monthly" ? r.baseRate : 0 }
+    })));
+    await loadStaffPay();
+    closeModal();
+  });
 }
 
 function switchPayrollMonth(month) {
