@@ -58,6 +58,7 @@ function renderPayrollTab(wrap) {
 let _hrStaffList = null; // active staff, from lookups - {id, name, roles}
 let _lastClosures = [];
 let _lastShifts = [];
+let _lastCalendarEvents = []; // informational only - see functions/api/calendar-events.js
 let _activeShiftsSubTab = "calendar";
 
 const SHIFTS_SUBTABS = ["calendar", "log"];
@@ -86,7 +87,7 @@ async function renderAttendanceTab(wrap) {
   enableDragScroll(document.getElementById("closuresScrollWrap"));
 
   await ensureHrStaffList();
-  await Promise.all([loadOutletHours(), loadClosures(), loadShifts()]);
+  await Promise.all([loadOutletHours(), loadClosures(), loadShifts(), loadCalendarEvents()]);
   wireShiftsSubTabs();
   loadShiftsSubTab(_activeShiftsSubTab);
 }
@@ -195,6 +196,14 @@ function saveAllOutletHours() {
     await loadOutletHours();
     closeModal();
   });
+}
+
+async function loadCalendarEvents() {
+  _lastCalendarEvents = await api("calendar-events");
+}
+
+function calendarEventForDate(dateStr) {
+  return _lastCalendarEvents.find((e) => e.date === dateStr) || null;
 }
 
 // ---------- Outlet Closures (ad-hoc exceptions on top of Outlet Hours) ----------
@@ -522,14 +531,18 @@ function shiftsCalendarCellHtml(dateStr, dayNum, isToday) {
     .filter((s) => s.date === dateStr && s.status !== "Cancelled")
     .sort((a, b) => (a.staffName || "").localeCompare(b.staffName || ""));
   const border = isToday ? "border:2px solid var(--color-primary, #333);" : "border:1px solid var(--color-border, #ddd);";
-  // Red day number = wall-calendar "tanggal merah" - Sunday (always) or an
-  // actual Outlet Closures date (holiday/ad-hoc). Deliberately NOT the same
-  // as closedInfo.closed above, which also covers a regular Outlet Hours
-  // weekly off day (a business choice, not a "tanggal merah") - that one
-  // still gets the gray background, just not the red number.
+  const calendarEvent = calendarEventForDate(dateStr);
+  // Red day number = wall-calendar "tanggal merah" - Sunday (always), an
+  // actual Outlet Closures date (ad-hoc), or an imported calendar event
+  // (holiday). Deliberately NOT the same as closedInfo.closed below, which
+  // also covers a regular Outlet Hours weekly off day (a business choice,
+  // not a "tanggal merah") - that one still gets the gray background, just
+  // not the red number. A calendar event also does NOT affect closedInfo -
+  // a public holiday existing doesn't mean this business is actually
+  // closed that day (see functions/api/national-holidays.js's comment).
   const isSunday = new Date(dateStr + "T00:00:00Z").getUTCDay() === 0;
   const isMarkedClosure = _lastClosures.some((c) => c.date === dateStr);
-  const dayNumColor = (isSunday || isMarkedClosure) ? "#c0392b" : "inherit";
+  const dayNumColor = (isSunday || isMarkedClosure || calendarEvent) ? "#c0392b" : "inherit";
 
   // Separate signal from both of the above - purely "does Outlet Hours'
   // weekly pattern say this weekday is open or closed", as a small fixed-
@@ -557,13 +570,14 @@ function shiftsCalendarCellHtml(dateStr, dayNum, isToday) {
         '<span style="font-size:12px; font-weight:600; color:' + dayNumColor + ';">' + dayNum + "</span>" +
         hoursDot +
       "</div>" +
-      (closedInfo.closed
-        // The actual reason (e.g. an imported holiday's name) shows right
-        // on the cell now, not just after clicking into it - title carries
-        // the full text for anything the ellipsis truncates.
-        ? ('<div style="font-size:11px; color:var(--color-text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="' + (closedInfo.reason || "Closed") + '">' + (closedInfo.reason || "Closed") + "</div>")
-        : ('<div style="font-size:11px;">' + namesHtml + "</div>")
+      // Calendar event description (if any) and staff names are shown
+      // together, not one-or-the-other - a holiday no longer implies the
+      // outlet is closed, so staff can very well still be scheduled that day.
+      (calendarEvent
+        ? ('<div style="font-size:11px; color:var(--color-text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="' + calendarEvent.name + '">' + calendarEvent.name + "</div>")
+        : ""
       ) +
+      '<div style="font-size:11px;">' + namesHtml + "</div>" +
     "</div>"
   );
 }
@@ -577,12 +591,14 @@ function shiftCalendarMonthNav(delta) {
 
 function openDayShiftsModal(dateStr) {
   const closedInfo = isDateClosed(dateStr);
+  const calendarEvent = calendarEventForDate(dateStr);
   const dayShifts = _lastShifts
     .filter((s) => s.date === dateStr)
     .sort((a, b) => (a.staffName || "").localeCompare(b.staffName || ""));
 
   openModal(
     "<h2>" + dateStr + "</h2>" +
+    (calendarEvent ? ('<p style="color:var(--color-text-muted); font-size:13px;">' + calendarEvent.name + "</p>") : "") +
     (closedInfo.closed ? ('<p style="color:var(--color-text-muted); font-size:13px;">Outlet closed' + (closedInfo.reason ? " - " + closedInfo.reason : "") + "</p>") : "") +
     (dayShifts.length
       ? ('<table style="width:100%;"><thead><tr><th>Staff</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>' +

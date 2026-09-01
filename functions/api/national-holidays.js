@@ -1,14 +1,18 @@
 // Settings > Calendar - bulk-imports Indonesia's holiday calendar for one
-// year straight into outlet_closures (a holiday IS just an outlet closure,
-// bulk-sourced instead of entered one at a time - no new table). Source is
-// Google's public "Hari libur di Indonesia" calendar (iCal feed, no key
-// needed) - unlike the Nager.Date API tried first, this one also covers the
-// moveable religious holidays (Idul Fitri, Nyepi, Waisak, Isra Miraj,
-// Maulid Nabi, Imlek) and Cuti Bersama days, not just fixed-date ones.
-// Dates that already have a closure row (same date, from an earlier import
-// or a manual add) are skipped, not duplicated.
+// year into calendar_events - informational only (a description shown on
+// HR > Attendance's Calendar + the "tanggal merah" red date-number), NOT
+// an outlet_closures row - a public holiday existing doesn't mean THIS
+// business is actually closed that day (plenty of F&B stays open, some
+// busier, on a holiday). Outlet Closures stays reserved for genuine ad-hoc
+// closure decisions (see outlet-closures.js), entered by hand, which do
+// still block scheduling/show the gray "closed" background.
+// Source is Google's public "Hari libur di Indonesia" calendar (iCal feed,
+// no key needed) - covers the moveable religious holidays (Idul Fitri,
+// Nyepi, Waisak, Isra Miraj, Maulid Nabi, Imlek) and Cuti Bersama days too,
+// not just fixed-date ones (unlike the Nager.Date API tried first).
+// Dates that already have an event (same date, from an earlier import) are
+// skipped, not duplicated.
 import { getSupabase, getBrandId, jsonResponse, errorResponse } from "./_lib/supabase.js";
-import { nextCode } from "./_lib/codes.js";
 
 const ID_HOLIDAY_ICS_URL = "https://calendar.google.com/calendar/ical/id.indonesian%23holiday%40group.v.calendar.google.com/public/basic.ics";
 
@@ -35,8 +39,8 @@ function parseIcsHolidays(icsText, year) {
     const name = summaryMatch[1].trim();
 
     // Two events can legitimately land on the same date (e.g. a religious
-    // holiday + its own Cuti Bersama) - merge into one closure reason
-    // rather than letting the second insert fail against the first.
+    // holiday + its own Cuti Bersama) - merge into one event name rather
+    // than letting the second insert fail against the first.
     if (byDate[date]) byDate[date].name += " / " + name;
     else byDate[date] = { date: date, name: name };
   }
@@ -59,27 +63,22 @@ export async function onRequestPost({ request, env }) {
     const brandId = await getBrandId(supabase);
 
     const { data: existing, error: existErr } = await supabase
-      .from("outlet_closures")
-      .select("closure_date")
+      .from("calendar_events")
+      .select("event_date")
       .eq("brand_id", brandId);
     if (existErr) throw existErr;
-    const existingDates = new Set(existing.map((r) => r.closure_date));
+    const existingDates = new Set(existing.map((r) => r.event_date));
 
-    const toInsert = holidays.filter((h) => !existingDates.has(h.date));
-    let imported = 0;
-    for (const h of toInsert) {
-      const closureCode = await nextCode(supabase, "outlet_closures", "closure_code", brandId, "CLS", 4);
-      const { error } = await supabase.from("outlet_closures").insert({
-        brand_id: brandId,
-        closure_code: closureCode,
-        closure_date: h.date,
-        reason: h.name
-      });
+    const toInsert = holidays
+      .filter((h) => !existingDates.has(h.date))
+      .map((h) => ({ brand_id: brandId, event_date: h.date, name: h.name }));
+
+    if (toInsert.length) {
+      const { error } = await supabase.from("calendar_events").insert(toInsert);
       if (error) throw error;
-      imported++;
     }
 
-    return jsonResponse({ imported: imported, skipped: holidays.length - imported, total: holidays.length });
+    return jsonResponse({ imported: toInsert.length, skipped: holidays.length - toInsert.length, total: holidays.length });
   } catch (err) {
     return errorResponse(err);
   }
