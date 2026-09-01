@@ -67,7 +67,12 @@ async function renderPayrollTab(wrap) {
     '<hr style="margin:24px 0;">' +
     '<div style="display:flex; align-items:center; gap:8px; margin-bottom:16px;">' +
       "<label style=\"font-weight:normal;\">Month</label>" +
-      '<input type="month" id="payrollMonth" value="' + _activePayrollMonth + '" onchange="switchPayrollMonth(this.value)">' +
+      // Matches the page panel's own background instead of the brighter
+      // field-bg every other input uses - this one sits directly on the
+      // panel (not inside a modal, where field-bg reads fine against the
+      // modal's own close-in-tone background), so field-bg's usual
+      // brightness stood out too much here.
+      '<input type="month" id="payrollMonth" value="' + _activePayrollMonth + '" onchange="switchPayrollMonth(this.value)" style="background-color:var(--color-panel-bg);">' +
       '<button class="btn-compact" onclick="generatePayrollRun()">Calculate</button>' +
     "</div>" +
     '<div id="payrollRunContent"><p>Loading...</p></div>';
