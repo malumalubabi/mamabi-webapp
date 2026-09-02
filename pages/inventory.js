@@ -366,6 +366,7 @@ async function openPurchaseModal() {
   _invLookups = null;
   await ensureInvLookups();
   openModal(buildPurchaseFormHtml());
+  enableDragScroll(document.getElementById("purchaseItemsScrollWrap"));
   initPurchaseForm();
 }
 
@@ -397,11 +398,17 @@ function buildPurchaseFormHtml() {
     // without it, table-layout:fixed still stretches to fill the modal and
     // turns every <col> width below into a mere ratio instead of an actual
     // px value, silently ballooning every column (Notes/Remove included).
-    '<table style="table-layout:fixed; width:auto;">' +
-      '<colgroup><col style="width:330px;"><col style="width:175px;"><col style="width:160px;"><col style="width:140px;"><col style="width:74px;"></colgroup>' +
-      "<thead><tr><th>Item</th><th>Qty</th><th>Cost</th><th>Notes</th><th></th></tr></thead>" +
-      '<tbody id="purchaseItemRows"></tbody>' +
-    "</table>" +
+    // Fixed column widths (330+175+160+140+74 = 879px) are wider than a
+    // mobile viewport/modal - wrapped in its own overflow-x:auto so just
+    // the table scrolls (Date/Supplier/Status/etc. above and below stay put)
+    // instead of the Cost column silently clipping against the modal edge.
+    '<div id="purchaseItemsScrollWrap" style="overflow-x:auto;">' +
+      '<table style="table-layout:fixed; width:auto;">' +
+        '<colgroup><col style="width:330px;"><col style="width:175px;"><col style="width:160px;"><col style="width:140px;"><col style="width:74px;"></colgroup>' +
+        "<thead><tr><th>Item</th><th>Qty</th><th>Cost</th><th>Notes</th><th></th></tr></thead>" +
+        '<tbody id="purchaseItemRows"></tbody>' +
+      "</table>" +
+    "</div>" +
     '<button type="button" onclick="addPurchaseItemRow()">+ Add Item</button>' +
     '<div style="margin-top:8px; font-weight:bold;">Total Cost: <span id="purchaseGrandTotal" class="font-number">Rp 0</span></div><br><br>' +
 
@@ -475,7 +482,7 @@ function addPurchaseItemRow() {
         '<span class="unitLabel" style="font-size:12px; color:var(--color-text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></span>' +
       "</div>" +
     "</td>" +
-    '<td><input type="text" class="totalCost" inputmode="numeric" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this); recalcPurchaseGrandTotal()"></td>' +
+    '<td><input type="text" class="totalCost" inputmode="decimal" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this); recalcPurchaseGrandTotal()"></td>' +
     '<td><input type="text" class="lineNotes" style="width:100%; box-sizing:border-box;"></td>' +
     '<td class="compact-cell"><button type="button" class="btn-compact" onclick="removePurchaseItemRow(this)">Remove</button></td>';
   wrap.appendChild(row);
@@ -786,6 +793,7 @@ async function openEditPurchaseModal(purchaseCode) {
   await ensureInvLookups();
 
   openModal(buildEditPurchaseFormHtml(purchaseCode, first));
+  enableDragScroll(document.getElementById("editPurchaseItemsScrollWrap"));
   initEditPurchaseForm(lines, first);
 }
 
@@ -805,11 +813,13 @@ function buildEditPurchaseFormHtml(purchaseCode, first) {
       '<input type="text" id="editNewSupplierName" placeholder="New supplier name" style="display:none;">' +
     "</div><br><br>" +
 
-    '<table style="table-layout:fixed; width:auto;">' +
-      '<colgroup><col style="width:330px;"><col style="width:175px;"><col style="width:160px;"><col style="width:140px;"><col style="width:74px;"></colgroup>' +
-      "<thead><tr><th>Item</th><th>Qty</th><th>Cost</th><th>Notes</th><th></th></tr></thead>" +
-      '<tbody id="editPurchaseItemRows"></tbody>' +
-    "</table>" +
+    '<div id="editPurchaseItemsScrollWrap" style="overflow-x:auto;">' +
+      '<table style="table-layout:fixed; width:auto;">' +
+        '<colgroup><col style="width:330px;"><col style="width:175px;"><col style="width:160px;"><col style="width:140px;"><col style="width:74px;"></colgroup>' +
+        "<thead><tr><th>Item</th><th>Qty</th><th>Cost</th><th>Notes</th><th></th></tr></thead>" +
+        '<tbody id="editPurchaseItemRows"></tbody>' +
+      "</table>" +
+    "</div>" +
     '<button type="button" onclick="addEditPurchaseItemRow()">+ Add Item</button>' +
     '<div style="margin-top:8px; font-weight:bold;">Total Cost: <span id="editPurchaseGrandTotal" class="font-number">Rp 0</span></div><br><br>' +
 
@@ -883,7 +893,7 @@ function addEditPurchaseItemRow(existingRow) {
         '<span class="unitLabel" style="font-size:12px; color:var(--color-text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></span>' +
       "</div>" +
     "</td>" +
-    '<td><input type="text" class="totalCost" inputmode="numeric" value="' + (existingRow ? formatRupiah(existingRow.totalCost) : "") + '" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this); recalcEditPurchaseGrandTotal()"></td>' +
+    '<td><input type="text" class="totalCost" inputmode="decimal" value="' + (existingRow ? formatRupiah(existingRow.totalCost) : "") + '" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this); recalcEditPurchaseGrandTotal()"></td>' +
     '<td><input type="text" class="lineNotes" value="' + (existingRow && existingRow.lineNotes ? existingRow.lineNotes : "") + '" style="width:100%; box-sizing:border-box;"></td>' +
     '<td class="compact-cell"><button type="button" class="btn-compact" onclick="removeEditPurchaseItemRow(this)">Remove</button></td>';
   wrap.appendChild(row);
