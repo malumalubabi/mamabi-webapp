@@ -65,7 +65,7 @@ async function renderPayrollTab(wrap) {
   wrap.innerHTML =
     buildStaffPayShellHtml() +
     '<hr style="margin:24px 0;">' +
-    '<div style="display:flex; align-items:center; gap:8px; margin-bottom:16px;">' +
+    '<div style="display:flex; align-items:center; gap:8px; margin-bottom:16px; flex-wrap:wrap;">' +
       "<label style=\"font-weight:normal;\">Month</label>" +
       // Matches the page panel's own background instead of the brighter
       // field-bg every other input uses - this one sits directly on the
@@ -76,6 +76,7 @@ async function renderPayrollTab(wrap) {
       '<button class="btn-compact" onclick="generatePayrollRun()">Calculate</button>' +
     "</div>" +
     '<div id="payrollRunContent"><p>Loading...</p></div>';
+  enableDragScroll(document.getElementById("staffPayScrollWrap"));
   await Promise.all([loadStaffPay(), loadPayrollMonth(_activePayrollMonth)]);
 }
 
@@ -92,7 +93,11 @@ function buildStaffPayShellHtml() {
     "</div>" +
     '<div id="staffPayScrollWrap" style="overflow-x:auto;">' +
       "<table>" +
-        "<thead><tr><th>Staff</th><th>Employment Type</th><th>Base Rate</th></tr></thead>" +
+        // th white-space:nowrap - a long header (e.g. "Employment Type")
+        // was letting the browser shrink/wrap it to fit the container
+        // instead of growing the table past it and triggering this
+        // wrapper's own horizontal scroll, so it just clipped on mobile.
+        '<thead><tr><th>Staff</th><th style="white-space:nowrap;">Employment Type</th><th style="white-space:nowrap;">Base Rate</th></tr></thead>' +
         '<tbody id="staffPayTbody"><tr><td colspan="3">Loading...</td></tr></tbody>' +
       "</table>" +
     "</div>"
@@ -136,7 +141,7 @@ function staffPayEditRowHtml(r) {
       '<td><select class="staffPayTypeSelect" data-staff="' + r.staff_code + '" onchange="toggleStaffPayRateField(\'' + r.staff_code + '\')">' +
         ["Monthly", "Daily"].map((t) => "<option" + (r.employment_type === t ? " selected" : "") + ">" + t + "</option>").join("") +
       "</select></td>" +
-      '<td><input type="text" class="staffPayRateInput" data-staff="' + r.staff_code + '" inputmode="numeric" value="' + formatRupiah(r.base_rate || 0) + '" oninput="formatAmount(this)"' + (r.employment_type === "Daily" ? " disabled" : "") + "></td>" +
+      '<td><input type="text" class="staffPayRateInput" data-staff="' + r.staff_code + '" inputmode="decimal" value="' + formatRupiah(r.base_rate || 0) + '" oninput="formatAmount(this)"' + (r.employment_type === "Daily" ? " disabled" : "") + "></td>" +
     "</tr>"
   );
 }
@@ -208,12 +213,13 @@ function renderPayrollRunContent() {
       "<span>" + run.runCode + " - <strong>" + run.status + "</strong></span>" +
       (run.status === "Draft" ? '<button class="btn-primary" onclick="closePayrollRun()">Close Payroll</button>' : "") +
     "</div>" +
-    '<div style="overflow-x:auto;">' +
+    '<div id="payrollRunScrollWrap" style="overflow-x:auto;">' +
       "<table>" +
-        "<thead><tr><th>Staff</th><th>Type</th><th>Base Pay</th><th>Worked Days</th><th>Absent Days</th><th>Deduction</th><th>Bonus</th><th>Gross Pay</th></tr></thead>" +
+        '<thead><tr><th style="white-space:nowrap;">Staff</th><th style="white-space:nowrap;">Type</th><th style="white-space:nowrap;">Base Pay</th><th style="white-space:nowrap;">Worked Days</th><th style="white-space:nowrap;">Absent Days</th><th style="white-space:nowrap;">Deduction</th><th style="white-space:nowrap;">Bonus</th><th style="white-space:nowrap;">Gross Pay</th></tr></thead>' +
         "<tbody>" + (run.lines.length ? run.lines.map(payrollLineRowHtml).join("") : '<tr><td colspan="8">No active staff.</td></tr>') + "</tbody>" +
       "</table>" +
     "</div>";
+  enableDragScroll(document.getElementById("payrollRunScrollWrap"));
 }
 
 // Same icon-only pencil-trigger convention as pages/menu.js's
@@ -250,7 +256,7 @@ function startEditPayrollBonus(staffId) {
   const line = _lastPayrollRun.lines.find((l) => l.staffId === staffId);
   cell.innerHTML =
     '<div style="display:flex; align-items:center; gap:4px;">' +
-      '<input type="text" class="payrollBonusInput" value="' + formatRupiah(line.bonus) + '" inputmode="numeric" oninput="formatAmount(this)" style="width:100px;">' +
+      '<input type="text" class="payrollBonusInput" value="' + formatRupiah(line.bonus) + '" inputmode="decimal" oninput="formatAmount(this)" style="width:100px;">' +
       '<button class="btn-compact" onclick="savePayrollBonus(\'' + staffId + '\', this)">Save</button>' +
       '<button class="btn-compact" onclick="cancelEditPayrollBonus(\'' + staffId + '\')">Cancel</button>' +
       '<span class="save-status"></span>' +
