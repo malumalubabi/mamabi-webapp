@@ -224,6 +224,27 @@ function createCombobox(container, items, opts) {
 const COMBO_LARGE_LIST_THRESHOLD = 200;
 const COMBO_RENDER_LIMIT = 50;
 
+// Ghost-click guard - a pointerdown-based pick (below) can leave a
+// synthetic "click" event still queued by the browser at the same screen
+// position once the touch lifts (standard touch-to-mouse-event
+// compatibility behavior). If the tapped option/panel has already been
+// hidden by the pointerdown handler (as it always is here - picking closes
+// the panel immediately), that leftover click falls through to whatever
+// element is now underneath instead of just vanishing - e.g. tapping a
+// combobox option could also "click" a button that becomes visible once
+// the panel closes. This swallows exactly one click, anywhere on the page,
+// within a short window after such a pick; armed by the pointerdown
+// handler below, checked in a capture-phase listener so it intercepts
+// before the click reaches whatever element it landed on.
+let _ghostClickGuardUntil = 0;
+document.addEventListener("click", function (e) {
+  if (Date.now() < _ghostClickGuardUntil) {
+    e.preventDefault();
+    e.stopPropagation();
+    _ghostClickGuardUntil = 0;
+  }
+}, true);
+
 function renderComboOptions(optionsBox, items, query, onPick) {
   optionsBox.innerHTML = "";
   const q = (query || "").toLowerCase();
@@ -276,6 +297,7 @@ function renderComboOptions(optionsBox, items, query, onPick) {
     // on iOS Safari 13+.
     row.addEventListener("pointerdown", function (e) {
       e.preventDefault();
+      _ghostClickGuardUntil = Date.now() + 400;
       onPick(it);
     });
 
@@ -342,7 +364,16 @@ function createDropdownCombobox(container, currentItems, opts, commitValue) {
     renderComboOptions(optionsBox, currentItems, search.value, pick);
   });
 
-  document.addEventListener("pointerdown", function (e) {
+  // click (not pointerdown) - pointerdown fires the instant a finger
+  // touches the screen, before the browser can tell a tap from the start
+  // of a scroll/drag gesture, so starting to scroll anywhere outside this
+  // combobox was closing the panel immediately instead of only on an
+  // actual tap. click only fires once a touch completes without much
+  // movement, which a scroll never does - unlike the option-pick handler
+  // above, this one doesn't need pointerdown's touch-reliability guarantee
+  // (it only has to eventually close on a genuine outside tap, not respond
+  // within the touch itself), so it's safe to use the more deliberate event.
+  document.addEventListener("click", function (e) {
     if (!container.contains(e.target)) closePanel();
   });
 
@@ -876,9 +907,13 @@ function setActiveNavButton(page, tab) {
 
 // Click outside any navbar-item (or the dropdown itself, which lives under
 // <body> - not under .navbar-item - while open, see toggleNavDropdown) ->
-// close whatever dropdown is open. pointerdown (not mousedown) for the same
-// iOS Safari touch-reliability reason as the combobox picker.
-document.addEventListener("pointerdown", function (e) {
+// close whatever dropdown is open. click, not pointerdown - pointerdown
+// fires the instant a finger touches the screen, before the browser can
+// tell a tap from the start of a scroll/drag, so touching anywhere outside
+// the dropdown to begin scrolling the page closed it immediately instead
+// of only on an actual outside tap. The nav buttons that OPEN a dropdown
+// already use click (toggleNavDropdown, index.html), so this matches.
+document.addEventListener("click", function (e) {
   if (!e.target.closest(".navbar-item, .navbar-dropdown")) closeNavDropdowns();
 });
 
