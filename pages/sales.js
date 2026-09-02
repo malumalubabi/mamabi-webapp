@@ -404,8 +404,8 @@ async function openSalesEntryModal() {
 
     '<div id="saleFeeSection" style="display:none;">' +
       '<div style="display:flex; gap:20px;">' +
-        '<div><label>Platform Fee</label><br><input type="text" id="salePlatformFee" inputmode="numeric" oninput="formatAmount(this); updateSaleRevenueSummary()"></div>' +
-        '<div><label>Marketing Fee</label><br><input type="text" id="saleMarketingFee" inputmode="numeric" oninput="formatAmount(this); updateSaleRevenueSummary()"></div>' +
+        '<div><label>Platform Fee</label><br><input type="text" id="salePlatformFee" inputmode="decimal" oninput="formatAmount(this); updateSaleRevenueSummary()"></div>' +
+        '<div><label>Marketing Fee</label><br><input type="text" id="saleMarketingFee" inputmode="decimal" oninput="formatAmount(this); updateSaleRevenueSummary()"></div>' +
       "</div><br><br>" +
     "</div>" +
 
@@ -450,7 +450,7 @@ function addSaleItemRow() {
   row.innerHTML =
     '<td><div class="saleProductCombo"></div></td>' +
     '<td><input type="number" class="qty" min="1" style="width:100%; box-sizing:border-box;" oninput="updateSaleRowTotal(this.closest(\'.sale-item-row\'))"></td>' +
-    '<td><input type="text" class="sellingPrice" inputmode="numeric" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this); updateSaleRowTotal(this.closest(\'.sale-item-row\'))"></td>' +
+    '<td><input type="text" class="sellingPrice" inputmode="decimal" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this); updateSaleRowTotal(this.closest(\'.sale-item-row\'))"></td>' +
     '<td><input type="text" class="total" readonly style="width:100%; box-sizing:border-box; background:var(--color-disabled-bg);"></td>' +
     '<td class="compact-cell"><button type="button" class="btn-compact" onclick="removeSaleItemRow(this)">Remove</button></td>';
   wrap.appendChild(row);
@@ -591,8 +591,8 @@ function openSalesBatchModal(batchCode) {
 
     '<div id="batchEditFeeSection">' +
       '<div style="display:flex; gap:16px;">' +
-        '<div><label>Platform Fee</label><br><input type="text" id="batchEditPlatformFee" inputmode="numeric" value="' + (first.platformFee ? formatRupiah(first.platformFee) : "") + '" oninput="formatAmount(this); updateBatchEditRevenueSummary()"></div>' +
-        '<div><label>Marketing Fee</label><br><input type="text" id="batchEditMarketingFee" inputmode="numeric" value="' + (first.marketingFee ? formatRupiah(first.marketingFee) : "") + '" oninput="formatAmount(this); updateBatchEditRevenueSummary()"></div>' +
+        '<div><label>Platform Fee</label><br><input type="text" id="batchEditPlatformFee" inputmode="decimal" value="' + (first.platformFee ? formatRupiah(first.platformFee) : "") + '" oninput="formatAmount(this); updateBatchEditRevenueSummary()"></div>' +
+        '<div><label>Marketing Fee</label><br><input type="text" id="batchEditMarketingFee" inputmode="decimal" value="' + (first.marketingFee ? formatRupiah(first.marketingFee) : "") + '" oninput="formatAmount(this); updateBatchEditRevenueSummary()"></div>' +
       "</div><br>" +
     "</div>" +
 
@@ -635,7 +635,7 @@ function addBatchEditItemRow(existingRow) {
   row.innerHTML =
     '<td><div class="batchEditProductCombo"></div></td>' +
     '<td><input type="number" class="qty" min="1" value="' + (existingRow ? existingRow.qty : "") + '" style="width:100%; box-sizing:border-box;" oninput="updateBatchEditRowTotal(this.closest(\'.batch-edit-row\'))"></td>' +
-    '<td><input type="text" class="sellingPrice" inputmode="numeric" value="' + (existingRow ? formatRupiah(existingRow.sellingPrice) : "") + '" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this); updateBatchEditRowTotal(this.closest(\'.batch-edit-row\'))"></td>' +
+    '<td><input type="text" class="sellingPrice" inputmode="decimal" value="' + (existingRow ? formatRupiah(existingRow.sellingPrice) : "") + '" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this); updateBatchEditRowTotal(this.closest(\'.batch-edit-row\'))"></td>' +
     '<td><input type="text" class="total" readonly style="width:100%; box-sizing:border-box; background:var(--color-disabled-bg);"></td>' +
     '<td class="compact-cell"><button type="button" class="btn-compact" onclick="removeBatchEditItemRow(this)">Remove</button></td>';
   wrap.appendChild(row);

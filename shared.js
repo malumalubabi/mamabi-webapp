@@ -42,16 +42,45 @@ function formatPercent(value) {
   return (Number(value) * 100).toFixed(2) + "%";
 }
 
-// Attach to <input inputmode="numeric" oninput="formatAmount(this)">.
-// Strips everything but digits, redisplays as "Rp 12.345".
+// Attach to <input inputmode="decimal" oninput="formatAmount(this)">.
+// Redisplays as "Rp 12.345" (thousands ".") or "Rp 12.345,67" once a comma
+// (the only accepted decimal separator - matches id-ID's own convention,
+// same as formatRupiah's thousands "." below) has been typed. Periods are
+// always stripped as noise, never treated as a decimal point - the field
+// auto-inserts "." for thousands grouping on every reformat, so if "."
+// were also accepted as a decimal trigger, re-processing an already-
+// formatted plain integer (e.g. "Rp 1.507" + a newly typed digit) would
+// mistake that auto-inserted "." for a decimal point the user never typed,
+// silently truncating the number (caught during testing before shipping).
+// Fractional digits are capped at 2, matching currency precision (extra
+// digits typed past that are silently dropped). Visual summaries
+// (formatRupiah) still round to whole numbers on purpose - only entry
+// needs cents.
 function formatAmount(input) {
-  const digits = input.value.replace(/\D/g, "");
-  input.value = digits ? _generalSettings.currencySymbol + " " + Number(digits).toLocaleString("id-ID") : "";
+  const raw = input.value.replace(/[^\d,]/g, "");
+  const sepIndex = raw.indexOf(",");
+
+  if (sepIndex === -1) {
+    const digits = raw.replace(/\D/g, "");
+    input.value = digits ? _generalSettings.currencySymbol + " " + Number(digits).toLocaleString("id-ID") : "";
+    return;
+  }
+
+  const intDigits = raw.slice(0, sepIndex).replace(/\D/g, "");
+  const fracDigits = raw.slice(sepIndex + 1).replace(/\D/g, "").slice(0, 2);
+  input.value = _generalSettings.currencySymbol + " " + Number(intDigits || "0").toLocaleString("id-ID") + "," + fracDigits;
 }
 
-// Reverse of formatAmount - pull the raw number back out of a formatted field.
+// Reverse of formatAmount - pull the raw number (possibly fractional) back
+// out of a formatted field. Same comma-only decimal rule as formatAmount.
 function parseAmount(value) {
-  return Number(String(value || "").replace(/\D/g, "")) || 0;
+  const raw = String(value || "").replace(/[^\d,]/g, "");
+  const sepIndex = raw.indexOf(",");
+  if (sepIndex === -1) return Number(raw.replace(/\D/g, "")) || 0;
+
+  const intDigits = raw.slice(0, sepIndex).replace(/\D/g, "");
+  const fracDigits = raw.slice(sepIndex + 1).replace(/\D/g, "");
+  return Number((intDigits || "0") + "." + (fracDigits || "0")) || 0;
 }
 
 // Raw phone digits -> "0812-3456-7890" display. First 4 digits, then the

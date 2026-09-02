@@ -270,7 +270,7 @@ function openOpexEntryModal(opexCode) {
     "<label>Description</label><br>" +
     '<div id="opexDescCombo" style="min-width:220px;"></div><br><br>' +
     "<label>Gross Amount</label><br>" +
-    '<input type="text" id="opexGrossAmount" inputmode="numeric" value="' + (row ? formatRupiah(row.grossAmount) : "") + '" oninput="formatAmount(this)"><br><br>' +
+    '<input type="text" id="opexGrossAmount" inputmode="decimal" value="' + (row ? formatRupiah(row.grossAmount) : "") + '" oninput="formatAmount(this)"><br><br>' +
     '<div style="display:flex; align-items:center; gap:8px;">' +
       '<input type="checkbox" id="opexAmort"' + (row && row.amort === "Yes" ? " checked" : "") + ' onchange="toggleOpexAmort()">' +
       '<label for="opexAmort">Amortized over multiple months</label>' +

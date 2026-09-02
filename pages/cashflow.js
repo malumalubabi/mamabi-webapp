@@ -348,7 +348,7 @@ function addCashflowRow() {
   row.className = "cashflow-item-row";
   row.innerHTML =
     '<td><div class="cfDescCombo"></div></td>' +
-    '<td><input type="text" class="cfAmount" inputmode="numeric" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this)"></td>' +
+    '<td><input type="text" class="cfAmount" inputmode="decimal" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this)"></td>' +
     '<td><select class="cfCategory" style="width:100%; box-sizing:border-box;" onchange="onCashflowCategoryChange(this)"></select><input type="hidden" class="cfType"></td>' +
     '<td><input type="text" class="cfNotes" style="width:100%; box-sizing:border-box;"></td>' +
     '<td class="compact-cell"><button type="button" class="btn-compact" onclick="removeCashflowRow(this)">Remove</button></td>';

@@ -859,7 +859,7 @@ function openSellingPriceModal(sku) {
     "<h2>Edit Selling Price - " + sku + "</h2>" +
     "<p>" + (row ? row.name : "") + "</p>" +
     "<label>Selling Price</label><br>" +
-    '<input type="text" id="editSellingPrice" inputmode="numeric" value="' + (row ? formatRupiah(row.sellingPrice) : "") + '" oninput="formatAmount(this)"><br><br>' +
+    '<input type="text" id="editSellingPrice" inputmode="decimal" value="' + (row ? formatRupiah(row.sellingPrice) : "") + '" oninput="formatAmount(this)"><br><br>' +
     '<button id="saveSellingPriceBtn" class="btn-primary" onclick="saveSellingPrice(\'' + sku + '\')">Save</button>' +
     '<span id="saveSellingPriceStatus" class="save-status"></span>'
   );
@@ -928,7 +928,7 @@ function openPlatformPriceModal(sku) {
     "<h2>Edit Platform Selling Price - " + sku + "</h2>" +
     "<p>" + (row ? row.name : "") + "</p>" +
     "<label>Platform Selling Price</label><br>" +
-    '<input type="text" id="editPlatformPrice" inputmode="numeric" value="' + (row ? formatRupiah(row.platformSellingPrice) : "") + '" oninput="formatAmount(this)"><br><br>' +
+    '<input type="text" id="editPlatformPrice" inputmode="decimal" value="' + (row ? formatRupiah(row.platformSellingPrice) : "") + '" oninput="formatAmount(this)"><br><br>' +
     '<button id="savePlatformPriceBtn" class="btn-primary" onclick="savePlatformPrice(\'' + sku + '\')">Save</button>' +
     '<span id="savePlatformPriceStatus" class="save-status"></span>'
   );

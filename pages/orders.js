@@ -232,7 +232,7 @@ function buildOrderFormHtml() {
       "</div>" +
       '<div id="orderDeliveryFeeWrap">' +
         "<label>Delivery Fee</label><br>" +
-        '<input type="text" id="orderDeliveryFee" inputmode="numeric" oninput="formatAmount(this)" style="width:100%; box-sizing:border-box;">' +
+        '<input type="text" id="orderDeliveryFee" inputmode="decimal" oninput="formatAmount(this)" style="width:100%; box-sizing:border-box;">' +
       "</div>" +
       '<div id="orderDriverWrap">' +
         "<label>Driver</label><br>" +
@@ -411,7 +411,7 @@ function addOrderItemRow(prefill) {
   row.innerHTML =
     '<td><div class="sku-combo"></div></td>' +
     '<td><input type="number" class="qty" min="1" style="width:100%; box-sizing:border-box;" oninput="updateOrderRowTotal(this.closest(\'.order-item-row\'))" value="' + (prefill ? prefill.qty : "") + '"></td>' +
-    '<td><input type="text" class="unitPrice" inputmode="numeric" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this); updateOrderRowTotal(this.closest(\'.order-item-row\'))" value="' + (prefill ? formatRupiah(prefill.unitPrice) : "") + '"></td>' +
+    '<td><input type="text" class="unitPrice" inputmode="decimal" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this); updateOrderRowTotal(this.closest(\'.order-item-row\'))" value="' + (prefill ? formatRupiah(prefill.unitPrice) : "") + '"></td>' +
     '<td><input type="text" class="lineTotal" readonly style="width:100%; box-sizing:border-box; background:var(--color-disabled-bg);" value="' + (prefill ? formatRupiah(prefill.qty * prefill.unitPrice) : "") + '"></td>' +
     '<td class="compact-cell"><button type="button" class="btn-compact" onclick="removeOrderItemRow(this)">Remove</button></td>';
   wrap.appendChild(row);
@@ -639,7 +639,7 @@ function buildEditOrderFormHtml(o) {
       "</div>" +
       '<div id="orderDeliveryFeeWrap" style="width:160px;">' +
         "<label>Delivery Fee</label><br>" +
-        '<input type="text" id="orderDeliveryFee" inputmode="numeric" oninput="formatAmount(this)" style="width:100%; box-sizing:border-box;">' +
+        '<input type="text" id="orderDeliveryFee" inputmode="decimal" oninput="formatAmount(this)" style="width:100%; box-sizing:border-box;">' +
       "</div>" +
     "</div><br>" +
 
@@ -1307,7 +1307,7 @@ function openPayoutEditModal(orderCode) {
   openModal(
     "<h2>Edit Payout - " + orderCode + "</h2>" +
     "<label>Delivery Fee</label><br>" +
-    '<input type="text" id="editPayoutFee" inputmode="numeric" value="' + formatRupiah(order.deliveryFee) + '" oninput="formatAmount(this)"><br><br>' +
+    '<input type="text" id="editPayoutFee" inputmode="decimal" value="' + formatRupiah(order.deliveryFee) + '" oninput="formatAmount(this)"><br><br>' +
     "<label>Driver</label><br>" +
     '<select id="editPayoutDriver">' + driverSelectOptionsHtml(order) + "</select><br><br>" +
     '<button id="savePayoutEditBtn" class="btn-primary" onclick="savePayoutEditModal(\'' + orderCode + '\')">Save</button>' +
@@ -1408,7 +1408,7 @@ function payoutHistoryRowHtml(o) {
       "<td>" + o.customerName + "</td>" +
       "<td>" +
         '<span class="payoutFeeDisplay font-number">' + formatRupiah(o.deliveryFee) + "</span>" +
-        '<input type="text" class="payoutFeeInput" value="' + o.deliveryFee + '" inputmode="numeric" style="display:none;" oninput="formatAmount(this)">' +
+        '<input type="text" class="payoutFeeInput" value="' + o.deliveryFee + '" inputmode="decimal" style="display:none;" oninput="formatAmount(this)">' +
       "</td>" +
       "<td>" +
         '<span class="payoutDriverDisplay">' + (o.driverName || "") + "</span>" +
