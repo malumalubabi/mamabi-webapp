@@ -46,11 +46,11 @@ export async function onRequestPatch({ request, env, params }) {
     const supabase = getSupabase(env);
     const brandId = await getBrandId(supabase);
 
-    // Need the pre-update batch_size before applying the update, to compute
-    // the rescale ratio below.
+    // Need the pre-update batch_size/yield_qty before applying the update,
+    // to compute the rescale ratio below.
     const { data: current, error: curErr } = await supabase
       .from("production_batches")
-      .select("id, batch_size, batch_date, output_sku_id")
+      .select("id, batch_size, yield_qty, batch_date, output_sku_id")
       .eq("brand_id", brandId)
       .eq("batch_code", code)
       .maybeSingle();
@@ -61,7 +61,7 @@ export async function onRequestPatch({ request, env, params }) {
     if (body.outputSkuId !== undefined) {
       const { data: skuRow, error: skuErr } = await supabase
         .from("sku_items")
-        .select("id, sku, name, category, item_type")
+        .select("id, sku, name, category, item_type, base_yield_qty")
         .eq("brand_id", brandId)
         .eq("id", body.outputSkuId)
         .maybeSingle();
@@ -80,6 +80,24 @@ export async function onRequestPatch({ request, env, params }) {
       }
       newSku = skuRow;
       update.category = newSku.category; // denormalized on production_batches, keep it in sync with the new output SKU
+    }
+
+    // yield_qty ("Scaled Yield (g)" in Ongoing Batches) is base_yield_qty x
+    // batch_size at creation time (see pages/menu.js's refreshBatchFromRecipe)
+    // - stays derived, not independently editable, so it has to be kept in
+    // step here too: rescaled by the same ratio as batch_size changing (the
+    // exact bug this fixes - it was staying at its original value after an
+    // Edit Batch Size), or recomputed from the NEW SKU's own base_yield_qty
+    // when Change Component points the batch at a different recipe entirely.
+    if (newSku) {
+      const effectiveBatchSize = body.batchSize !== undefined ? Number(body.batchSize) : Number(current.batch_size) || 1;
+      update.yield_qty = newSku.base_yield_qty != null ? Math.round(Number(newSku.base_yield_qty) * effectiveBatchSize * 100) / 100 : null;
+    } else if (body.batchSize !== undefined && current.yield_qty != null) {
+      const oldSize = Number(current.batch_size);
+      const newSize = Number(body.batchSize);
+      if (oldSize > 0 && newSize > 0 && oldSize !== newSize) {
+        update.yield_qty = Math.round(Number(current.yield_qty) * (newSize / oldSize) * 100) / 100;
+      }
     }
 
     const { data, error } = await supabase
