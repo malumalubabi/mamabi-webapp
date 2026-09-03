@@ -22,6 +22,8 @@ const SALES_TAB_LABELS = { summary: "Summary", log: "Log", draft: "Draft" };
 
 let _salesLookups = null;
 let _lastSalesRows = [];
+let _lastDraftRows = [];
+let _draftReviewDraft = null; // the draft currently open in the Review modal - set on open, read by the fee/gross live-compare handlers
 let _salesLogChannelFilter = []; // empty = show every Channel (default)
 let _salesLogDateFrom = "";
 let _salesLogDateTo = "";
@@ -86,14 +88,260 @@ function renderActiveSalesTab() {
   return renderSalesSummaryTab(wrap);
 }
 
-// ---------- Draft (placeholder) ----------
-// Will hold daily GoFood/GrabFood Merchant sales-report emails imported from
-// Gmail, pending human confirmation before they post as real Sales/OpEx
-// entries - not built yet, see chat history for the design discussion.
-function renderSalesDraftTab(wrap) {
+// ---------- Draft ----------
+// Daily GoFood/GrabFood Merchant sales-report emails, imported into
+// sales_import_drafts by a Gmail pipeline (not built yet - for now a draft
+// only exists if POSTed manually, e.g. for testing). Review reuses the
+// Input Sales modal layout almost exactly (see openSalesEntryModal above) -
+// Date/Channel are locked (they ARE the draft's identity - the day/platform
+// this report covers, editing them would desync from the source), fees
+// come pre-filled from the report with a small reference figure kept
+// beside them so an edit still shows what the report said, and Gross
+// Revenue gets a live compare against the report's own total as products
+// are added - informational only, never blocks Save (a report's total can
+// legitimately not match down to the rupiah - void/promo edge cases the
+// report itself doesn't fully itemize).
+const SALES_DRAFT_LOCK_ICON = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>';
+const SALES_DRAFT_LINK_ICON = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><path d="M15 3h6v6"></path><path d="M10 14 21 3"></path></svg>';
+
+async function renderSalesDraftTab(wrap) {
+  wrap.innerHTML = "<h3>Sales Draft</h3><p>Loading...</p>";
+  _lastDraftRows = await api("sales-import-drafts");
+  if (_activeSalesTab !== "draft" || !document.getElementById("salesTabContent")) return; // switched away before this resolved
+
+  if (!_lastDraftRows.length) {
+    wrap.innerHTML =
+      "<h3>Sales Draft</h3>" +
+      "<p>No pending imports. This fills up once daily GoFood/GrabFood reports are imported from Gmail, waiting for you to review and confirm each one.</p>";
+    return;
+  }
+
   wrap.innerHTML =
     "<h3>Sales Draft</h3>" +
-    "<p>Coming soon - this will hold daily sales reports imported from Gmail (GoFood/GrabFood Merchant), pending review before they post to Sales/OpEx.</p>";
+    '<div id="salesDraftScrollWrap" style="overflow-x:auto;">' +
+      "<table>" +
+        "<thead><tr><th>Date</th><th>Platform</th><th>Report Gross</th><th>Platform Fee</th><th>Marketing Fee</th><th></th></tr></thead>" +
+        '<tbody id="salesDraftTbody">' + _lastDraftRows.map(salesDraftRowHtml).join("") + "</tbody>" +
+      "</table>" +
+    "</div>";
+  enableDragScroll(document.getElementById("salesDraftScrollWrap"));
+}
+
+function salesDraftRowHtml(d) {
+  return (
+    "<tr>" +
+      "<td>" + d.date + "</td>" +
+      "<td>" + d.platform + "</td>" +
+      '<td><span class="font-number">' + formatRupiah(d.reportGross) + "</span></td>" +
+      '<td><span class="font-number">' + formatRupiah(d.platformFee) + "</span></td>" +
+      '<td><span class="font-number">' + formatRupiah(d.marketingFee) + "</span></td>" +
+      '<td class="compact-cell">' +
+        '<button class="btn-compact" onclick="openSalesDraftReviewModal(\'' + d.id + '\')">Review</button> ' +
+        '<button class="btn-compact" style="color:#b00020;" onclick="confirmRejectSalesDraft(\'' + d.id + '\')">Reject</button>' +
+      "</td>" +
+    "</tr>"
+  );
+}
+
+function confirmRejectSalesDraft(draftId) {
+  const d = _lastDraftRows.find((r) => r.id === draftId);
+  if (!d) return;
+  openConfirmModal({
+    title: "Reject this draft?",
+    body: "This " + d.platform + " report for " + d.date + " won't become a Sales entry. Use this for a duplicate import or a day you already logged manually - it stays visible in history, just not here.",
+    confirmLabel: "Reject",
+    danger: true,
+    onConfirm: async function () {
+      await api("sales-import-drafts/" + encodeURIComponent(draftId), { method: "PATCH", body: { action: "reject" } });
+      closeModal();
+      await renderSalesDraftTab(document.getElementById("salesTabContent"));
+    }
+  });
+}
+
+// Self-contained clone of openSalesEntryModal (same reasoning as
+// openSalesBatchModal/addBatchEditItemRow being their own clone rather than
+// a parameterized shared version) - Date/Channel are locked here, fees and
+// Gross carry a live reference to the report, and Save has to also PATCH
+// the draft to Confirmed once the batch exists. Different enough behavior
+// that threading it through the same functions as Input Sales would mean a
+// pile of "if this is a draft review" branches instead of one clear read.
+function openSalesDraftReviewModal(draftId) {
+  const d = _lastDraftRows.find((r) => r.id === draftId);
+  if (!d) return;
+  _draftReviewDraft = d;
+
+  openModal(
+    "<h2>Input Sales</h2>" +
+    '<div style="display:flex; align-items:flex-start; gap:9px; background:var(--color-accent-tint); border:1px solid var(--color-accent); border-radius:8px; padding:10px 12px; margin-bottom:18px;">' +
+      '<span style="width:7px; height:7px; border-radius:50%; background:var(--color-accent); margin-top:5px; flex-shrink:0;"></span>' +
+      '<span style="font-size:12.5px; line-height:1.5;">' +
+        "Auto-recapped from <strong>" + d.platform + "</strong> daily report &mdash; <strong>" + d.date + "</strong>." +
+        (d.sourceLink
+          ? '<br><a href="' + d.sourceLink + '" target="_blank" rel="noopener" style="display:inline-flex; align-items:center; gap:4px; margin-top:4px; font-size:11.5px; font-weight:600; color:var(--color-accent); text-decoration:none;">Open reference email' + SALES_DRAFT_LINK_ICON + "</a>"
+          : "") +
+      "</span>" +
+    "</div>" +
+
+    '<div style="margin-bottom:14px;">' +
+      "<label>Date</label>" +
+      '<div style="display:flex; align-items:center; gap:7px; padding:6px 0; font-size:14px;">' + SALES_DRAFT_LOCK_ICON + d.date + "</div>" +
+    "</div>" +
+
+    '<div style="margin-bottom:14px;">' +
+      "<label>Channel</label>" +
+      '<div style="display:flex; align-items:center; gap:7px; padding:6px 0; font-size:14px;">' + SALES_DRAFT_LOCK_ICON + d.platform + "</div>" +
+    "</div>" +
+
+    '<table style="table-layout:fixed; width:auto; margin-bottom:8px;">' +
+      '<colgroup><col style="width:200px;"><col style="width:90px;"><col style="width:130px;"><col style="width:130px;"><col style="width:74px;"></colgroup>' +
+      "<thead><tr><th>Item</th><th>Qty</th><th>Selling Price</th><th>Total</th><th></th></tr></thead>" +
+      '<tbody id="draftReviewItemRows"></tbody>' +
+      '<tfoot><tr><td colspan="5"><button type="button" onclick="addDraftReviewItemRow()">+ Add Item</button></td></tr></tfoot>' +
+    "</table><br>" +
+
+    '<div style="display:flex; gap:20px;">' +
+      '<div><label>Platform Fee</label><br><input type="text" id="draftReviewPlatformFee" inputmode="decimal" value="' + (d.platformFee ? formatRupiah(d.platformFee) : "") + '" oninput="formatAmount(this); updateDraftReviewRevenueSummary();">' +
+        '<div class="font-number" style="font-size:11px; color:var(--color-text-muted); margin-top:4px;">Report: ' + formatRupiah(d.platformFee) + "</div></div>" +
+      '<div><label>Marketing Fee</label><br><input type="text" id="draftReviewMarketingFee" inputmode="decimal" value="' + (d.marketingFee ? formatRupiah(d.marketingFee) : "") + '" oninput="formatAmount(this); updateDraftReviewRevenueSummary();">' +
+        '<div class="font-number" style="font-size:11px; color:var(--color-text-muted); margin-top:4px;">Report: ' + formatRupiah(d.marketingFee) + "</div></div>" +
+    "</div><br><br>" +
+
+    '<div style="display:flex; gap:16px; padding:8px 12px; border:1px solid var(--color-border-on-card); max-width:fit-content;">' +
+      "<div>" +
+        "<label>Gross Revenue</label><br>" +
+        '<strong id="draftReviewGrossRevenue" class="font-number" style="font-size:12px;">Rp 0</strong>' +
+        '<div class="font-number" style="font-size:11px; color:var(--color-text-muted); margin-top:4px;">Report: ' + formatRupiah(d.reportGross) + "</div>" +
+        '<div id="draftReviewMatchNote" style="font-size:11px; font-weight:bold; margin-top:2px;"></div>' +
+      "</div>" +
+      '<div><label>Net Revenue</label><br><strong id="draftReviewNetRevenue" class="font-number" style="font-size:12px;">Rp 0</strong></div>' +
+    "</div>" +
+    '<p style="font-size:12px; color:var(--color-text-muted); max-width:480px;">Net Revenue = Gross Revenue - (Platform Fee + Marketing Fee). The Report figure under Gross Revenue is what ' + d.platform + ' reported for this day - a reference to check against, not enforced; save even if it doesn&rsquo;t match exactly.</p><br>' +
+
+    "<label>Notes</label><br>" +
+    '<input type="text" id="draftReviewNotes"><br><br>' +
+
+    '<button id="saveDraftReviewBtn" class="btn-primary" onclick="saveDraftReview(\'' + draftId + '\')">Save</button>' +
+    '<span id="saveDraftReviewStatus" class="save-status"></span>'
+  );
+
+  document.getElementById("draftReviewItemRows").innerHTML = "";
+  addDraftReviewItemRow();
+}
+
+function addDraftReviewItemRow() {
+  const wrap = document.getElementById("draftReviewItemRows");
+  const row = document.createElement("tr");
+  row.className = "draft-review-item-row";
+  row.innerHTML =
+    '<td><div class="draftReviewProductCombo"></div></td>' +
+    '<td><input type="number" class="qty" min="1" style="width:100%; box-sizing:border-box;" oninput="updateDraftReviewRowTotal(this.closest(\'.draft-review-item-row\'))"></td>' +
+    '<td><input type="text" class="sellingPrice" inputmode="decimal" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this); updateDraftReviewRowTotal(this.closest(\'.draft-review-item-row\'))"></td>' +
+    '<td><input type="text" class="total" readonly style="width:100%; box-sizing:border-box; background:var(--color-disabled-bg);"></td>' +
+    '<td class="compact-cell"><button type="button" class="btn-compact" onclick="removeDraftReviewItemRow(this)">Remove</button></td>';
+  wrap.appendChild(row);
+
+  const options = salesProductOptions();
+  row._combo = createCombobox(
+    row.querySelector(".draftReviewProductCombo"),
+    options.map((s) => ({ value: s.id, label: s.name, sub: s.sku })),
+    {
+      placeholder: "Select item...",
+      onSelect: function (skuId) { onDraftReviewRowProductChange(row, skuId); }
+    }
+  );
+}
+
+function removeDraftReviewItemRow(btn) {
+  const rows = document.querySelectorAll("#draftReviewItemRows .draft-review-item-row");
+  if (rows.length <= 1) return;
+  btn.closest(".draft-review-item-row").remove();
+  updateDraftReviewRevenueSummary();
+}
+
+// Same auto-fill-on-select as onSaleRowProductChange, fixed to the draft's
+// (locked) platform instead of reading a live Channel selector.
+function onDraftReviewRowProductChange(row, skuId) {
+  const product = _salesLookups.skus.find((s) => s.id === skuId);
+  const usesPlatformPrice = _salesLookups.platformsUsingPlatformPrice.indexOf(_draftReviewDraft.platform) !== -1;
+  const price = product ? (usesPlatformPrice ? Number(product.platform_selling_price) || 0 : Number(product.selling_price) || 0) : 0;
+
+  row.querySelector(".sellingPrice").value = price ? formatRupiah(price) : "";
+  updateDraftReviewRowTotal(row);
+}
+
+function updateDraftReviewRowTotal(row) {
+  const qty = Number(row.querySelector(".qty").value) || 0;
+  const price = parseAmount(row.querySelector(".sellingPrice").value);
+  const total = qty * price;
+  row.querySelector(".total").value = total ? formatRupiah(total) : "";
+  updateDraftReviewRevenueSummary();
+}
+
+function updateDraftReviewRevenueSummary() {
+  let gross = 0;
+  document.querySelectorAll("#draftReviewItemRows .draft-review-item-row").forEach((row) => {
+    const qty = Number(row.querySelector(".qty").value) || 0;
+    const price = parseAmount(row.querySelector(".sellingPrice").value);
+    gross += qty * price;
+  });
+
+  const platformFee = parseAmount(document.getElementById("draftReviewPlatformFee").value);
+  const marketingFee = parseAmount(document.getElementById("draftReviewMarketingFee").value);
+  const net = gross - platformFee - marketingFee;
+
+  document.getElementById("draftReviewGrossRevenue").textContent = formatRupiah(gross);
+  document.getElementById("draftReviewNetRevenue").textContent = formatRupiah(net);
+
+  // Pastel status-color convention (Settings > Calendar's open/closed dot,
+  // Inventory's Safe/Low/Out) - color-mix'd text, not a filled chip.
+  const note = document.getElementById("draftReviewMatchNote");
+  const diff = Math.round(_draftReviewDraft.reportGross) - Math.round(gross);
+  if (diff === 0) {
+    note.style.color = "color-mix(in srgb, var(--color-success) 55%, white 45%)";
+    note.textContent = "✓ Matches report";
+  } else {
+    note.style.color = "color-mix(in srgb, var(--color-warning) 55%, white 45%)";
+    note.textContent = "⚠ " + formatRupiah(Math.abs(diff)) + (diff > 0 ? " short" : " over");
+  }
+}
+
+function collectDraftReviewItems() {
+  const items = [];
+  document.querySelectorAll("#draftReviewItemRows .draft-review-item-row").forEach((row) => {
+    const skuId = row._combo ? row._combo.getValue() : "";
+    const qty = Number(row.querySelector(".qty").value) || 0;
+    const sellingPrice = parseAmount(row.querySelector(".sellingPrice").value);
+    if (skuId && qty > 0 && sellingPrice > 0) items.push({ skuId: skuId, qty: qty, sellingPrice: sellingPrice });
+  });
+  return items;
+}
+
+// Orchestrates the same two calls saveSalesBatch would need separately:
+// create the batch via the normal Input Sales endpoint, then PATCH the
+// draft to Confirmed with the resulting batch code - so a later look at a
+// Sales Log entry can trace back to "this came from draft X" if needed.
+function saveDraftReview(draftId) {
+  const d = _draftReviewDraft;
+  const items = collectDraftReviewItems();
+  const platformFee = parseAmount(document.getElementById("draftReviewPlatformFee").value);
+  const marketingFee = parseAmount(document.getElementById("draftReviewMarketingFee").value);
+  const notes = document.getElementById("draftReviewNotes").value || null;
+
+  if (!items.length) { alert("Please add at least one product (with qty and selling price)."); return; }
+
+  const btn = document.getElementById("saveDraftReviewBtn");
+  const statusEl = document.getElementById("saveDraftReviewStatus");
+
+  withSaveStatus(btn, statusEl, "Sales", async function () {
+    const result = await api("sales", {
+      method: "POST",
+      body: { date: d.date, platform: d.platform, items: items, platformFee: platformFee, marketingFee: marketingFee, notes: notes }
+    });
+    await api("sales-import-drafts/" + encodeURIComponent(draftId), { method: "PATCH", body: { action: "confirm", batchCode: result.batchCode } });
+    closeModal();
+    await loadSalesData();
+  });
 }
 
 // ---------- Summary ----------
