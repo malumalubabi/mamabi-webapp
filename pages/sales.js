@@ -103,28 +103,117 @@ function renderActiveSalesTab() {
 // report itself doesn't fully itemize).
 const SALES_DRAFT_LOCK_ICON = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>';
 const SALES_DRAFT_LINK_ICON = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><path d="M15 3h6v6"></path><path d="M10 14 21 3"></path></svg>';
+const SALES_DRAFT_FILE_ICON = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>';
 
 async function renderSalesDraftTab(wrap) {
   wrap.innerHTML = "<h3>Sales Draft</h3><p>Loading...</p>";
   _lastDraftRows = await api("sales-import-drafts");
   if (_activeSalesTab !== "draft" || !document.getElementById("salesTabContent")) return; // switched away before this resolved
 
-  if (!_lastDraftRows.length) {
-    wrap.innerHTML =
-      "<h3>Sales Draft</h3>" +
-      "<p>No pending imports. This fills up once daily reports are imported from Gmail.</p>";
+  wrap.innerHTML =
+    "<h3>Sales Draft</h3>" +
+    (_lastDraftRows.length
+      ? '<div id="salesDraftScrollWrap" style="overflow-x:auto;">' +
+          "<table>" +
+            "<thead><tr><th>Date</th><th>Platform</th><th>Report Gross</th><th>Platform Fee</th><th>Marketing Fee</th><th></th></tr></thead>" +
+            '<tbody id="salesDraftTbody">' + _lastDraftRows.map(salesDraftRowHtml).join("") + "</tbody>" +
+          "</table>" +
+        "</div>"
+      : "<p>No pending imports. This fills up once daily reports are imported from Gmail.</p>") +
+    buildCreateGrabFoodDraftHtml();
+
+  if (_lastDraftRows.length) enableDragScroll(document.getElementById("salesDraftScrollWrap"));
+}
+
+// ---------- Create GrabFood Draft (2-file upload) ----------
+// GrabFood emails nothing (confirmed - see chat history), so this is the
+// only way a GrabFood draft ever gets created - both files from
+// GrabMerchant > Finance > Reports, matched by date server-side before
+// anything is written (see functions/api/sales-import/create-grabfood-draft.js).
+// Single-day files only for now.
+let _createGrabFoodReportsFile = null;
+let _createGrabFoodMenuSalesFile = null;
+
+function buildCreateGrabFoodDraftHtml() {
+  return (
+    '<div style="margin-top:28px; padding:16px 18px; border:1px solid var(--color-border-on-card); border-radius:8px; max-width:560px;">' +
+      "<h3 style=\"margin:0 0 4px;\">Create GrabFood Draft</h3>" +
+      '<p style="font-size:12px; color:var(--color-text-muted); margin:0 0 14px;">GrabFood only - both files from GrabMerchant &gt; Finance &gt; Reports, same day.</p>' +
+      '<div style="display:flex; gap:14px; flex-wrap:wrap;">' +
+        '<div style="flex:1; min-width:200px;">' +
+          "<label>Reports (.xlsx)</label><br>" +
+          '<input type="file" accept=".xlsx" id="createGrabFoodReportsInput" onchange="onCreateGrabFoodFileChange(this, \'reports\')">' +
+        "</div>" +
+        '<div style="flex:1; min-width:200px;">' +
+          "<label>Menu Sales (.csv)</label><br>" +
+          '<input type="file" accept=".csv" id="createGrabFoodMenuSalesInput" onchange="onCreateGrabFoodFileChange(this, \'menuSales\')">' +
+        "</div>" +
+      "</div>" +
+      '<div id="createGrabFoodDraftError" class="save-status error" style="display:block; margin-top:10px;"></div>' +
+      '<div style="text-align:right; margin-top:12px;">' +
+        '<button id="createGrabFoodDraftBtn" class="btn-primary" onclick="createGrabFoodDraft()">Create Draft</button> ' +
+        '<span id="createGrabFoodDraftStatus" class="save-status"></span>' +
+      "</div>" +
+    "</div>"
+  );
+}
+
+function onCreateGrabFoodFileChange(input, which) {
+  const file = input.files[0] || null;
+  if (which === "reports") _createGrabFoodReportsFile = file;
+  else _createGrabFoodMenuSalesFile = file;
+}
+
+function fileToBase64(file) {
+  return new Promise(function (resolve, reject) {
+    const reader = new FileReader();
+    reader.onload = function () { resolve(String(reader.result).split(",")[1] || ""); };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// Not withSaveStatus - its catch path shows a browser alert(), but the
+// mismatch/validation errors here (bad file type, dates that don't match)
+// are expected, common enough on a first try that they need to read
+// clearly in place rather than as a modal popup.
+async function createGrabFoodDraft() {
+  const errorEl = document.getElementById("createGrabFoodDraftError");
+  errorEl.textContent = "";
+  errorEl.classList.remove("error");
+
+  if (!_createGrabFoodReportsFile || !_createGrabFoodMenuSalesFile) {
+    errorEl.classList.add("error");
+    errorEl.textContent = "Choose both files first.";
     return;
   }
 
-  wrap.innerHTML =
-    "<h3>Sales Draft</h3>" +
-    '<div id="salesDraftScrollWrap" style="overflow-x:auto;">' +
-      "<table>" +
-        "<thead><tr><th>Date</th><th>Platform</th><th>Report Gross</th><th>Platform Fee</th><th>Marketing Fee</th><th></th></tr></thead>" +
-        '<tbody id="salesDraftTbody">' + _lastDraftRows.map(salesDraftRowHtml).join("") + "</tbody>" +
-      "</table>" +
-    "</div>";
-  enableDragScroll(document.getElementById("salesDraftScrollWrap"));
+  const btn = document.getElementById("createGrabFoodDraftBtn");
+  const statusEl = document.getElementById("createGrabFoodDraftStatus");
+  btn.disabled = true;
+  statusEl.classList.remove("success", "error");
+  statusEl.textContent = "Saving Draft...";
+
+  try {
+    const [reportsB64, menuSalesB64] = await Promise.all([fileToBase64(_createGrabFoodReportsFile), fileToBase64(_createGrabFoodMenuSalesFile)]);
+    await api("sales-import/create-grabfood-draft", {
+      method: "POST",
+      body: {
+        reportsFileName: _createGrabFoodReportsFile.name,
+        reportsFileContentBase64: reportsB64,
+        menuSalesFileName: _createGrabFoodMenuSalesFile.name,
+        menuSalesFileContentBase64: menuSalesB64
+      }
+    });
+    _createGrabFoodReportsFile = null;
+    _createGrabFoodMenuSalesFile = null;
+    await renderSalesDraftTab(document.getElementById("salesTabContent"));
+  } catch (err) {
+    btn.disabled = false;
+    statusEl.textContent = "";
+    errorEl.classList.add("error");
+    errorEl.textContent = err.message || String(err);
+  }
 }
 
 function salesDraftRowHtml(d) {
@@ -183,6 +272,8 @@ function openSalesDraftReviewModal(draftId) {
       "</span>" +
     "</div>" +
 
+    draftReviewAttachmentsHtml(d) +
+
     '<div style="margin-bottom:14px;">' +
       "<label>Date</label>" +
       '<div style="display:flex; align-items:center; gap:7px; padding:6px 0; font-size:14px;">' + SALES_DRAFT_LOCK_ICON + d.date + "</div>" +
@@ -226,18 +317,98 @@ function openSalesDraftReviewModal(draftId) {
   );
 
   document.getElementById("draftReviewItemRows").innerHTML = "";
-  addDraftReviewItemRow();
+  if (d.items && d.items.length) d.items.forEach((it) => addDraftReviewItemRow(it));
+  else addDraftReviewItemRow();
+  updateDraftReviewRevenueSummary();
 }
 
-function addDraftReviewItemRow() {
+// ---------- Attachments (inside the Review modal) ----------
+// GoFood: an optional Items .csv, attachable/replaceable/removable any
+// time after the draft exists (its fees already came from the email
+// independently - this is purely additive). GrabFood: both files were
+// REQUIRED to create the draft in the first place (see
+// buildCreateGrabFoodDraftHtml/createGrabFoodDraft above), already matched
+// by date before the draft existed - shown read-only, no upload control,
+// there's no "fix it here" state to offer (see chat history for why).
+function draftReviewAttachmentsHtml(d) {
+  if (d.platform !== "GoFood") {
+    const files = d.sourceFiles || [];
+    return (
+      '<div style="border:1px solid var(--color-border-on-card); border-radius:8px; padding:12px 14px; margin-bottom:16px;">' +
+        '<h3 style="margin:0 0 8px; font-size:13px;">Attachments</h3>' +
+        files.map((f) =>
+          '<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:4px 0; font-size:12.5px;">' +
+            '<span style="display:flex; align-items:center; gap:7px;">' + SALES_DRAFT_FILE_ICON + f + "</span>" +
+            '<span style="font-size:11px; color:var(--color-text-muted);">attached</span>' +
+          "</div>"
+        ).join("") +
+        '<div style="font-size:11px; color:var(--color-text-muted); margin-top:6px;">Both required to create a GrabFood draft - already matched by date at creation.</div>' +
+      "</div>"
+    );
+  }
+
+  const hasFile = d.sourceFiles && d.sourceFiles.length;
+  return (
+    '<div style="border:1px solid var(--color-border-on-card); border-radius:8px; padding:12px 14px; margin-bottom:16px;">' +
+      '<h3 style="margin:0 0 8px; font-size:13px;">Attachments</h3>' +
+      (hasFile
+        ? '<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:12.5px;">' +
+            '<span style="display:flex; align-items:center; gap:7px;">' + SALES_DRAFT_FILE_ICON + d.sourceFiles[0] + "</span>" +
+            '<button type="button" class="btn-compact" style="color:#b00020;" onclick="removeDraftReviewAttachment(\'' + d.id + '\')">Remove</button>' +
+          "</div>"
+        : '<p style="font-size:12px; color:var(--color-text-muted); margin:0;">No file attached yet - items start blank below.</p>') +
+      '<input type="file" accept=".csv" style="margin-top:8px; display:block; font-size:12px;" onchange="onDraftReviewAttachFileChange(this, \'' + d.id + '\')">' +
+      '<div style="font-size:11px; color:var(--color-text-muted); margin-top:6px;">Accepts one Items .csv - its date must match this draft (' + d.date + '). Uploading another replaces it.</div>' +
+      '<div id="draftReviewAttachError" class="save-status error" style="display:block; margin-top:8px;"></div>' +
+    "</div>"
+  );
+}
+
+async function onDraftReviewAttachFileChange(input, draftId) {
+  const file = input.files[0];
+  if (!file) return;
+  const errorEl = document.getElementById("draftReviewAttachError");
+  errorEl.textContent = "";
+  errorEl.classList.remove("error");
+
+  try {
+    const base64 = await fileToBase64(file);
+    await api("sales-import-drafts/" + encodeURIComponent(draftId), {
+      method: "PATCH",
+      body: { action: "attachItems", fileName: file.name, fileContentBase64: base64 }
+    });
+    _lastDraftRows = await api("sales-import-drafts");
+    openSalesDraftReviewModal(draftId);
+  } catch (err) {
+    input.value = "";
+    errorEl.classList.add("error");
+    errorEl.textContent = err.message || String(err);
+  }
+}
+
+async function removeDraftReviewAttachment(draftId) {
+  await api("sales-import-drafts/" + encodeURIComponent(draftId), { method: "PATCH", body: { action: "removeItems" } });
+  _lastDraftRows = await api("sales-import-drafts");
+  openSalesDraftReviewModal(draftId);
+}
+
+// existingItem (when set): { label, qty, sellingPrice, skuId } - a row
+// pre-filled from an attached/imported file. skuId present = auto-matched,
+// combo pre-selected; absent = flagged with the report's own text as a
+// hint, left for a manual pick (see onDraftReviewRowProductChange for what
+// happens then).
+function addDraftReviewItemRow(existingItem) {
   const wrap = document.getElementById("draftReviewItemRows");
   const row = document.createElement("tr");
   row.className = "draft-review-item-row";
+  row._rawLabel = existingItem ? existingItem.label : null;
+
+  const total = existingItem && existingItem.qty && existingItem.sellingPrice ? formatRupiah(existingItem.qty * existingItem.sellingPrice) : "";
   row.innerHTML =
-    '<td><div class="draftReviewProductCombo"></div></td>' +
-    '<td><input type="number" class="qty" min="1" style="width:100%; box-sizing:border-box;" oninput="updateDraftReviewRowTotal(this.closest(\'.draft-review-item-row\'))"></td>' +
-    '<td><input type="text" class="sellingPrice" inputmode="decimal" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this); updateDraftReviewRowTotal(this.closest(\'.draft-review-item-row\'))"></td>' +
-    '<td><input type="text" class="total" readonly style="width:100%; box-sizing:border-box; background:var(--color-disabled-bg);"></td>' +
+    '<td><div class="draftReviewProductCombo"></div><div class="draftReviewUnmatchedHint" style="display:none; font-size:10.5px; font-weight:600; color:color-mix(in srgb, var(--color-warning) 70%, black 15%); margin-top:3px;"></div></td>' +
+    '<td><input type="number" class="qty" min="1" value="' + (existingItem ? existingItem.qty : "") + '" style="width:100%; box-sizing:border-box;" oninput="updateDraftReviewRowTotal(this.closest(\'.draft-review-item-row\'))"></td>' +
+    '<td><input type="text" class="sellingPrice" inputmode="decimal" value="' + (existingItem && existingItem.sellingPrice ? formatRupiah(existingItem.sellingPrice) : "") + '" style="width:100%; box-sizing:border-box;" oninput="formatAmount(this); updateDraftReviewRowTotal(this.closest(\'.draft-review-item-row\'))"></td>' +
+    '<td><input type="text" class="total" readonly value="' + total + '" style="width:100%; box-sizing:border-box; background:var(--color-disabled-bg);"></td>' +
     '<td class="compact-cell"><button type="button" class="btn-compact" onclick="removeDraftReviewItemRow(this)">Remove</button></td>';
   wrap.appendChild(row);
 
@@ -250,6 +421,15 @@ function addDraftReviewItemRow() {
       onSelect: function (skuId) { onDraftReviewRowProductChange(row, skuId); }
     }
   );
+
+  if (existingItem && existingItem.skuId) {
+    const product = options.find((s) => s.id === existingItem.skuId);
+    if (product) row._combo.setSelection(product.id, product.name);
+  } else if (existingItem) {
+    const hint = row.querySelector(".draftReviewUnmatchedHint");
+    hint.style.display = "block";
+    hint.textContent = "⚠ From file: “" + existingItem.label + "” — not matched, pick manually";
+  }
 }
 
 function removeDraftReviewItemRow(btn) {
@@ -260,8 +440,25 @@ function removeDraftReviewItemRow(btn) {
 }
 
 // Same auto-fill-on-select as onSaleRowProductChange, fixed to the draft's
-// (locked) platform instead of reading a live Channel selector.
+// (locked) platform instead of reading a live Channel selector - except a
+// row that came from an imported file (row._rawLabel set) keeps its own
+// reported price (the day's actual transaction price) even when resolved/
+// changed, same "existing row keeps its historical price" rule as Edit
+// Batch's onBatchEditRowProductChange. Also where alias-learning happens:
+// resolving (or correcting) a file-derived row teaches that exact report
+// text -> this product for every future import (fire-and-forget - a failed
+// save here doesn't affect this row's own pick, just means it'll ask again
+// next time).
 function onDraftReviewRowProductChange(row, skuId) {
+  const hint = row.querySelector(".draftReviewUnmatchedHint");
+  if (hint) hint.style.display = "none";
+
+  if (row._rawLabel && skuId) {
+    api("sales-item-aliases", { method: "POST", body: { platform: _draftReviewDraft.platform, rawLabel: row._rawLabel, skuId: skuId } }).catch(function () {});
+  }
+
+  if (row._rawLabel) { updateDraftReviewRowTotal(row); return; }
+
   const product = _salesLookups.skus.find((s) => s.id === skuId);
   const usesPlatformPrice = _salesLookups.platformsUsingPlatformPrice.indexOf(_draftReviewDraft.platform) !== -1;
   const price = product ? (usesPlatformPrice ? Number(product.platform_selling_price) || 0 : Number(product.selling_price) || 0) : 0;

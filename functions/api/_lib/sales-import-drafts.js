@@ -27,7 +27,9 @@ export async function upsertSalesImportDraft(supabase, brandId, draft) {
       platform_fee: Number(draft.platformFee) || 0,
       marketing_fee: Number(draft.marketingFee) || 0,
       source_message_id: draft.sourceMessageId,
-      source_link: draft.sourceLink || null
+      source_link: draft.sourceLink || null,
+      items: draft.items || null,
+      source_files: draft.sourceFiles || null
     })
     .select("id")
     .single();

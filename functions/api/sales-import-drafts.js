@@ -1,16 +1,17 @@
 // Sales > Draft - daily platform sales reports (GoFood/GrabFood Merchant)
-// imported from Gmail, staged here before becoming a real sales_batches
-// entry. Kept separate from sales_batches on purpose: if the Gmail parser
-// ever misreads a report, only this staging table is wrong, not the real
-// ledger - a human has to Review (pages/sales.js's openSalesDraftReviewModal,
-// same layout as Input Sales, fees pre-filled) and Save before anything
-// lands in Sales/OpEx.
+// staged here before becoming a real sales_batches entry. Kept separate
+// from sales_batches on purpose: if a parser ever misreads a report, only
+// this staging table is wrong, not the real ledger - a human has to Review
+// (pages/sales.js's openSalesDraftReviewModal, same layout as Input Sales,
+// fees pre-filled) and Save before anything lands in Sales/OpEx.
 //
-// POST is also the seam the not-yet-built Gmail import pipeline will call
-// into (one row per report per day/platform) - for now it's how a draft
-// gets created at all (manually, for testing the Draft tab end to end).
-// Dedupes on source_message_id (a Gmail message ID is globally unique) so a
-// re-run/re-fetch of the same email is a no-op instead of a duplicate draft.
+// GoFood drafts are created by the Gmail cron (sales-import/run.js);
+// GrabFood drafts are created by uploading its 2 report files
+// (sales-import/create-grabfood-draft.js, since GrabFood emails nothing).
+// This POST is also directly callable (manual/testing). Dedupes on
+// source_message_id - a Gmail message ID for GoFood, a synthesized
+// "platform:date" key for GrabFood file uploads - so re-processing the
+// same report is a no-op instead of a duplicate draft.
 import { getSupabase, getBrandId, jsonResponse, errorResponse } from "./_lib/supabase.js";
 import { upsertSalesImportDraft } from "./_lib/sales-import-drafts.js";
 
@@ -24,7 +25,7 @@ export async function onRequestGet({ request, env }) {
 
     const { data, error } = await supabase
       .from("sales_import_drafts")
-      .select("id, report_date, platform, report_gross, platform_fee, marketing_fee, source_link, status, confirmed_batch_code, created_at")
+      .select("id, report_date, platform, report_gross, platform_fee, marketing_fee, source_link, source_files, items, status, confirmed_batch_code, created_at")
       .eq("brand_id", brandId)
       .eq("status", status)
       .order("report_date", { ascending: false });
@@ -38,6 +39,8 @@ export async function onRequestGet({ request, env }) {
       platformFee: Number(r.platform_fee),
       marketingFee: Number(r.marketing_fee),
       sourceLink: r.source_link,
+      sourceFiles: r.source_files || [],
+      items: r.items || null,
       status: r.status,
       confirmedBatchCode: r.confirmed_batch_code
     })));
