@@ -1,0 +1,24 @@
+name: Sales Import - Daily Gmail Pull
+
+# Cloudflare Pages Functions have no native Cron Trigger (that's a
+# plain-Workers-only feature) - this workflow is the "clock" instead, it
+# just calls the app's own endpoint on a schedule. See
+# functions/api/sales-import/run.js for what actually happens.
+on:
+  schedule:
+    # 20:00 WITA (UTC+8) = 12:00 UTC, once a day. GoFood's daily report for
+    # day D lands mid-afternoon on D+1 (~15:00-16:00 WITA per a real
+    # sample), so this leaves a few hours of margin for a late send -
+    # run.js's own search window (newer_than:2d) plus dedupe-by-message-ID
+    # means a late or repeated run is harmless either way.
+    - cron: "0 12 * * *"
+  workflow_dispatch: {} # manual "Run workflow" button on this Action, for testing without waiting for the schedule
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger sales import
+        run: |
+          curl -sf -X POST "https://malumalubabi.pages.dev/api/sales-import/run" \
+            -H "X-Cron-Secret: ${{ secrets.SALES_IMPORT_CRON_SECRET }}"

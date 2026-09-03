@@ -12,6 +12,7 @@
 // Dedupes on source_message_id (a Gmail message ID is globally unique) so a
 // re-run/re-fetch of the same email is a no-op instead of a duplicate draft.
 import { getSupabase, getBrandId, jsonResponse, errorResponse } from "./_lib/supabase.js";
+import { upsertSalesImportDraft } from "./_lib/sales-import-drafts.js";
 
 export async function onRequestGet({ request, env }) {
   try {
@@ -56,33 +57,17 @@ export async function onRequestPost({ request, env }) {
     const supabase = getSupabase(env);
     const brandId = await getBrandId(supabase);
 
-    // Dedupe: a re-fetch of an already-imported email returns the existing
-    // draft as-is instead of erroring or creating a sibling row.
-    const { data: existing, error: existingErr } = await supabase
-      .from("sales_import_drafts")
-      .select("id, status")
-      .eq("source_message_id", body.sourceMessageId)
-      .maybeSingle();
-    if (existingErr) throw existingErr;
-    if (existing) return jsonResponse({ id: existing.id, status: existing.status, deduped: true });
+    const result = await upsertSalesImportDraft(supabase, brandId, {
+      date: body.date,
+      platform: body.platform,
+      reportGross: body.reportGross,
+      platformFee: body.platformFee,
+      marketingFee: body.marketingFee,
+      sourceMessageId: body.sourceMessageId,
+      sourceLink: body.sourceLink
+    });
 
-    const { data, error } = await supabase
-      .from("sales_import_drafts")
-      .insert({
-        brand_id: brandId,
-        report_date: body.date,
-        platform: body.platform,
-        report_gross: Number(body.reportGross) || 0,
-        platform_fee: Number(body.platformFee) || 0,
-        marketing_fee: Number(body.marketingFee) || 0,
-        source_message_id: body.sourceMessageId,
-        source_link: body.sourceLink || null
-      })
-      .select("id")
-      .single();
-    if (error) throw error;
-
-    return jsonResponse({ id: data.id }, 201);
+    return jsonResponse(result, result.deduped ? 200 : 201);
   } catch (err) {
     return errorResponse(err);
   }
