@@ -112,7 +112,7 @@ async function renderSalesDraftTab(wrap) {
   if (!_lastDraftRows.length) {
     wrap.innerHTML =
       "<h3>Sales Draft</h3>" +
-      "<p>No pending imports. This fills up once daily GoFood/GrabFood reports are imported from Gmail, waiting for you to review and confirm each one.</p>";
+      "<p>No pending imports. This fills up once daily GoFood/GrabFood reports are imported from Gmail.</p>";
     return;
   }
 
