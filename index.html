@@ -42,9 +42,14 @@
       </div>
     </div>
 
-    <button data-page="sales" onclick="navigateTo('sales'); closeNavDropdowns();">
-      Sales
-    </button>
+    <div class="navbar-item">
+      <button onclick="toggleNavDropdown(this)">Sales &#9662;</button>
+      <div class="navbar-dropdown">
+        <button data-page="sales" data-tab="summary" onclick="navigateTo('sales?tab=summary'); closeNavDropdowns();">Sales Summary</button>
+        <button data-page="sales" data-tab="log" onclick="navigateTo('sales?tab=log'); closeNavDropdowns();">Sales Log</button>
+        <button data-page="sales" data-tab="draft" onclick="navigateTo('sales?tab=draft'); closeNavDropdowns();">Sales Draft</button>
+      </div>
+    </div>
 
     <div class="navbar-item">
       <button onclick="toggleNavDropdown(this)">Inventory &#9662;</button>

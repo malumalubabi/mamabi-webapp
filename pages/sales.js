@@ -1,6 +1,6 @@
 // Sales - ported from the old app's 03 Sales module (Sales_Nav.html:
-// Summary/Log/Input Sales). Input Sales is a MODAL (not a 3rd tab), matching
-// this app's established pattern (New Order, Input Purchase, Input
+// Summary/Log/Input Sales). Input Sales is a MODAL (not its own tab),
+// matching this app's established pattern (New Order, Input Purchase, Input
 // Transaction are all modals) - deviates from the old app's page-per-tab
 // layout on purpose. One submission (Date+Platform+Platform Fee+Marketing
 // Fee, shared) can carry several products, matching the old app's
@@ -8,11 +8,17 @@
 // onto sales_batches (the shared bits + fee/OpEx) + sales_entries (one row
 // per product, its own sales_code).
 //
-// Summary and Log used to be separate tabs - now a single stacked page
-// (Log below Summary, no tab-switch) per explicit request, so the nav's
-// Sales entry is a plain button too (index.html), not a Summary/Log
-// dropdown.
+// Hub + tabs (Summary/Log/Draft), same pattern as Finance/Orders/HR - one
+// nav dropdown, one page, tab strip underneath. Summary/Log used to be a
+// single stacked page with no tab-switch - split back out once a 3rd tab
+// (Draft) needed a home: Draft will hold the auto-imported-from-Gmail daily
+// platform sales reports (GoFood/GrabFood Merchant) pending human
+// confirmation before they become real Sales/OpEx entries - not built yet.
 registerPage("sales", renderSalesPage);
+
+let _activeSalesTab = "summary";
+const SALES_TABS = ["summary", "log", "draft"];
+const SALES_TAB_LABELS = { summary: "Summary", log: "Log", draft: "Draft" };
 
 let _salesLookups = null;
 let _lastSalesRows = [];
@@ -30,26 +36,64 @@ async function ensureSalesLookups() {
 async function renderSalesPage(content) {
   await ensureSalesLookups();
 
-  content.innerHTML =
-    "<h2>Sales</h2>" +
-    '<div id="salesSummaryWrap"><p>Loading...</p></div>' +
-    '<div id="salesLogWrap" style="margin-top:28px;"></div>';
-  await loadSalesData();
-
   const query = location.hash.split("?")[1] || "";
   const params = new URLSearchParams(query);
+  const tabParam = params.get("tab");
+  _activeSalesTab = SALES_TABS.indexOf(tabParam) !== -1 ? tabParam : "summary";
+
+  content.innerHTML = "<h2>Sales</h2>" + buildSalesTabsHtml();
+  wireSalesTabs();
+  await loadSalesData();
+
   if (params.get("action") === "input") openSalesEntryModal();
+}
+
+function buildSalesTabsHtml() {
+  return (
+    '<div class="tabs">' +
+      SALES_TABS.map((t) => '<button id="salesTab-' + t + '" onclick="switchSalesTab(\'' + t + '\')">' + SALES_TAB_LABELS[t] + "</button>").join("") +
+    "</div>" +
+    '<div id="salesTabContent"><p>Loading...</p></div>'
+  );
+}
+
+function wireSalesTabs() {
+  SALES_TABS.forEach((t) => document.getElementById("salesTab-" + t).classList.toggle("tab-active", t === _activeSalesTab));
+}
+
+function switchSalesTab(tab) {
+  if (tab === _activeSalesTab) return;
+  _activeSalesTab = tab;
+  wireSalesTabs();
+  renderActiveSalesTab();
 }
 
 // GET /api/sales already merges manual + live-derived Online rows and
 // sorts newest first - Summary and Log both just read/reshape
-// _lastSalesRows client side, no separate summary endpoint needed.
+// _lastSalesRows client side, no separate summary endpoint needed. Fetched
+// once per page visit (not per tab-switch) - switchSalesTab just re-renders
+// off the already-fetched rows.
 async function loadSalesData() {
   _lastSalesRows = await api("sales");
-  if (!document.getElementById("salesSummaryWrap")) return;
+  renderActiveSalesTab();
+}
 
-  renderSalesSummaryTab(document.getElementById("salesSummaryWrap"));
-  renderSalesLogTab(document.getElementById("salesLogWrap"));
+function renderActiveSalesTab() {
+  const wrap = document.getElementById("salesTabContent");
+  if (!wrap) return;
+  if (_activeSalesTab === "log") return renderSalesLogTab(wrap);
+  if (_activeSalesTab === "draft") return renderSalesDraftTab(wrap);
+  return renderSalesSummaryTab(wrap);
+}
+
+// ---------- Draft (placeholder) ----------
+// Will hold daily GoFood/GrabFood Merchant sales-report emails imported from
+// Gmail, pending human confirmation before they post as real Sales/OpEx
+// entries - not built yet, see chat history for the design discussion.
+function renderSalesDraftTab(wrap) {
+  wrap.innerHTML =
+    "<h3>Sales Draft</h3>" +
+    "<p>Coming soon - this will hold daily sales reports imported from Gmail (GoFood/GrabFood Merchant), pending review before they post to Sales/OpEx.</p>";
 }
 
 // ---------- Summary ----------
