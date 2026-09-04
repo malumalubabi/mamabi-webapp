@@ -839,6 +839,41 @@ th {
   color: var(--color-text-primary);
 }
 
+/* File drop zone (Sales Draft's Attachments - Create GrabFood Draft's 2
+   files, GoFood's optional Items attach) - click OR drag-and-drop, same
+   dashed-border look either way. The actual <input type="file"> stays
+   display:none right after it in markup; this div is purely the visual/
+   drop target, clicking it forwards to that input. */
+.file-drop-zone {
+  border: 1.5px dashed var(--color-text-muted);
+  border-radius: 10px;
+  padding: 14px;
+  text-align: center;
+  cursor: pointer;
+  background: var(--color-field-bg);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.file-drop-zone:hover,
+.file-drop-zone.drag-over {
+  border-color: var(--color-accent);
+  background: var(--color-accent-tint);
+}
+.file-drop-zone .fdz-label {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.file-drop-zone .fdz-hint {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+.file-drop-zone .fdz-file {
+  font-size: 11.5px;
+  color: var(--color-success);
+  font-weight: 600;
+  margin-top: 6px;
+}
+
 /* Repeating item-row pattern (Order items, Purchase items, Cashflow entries) */
 .item-row {
   display: flex;

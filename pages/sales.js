@@ -141,12 +141,10 @@ function buildCreateGrabFoodDraftHtml() {
       '<p style="font-size:12px; color:var(--color-text-muted); margin:0 0 14px;">GrabFood only - both files from GrabMerchant &gt; Finance &gt; Reports, same day.</p>' +
       '<div style="display:flex; gap:14px; flex-wrap:wrap;">' +
         '<div style="flex:1; min-width:200px;">' +
-          "<label>Reports (.xlsx)</label><br>" +
-          '<input type="file" accept=".xlsx" id="createGrabFoodReportsInput" onchange="onCreateGrabFoodFileChange(this, \'reports\')">' +
+          fileDropZoneHtml("createGrabFoodReports", "Reports (.xlsx)", "GrabMerchant_Reports_...xlsx", ".xlsx", "onCreateGrabFoodFileChange", "reports") +
         "</div>" +
         '<div style="flex:1; min-width:200px;">' +
-          "<label>Menu Sales (.csv)</label><br>" +
-          '<input type="file" accept=".csv" id="createGrabFoodMenuSalesInput" onchange="onCreateGrabFoodFileChange(this, \'menuSales\')">' +
+          fileDropZoneHtml("createGrabFoodMenuSales", "Menu Sales (.csv)", "Item, Units Sold, Item Gross Sales", ".csv", "onCreateGrabFoodFileChange", "menuSales") +
         "</div>" +
       "</div>" +
       '<div id="createGrabFoodDraftError" class="save-status error" style="display:block; margin-top:10px;"></div>' +
@@ -158,10 +156,53 @@ function buildCreateGrabFoodDraftHtml() {
   );
 }
 
+// Reusable click-or-drag drop zone markup - idPrefix names the underlying
+// (hidden) <input type="file">, which stays the source of truth for
+// "which file is chosen" either way (a drop just populates it via
+// DataTransfer instead of the OS file picker, see fileDropZoneDrop below) -
+// so onChangeFn (whatever the caller already wired for the click path)
+// fires unchanged for a drop too, no separate drop-only handler per zone.
+// onChangeArg (optional) is passed through as onChangeFn's 2nd argument,
+// same as the input's own onchange="fn(this, arg)" would.
+function fileDropZoneHtml(idPrefix, label, hint, accept, onChangeFn, onChangeArg) {
+  return (
+    '<div class="file-drop-zone" ondragover="fileDropZoneDragOver(event)" ondragleave="fileDropZoneDragLeave(event)" ondrop="fileDropZoneDrop(event, \'' + idPrefix + 'Input\')" onclick="document.getElementById(\'' + idPrefix + 'Input\').click()">' +
+      '<div class="fdz-label">' + label + "</div>" +
+      '<div class="fdz-hint">' + hint + "</div>" +
+      '<div class="fdz-file" id="' + idPrefix + 'FileLabel"></div>' +
+    "</div>" +
+    '<input type="file" accept="' + accept + '" id="' + idPrefix + 'Input" style="display:none;" onchange="' + onChangeFn + "(this" + (onChangeArg !== undefined ? ", '" + onChangeArg + "'" : "") + ')">'
+  );
+}
+
+function fileDropZoneDragOver(e) {
+  e.preventDefault();
+  e.currentTarget.classList.add("drag-over");
+}
+function fileDropZoneDragLeave(e) {
+  e.currentTarget.classList.remove("drag-over");
+}
+// DataTransfer lets a dropped FileList be assigned onto a real <input
+// type="file">, which then fires its own change event exactly as if the
+// user had picked it via the OS dialog - one file-selection code path for
+// both click and drag, instead of a second drop-only handler per zone.
+function fileDropZoneDrop(e, inputId) {
+  e.preventDefault();
+  e.currentTarget.classList.remove("drag-over");
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+  const input = document.getElementById(inputId);
+  const dt = new DataTransfer();
+  dt.items.add(file);
+  input.files = dt.files;
+  input.dispatchEvent(new Event("change"));
+}
+
 function onCreateGrabFoodFileChange(input, which) {
   const file = input.files[0] || null;
   if (which === "reports") _createGrabFoodReportsFile = file;
   else _createGrabFoodMenuSalesFile = file;
+  document.getElementById(input.id.replace(/Input$/, "FileLabel")).textContent = file ? "✓ " + file.name : "";
 }
 
 function fileToBase64(file) {
@@ -357,7 +398,7 @@ function draftReviewAttachmentsHtml(d) {
             '<button type="button" class="btn-compact" style="color:#b00020;" onclick="removeDraftReviewAttachment(\'' + d.id + '\')">Remove</button>' +
           "</div>"
         : '<p style="font-size:12px; color:var(--color-text-muted); margin:0;">No file attached yet - items start blank below.</p>') +
-      '<input type="file" accept=".csv" style="margin-top:8px; display:block; font-size:12px;" onchange="onDraftReviewAttachFileChange(this, \'' + d.id + '\')">' +
+      '<div style="margin-top:8px;">' + fileDropZoneHtml("draftReviewAttach", "Items (.csv)", "Nama menu, Jumlah, Harga per item", ".csv", "onDraftReviewAttachFileChange", d.id) + "</div>" +
       '<div style="font-size:11px; color:var(--color-text-muted); margin-top:6px;">Accepts one Items .csv - its date must match this draft (' + d.date + '). Uploading another replaces it.</div>' +
       '<div id="draftReviewAttachError" class="save-status error" style="display:block; margin-top:8px;"></div>' +
     "</div>"
