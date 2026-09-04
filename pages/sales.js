@@ -119,7 +119,7 @@ async function renderSalesDraftTab(wrap) {
             '<tbody id="salesDraftTbody">' + _lastDraftRows.map(salesDraftRowHtml).join("") + "</tbody>" +
           "</table>" +
         "</div>"
-      : "<p>No pending imports. This fills up once daily reports are imported from Gmail.</p>") +
+      : "<p>No pending imports. GoFood reports arrive automatically from Gmail; create a GrabFood one below.</p>") +
     buildCreateGrabFoodDraftHtml();
 
   if (_lastDraftRows.length) enableDragScroll(document.getElementById("salesDraftScrollWrap"));
