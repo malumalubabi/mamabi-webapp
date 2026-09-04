@@ -303,7 +303,7 @@ function openSalesDraftReviewModal(draftId) {
 
   openModal(
     "<h2>Input Sales</h2>" +
-    '<div style="display:flex; align-items:flex-start; gap:9px; background:var(--color-accent-tint); border:1px solid var(--color-accent); border-radius:8px; padding:10px 12px; margin-bottom:18px;">' +
+    '<div style="display:flex; align-items:flex-start; gap:9px; background:var(--color-accent-tint); border:1px solid var(--color-accent); border-radius:8px; padding:10px 12px; margin-bottom:18px; max-width:624px; box-sizing:border-box;">' +
       '<span style="width:7px; height:7px; border-radius:50%; background:var(--color-accent); margin-top:5px; flex-shrink:0;"></span>' +
       '<span style="font-size:12.5px; line-height:1.5;">' +
         "Auto-recapped from <strong>" + d.platform + "</strong> daily report &mdash; <strong>" + d.date + "</strong>." +
@@ -375,7 +375,7 @@ function draftReviewAttachmentsHtml(d) {
   if (d.platform !== "GoFood") {
     const files = d.sourceFiles || [];
     return (
-      '<div style="border:1px solid var(--color-border-on-card); border-radius:8px; padding:12px 14px; margin-bottom:16px;">' +
+      '<div style="border:1px solid var(--color-border-on-card); border-radius:8px; padding:12px 14px; margin-bottom:16px; max-width:624px; box-sizing:border-box;">' +
         '<h3 style="margin:0 0 8px; font-size:13px;">Attachments</h3>' +
         files.map((f) =>
           '<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:4px 0; font-size:12.5px;">' +
@@ -390,7 +390,7 @@ function draftReviewAttachmentsHtml(d) {
 
   const hasFile = d.sourceFiles && d.sourceFiles.length;
   return (
-    '<div style="border:1px solid var(--color-border-on-card); border-radius:8px; padding:12px 14px; margin-bottom:16px;">' +
+    '<div style="border:1px solid var(--color-border-on-card); border-radius:8px; padding:12px 14px; margin-bottom:16px; max-width:624px; box-sizing:border-box;">' +
       '<h3 style="margin:0 0 8px; font-size:13px;">Attachments</h3>' +
       (hasFile
         ? '<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:12.5px;">' +
