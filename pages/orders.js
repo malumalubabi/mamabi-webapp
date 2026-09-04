@@ -244,12 +244,12 @@ function buildOrderFormHtml() {
       "</div>" +
       "<div>" +
         "<label>Payment Status</label><br>" +
-        '<select id="orderPaymentStatus" onchange="onOrderPaymentStatusChange()" style="width:100%;">' +
+        '<select id="orderPaymentStatus" style="width:100%;">' +
           "<option>Unpaid</option><option>Paid</option>" +
         "</select>" +
       "</div>" +
-      '<div id="orderMethodWrap" style="display:none;">' +
-        "<label>Method</label><br>" +
+      "<div>" +
+        "<label>Payment Method</label><br>" +
         '<select id="orderMethod" style="width:100%;"></select>' +
       "</div>" +
     "</div><br>" +
@@ -387,11 +387,6 @@ function onOrderTypeChange() {
     const options = isDelivery ? ["Pending", "Delivered"] : ["Pending", "Picked Up"];
     fulfillmentStatusEl.innerHTML = options.map((o) => "<option>" + o + "</option>").join("");
   }
-}
-
-function onOrderPaymentStatusChange() {
-  const isPaid = document.getElementById("orderPaymentStatus").value === "Paid";
-  document.getElementById("orderMethodWrap").style.display = isPaid ? "" : "none";
 }
 
 // Ported verbatim (field order + sizing) from the old app's
@@ -564,7 +559,7 @@ async function saveOrder() {
       driverNameRaw: driver.driverNameRaw,
       fulfillmentStatus: document.getElementById("orderFulfillmentStatus").value,
       paymentStatus: document.getElementById("orderPaymentStatus").value,
-      paymentMethod: document.getElementById("orderPaymentStatus").value === "Paid" ? document.getElementById("orderMethod").value : null,
+      paymentMethod: document.getElementById("orderMethod").value || null,
       notes: document.getElementById("orderNotes").value || null
     };
 
@@ -842,7 +837,7 @@ function buildOrderFormText(o) {
     "Pesanan:\n" +
     itemLines + "\n\n" +
     "TOTAL: Rp. " + orderTotal(o).toLocaleString("id-ID") + "\n\n" +
-    "Metode Bayar: " + (o.paymentMethod || "") + "\n\n" +
+    "Metode Bayar: " + (o.paymentMethod || "") + (o.paymentMethod ? " (" + o.paymentStatus.toLowerCase() + ")" : "") + "\n\n" +
     "Catatan: " + (o.notes || "")
   );
 }
@@ -1514,7 +1509,7 @@ function ongoingRowHtml(o) {
     ? o.fulfillmentStatus + (o.driverName ? "<br><span style=\"font-size:12px; color:var(--color-text-muted);\">by " + o.driverName + "</span>" : "")
     : "";
 
-  const paymentHtml = o.paymentStatus + (o.paymentStatus === "Paid" && o.paymentMethod ? '<br><span style="font-size:12px; color:var(--color-text-muted);">' + o.paymentMethod + "</span>" : "");
+  const paymentHtml = o.paymentStatus + (o.paymentMethod ? '<br><span style="font-size:12px; color:var(--color-text-muted);">' + o.paymentMethod + "</span>" : "");
 
   // Merged Payment+Status into one Status column - payment on top, order/
   // fulfillment status below it, separated by a small gap - per explicit
