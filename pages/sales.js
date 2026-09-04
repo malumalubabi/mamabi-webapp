@@ -301,7 +301,7 @@ function openSalesDraftReviewModal(draftId) {
   if (!d) return;
   _draftReviewDraft = d;
 
-  openModal(
+  const box = openModal(
     "<h2>Input Sales</h2>" +
     '<div style="display:flex; align-items:flex-start; gap:9px; background:var(--color-accent-tint); border:1px solid var(--color-accent); border-radius:8px; padding:10px 12px; margin-bottom:18px; max-width:624px; box-sizing:border-box;">' +
       '<span style="width:7px; height:7px; border-radius:50%; background:var(--color-accent); margin-top:5px; flex-shrink:0;"></span>' +
@@ -356,6 +356,7 @@ function openSalesDraftReviewModal(draftId) {
     '<button id="saveDraftReviewBtn" class="btn-primary" onclick="saveDraftReview(\'' + draftId + '\')">Save</button>' +
     '<span id="saveDraftReviewStatus" class="save-status"></span>'
   );
+  box.style.maxWidth = "700px";
 
   document.getElementById("draftReviewItemRows").innerHTML = "";
   if (d.items && d.items.length) d.items.forEach((it) => addDraftReviewItemRow(it));
@@ -912,7 +913,7 @@ function salesProductOptions() {
 // itself has ever been visited this session.
 async function openSalesEntryModal() {
   await ensureSalesLookups();
-  openModal(
+  const box = openModal(
     "<h2>Input Sales</h2>" +
     "<label>Date</label><br>" +
     '<div style="display:flex; align-items:center; gap:8px;">' +
@@ -925,7 +926,7 @@ async function openSalesEntryModal() {
     '<select id="salePlatform" onchange="onSalePlatformChange()">' + salePlatformOptionsHtml("") + "</select>" +
     '<p style="font-size:12px; color:var(--color-text-muted);">Platforms themselves are managed on the Settings page.</p><br>' +
 
-    '<table style="table-layout:fixed; width:auto; margin-bottom:8px;">' +
+    '<table style="table-layout:fixed; width:624px; margin-bottom:8px;">' +
       '<colgroup><col style="width:200px;"><col style="width:90px;"><col style="width:130px;"><col style="width:130px;"><col style="width:74px;"></colgroup>' +
       "<thead><tr><th>Item</th><th>Qty</th><th>Selling Price</th><th>Total</th><th></th></tr></thead>" +
       '<tbody id="saleItemRows"></tbody>' +
@@ -951,6 +952,7 @@ async function openSalesEntryModal() {
     '<button id="saveSaleBtn" class="btn-primary" onclick="saveSalesBatch()">Save</button>' +
     '<span id="saveSaleStatus" class="save-status"></span>'
   );
+  box.style.maxWidth = "700px";
 
   document.getElementById("saleItemRows").innerHTML = "";
   addSaleItemRow();
@@ -1111,7 +1113,7 @@ function openSalesBatchModal(batchCode) {
   if (!lines.length) return;
   const first = lines[0];
 
-  openModal(
+  const box = openModal(
     "<h2>Edit Batch - " + batchCode + "</h2>" +
     "<label>Date</label><br>" +
     '<input type="date" id="batchEditDate" value="' + first.date + '"><br>' +
@@ -1126,7 +1128,7 @@ function openSalesBatchModal(batchCode) {
       "</div><br>" +
     "</div>" +
 
-    '<table style="table-layout:fixed; width:auto; margin-bottom:8px;">' +
+    '<table style="table-layout:fixed; width:624px; margin-bottom:8px;">' +
       '<colgroup><col style="width:200px;"><col style="width:90px;"><col style="width:130px;"><col style="width:130px;"><col style="width:74px;"></colgroup>' +
       "<thead><tr><th>Item</th><th>Qty</th><th>Selling Price</th><th>Total</th><th></th></tr></thead>" +
       '<tbody id="batchEditItemRows"></tbody>' +
@@ -1149,6 +1151,7 @@ function openSalesBatchModal(batchCode) {
       '<div id="batchDeleteWrap">' + batchDeleteTriggerHtml(batchCode) + "</div>" +
     "</div>"
   );
+  box.style.maxWidth = "700px";
   document.getElementById("batchEditItemRows").innerHTML = "";
   lines.forEach((r) => addBatchEditItemRow(r));
   onBatchEditPlatformChange();
