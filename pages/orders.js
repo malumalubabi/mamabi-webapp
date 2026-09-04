@@ -847,7 +847,7 @@ function buildOrderFormText(o) {
     "Pesanan:\n" +
     itemLines + "\n\n" +
     "TOTAL: Rp. " + orderTotal(o).toLocaleString("id-ID") + "\n\n" +
-    "Metode Bayar: " + (o.paymentMethod || "") + (o.paymentMethod ? " (" + o.paymentStatus.toLowerCase() + ")" : "") + "\n\n" +
+    "Metode Bayar: " + (o.paymentMethod ? o.paymentMethod + " (" + o.paymentStatus.toLowerCase() + ")" : "-") + "\n\n" +
     "Catatan: " + (o.notes || "")
   );
 }
