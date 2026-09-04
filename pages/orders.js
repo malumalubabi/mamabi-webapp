@@ -860,7 +860,7 @@ function buildBlankOrderFormTemplate() {
     "Pesanan:\n" +
     "1. [item] x [jumlah]\n" +
     "2. [item] x [jumlah]\n\n" +
-    "Metode Bayar: \n\n" +
+    "Metode Bayar: [QRIS / Cash]\n\n" +
     "Catatan:"
   );
 }
