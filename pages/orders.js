@@ -638,6 +638,11 @@ function buildEditOrderFormHtml(o) {
       "</div>" +
     "</div><br>" +
 
+    '<div style="width:160px;">' +
+      "<label>Payment Method</label><br>" +
+      '<select id="editOrderMethod" style="width:100%;"></select>' +
+    "</div><br>" +
+
     "<label>Notes</label><br>" +
     '<input type="text" id="orderNotes" style="width:400px;"><br><br>' +
 
@@ -651,6 +656,10 @@ function initEditOrderForm(o) {
   document.getElementById("orderType").value = o.orderType;
   document.getElementById("orderDeliveryFee").value = o.deliveryFee ? formatRupiah(o.deliveryFee) : "";
   document.getElementById("orderNotes").value = o.notes || "";
+
+  const methodSelect = document.getElementById("editOrderMethod");
+  methodSelect.innerHTML = _ordersLookups.paymentMethods.map((m) => "<option>" + m + "</option>").join("");
+  if (o.paymentMethod) methodSelect.value = o.paymentMethod;
   setCustomerFieldOriginal(document.getElementById("editOrderArea"), o.customerArea || "");
   setCustomerFieldOriginal(document.getElementById("editOrderAddress"), o.customerAddress || "");
 
@@ -674,6 +683,7 @@ function saveEditOrder(orderCode) {
       items: items,
       orderType: orderType,
       deliveryFee: orderType === "Delivery" ? parseAmount(document.getElementById("orderDeliveryFee").value) : 0,
+      paymentMethod: document.getElementById("editOrderMethod").value || null,
       notes: document.getElementById("orderNotes").value || null
     };
 
@@ -1728,7 +1738,7 @@ function startMarkOrderPaid(orderCode) {
     "<h2>Mark Paid - " + orderCode + "</h2>" +
     summary +
     "<label>Payment Method</label><br>" +
-    '<select id="markOrderPaidMethod">' + methodSelectOptionsHtml(null) + "</select><br><br>" +
+    '<select id="markOrderPaidMethod">' + methodSelectOptionsHtml(o ? o.paymentMethod : null) + "</select><br><br>" +
     '<button id="markOrderPaidConfirmBtn" onclick="confirmMarkOrderPaid(\'' + orderCode + '\')">Confirm</button>' +
     '<span id="markOrderPaidStatus" class="save-status"></span>'
   );
