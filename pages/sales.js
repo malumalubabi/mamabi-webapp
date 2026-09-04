@@ -325,7 +325,7 @@ function openSalesDraftReviewModal(draftId) {
       '<div style="display:flex; align-items:center; gap:7px; padding:6px 0; font-size:14px;">' + SALES_DRAFT_LOCK_ICON + d.platform + "</div>" +
     "</div>" +
 
-    '<table style="table-layout:fixed; width:auto; margin-bottom:8px;">' +
+    '<table style="table-layout:fixed; width:624px; margin-bottom:8px;">' +
       '<colgroup><col style="width:200px;"><col style="width:90px;"><col style="width:130px;"><col style="width:130px;"><col style="width:74px;"></colgroup>' +
       "<thead><tr><th>Item</th><th>Qty</th><th>Selling Price</th><th>Total</th><th></th></tr></thead>" +
       '<tbody id="draftReviewItemRows"></tbody>' +
