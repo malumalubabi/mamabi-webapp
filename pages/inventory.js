@@ -341,6 +341,9 @@ function saveMinStock(btn) {
 // ================================================================
 
 let _supplierCombo = null;
+let _purchaseDatePicker = null;
+let _editPurchaseDatePicker = null;
+let _opnameDatePicker = null;
 let _purchasePaginationTargetSize = 20;
 let _lastPurchaseRows = [];
 let _purchaseCategoryFilter = []; // empty = show every Category (default)
@@ -348,6 +351,7 @@ let _purchaseStatusFilter = []; // empty = show every Status (default)
 let _purchaseSupplierFilter = []; // empty = show every Supplier (default)
 let _purchaseDateFrom = "";
 let _purchaseDateTo = "";
+let _purchaseRangePicker = null; // set each time the Filter & Sort modal opens
 let _purchaseSort = "date-desc";
 
 const PURCHASE_SORT_LABELS = { "date-desc": "Date (Newest)", "date-asc": "Date (Oldest)" };
@@ -377,7 +381,7 @@ function buildPurchaseFormHtml() {
     '<div style="display:flex; align-items:center; gap:8px;">' +
       '<input type="checkbox" id="purchaseToday" onchange="setPurchaseToday()">' +
       '<label for="purchaseToday">Today</label>' +
-      '<input type="date" id="purchaseDate">' +
+      '<span id="purchaseDateWrap"></span>' +
     "</div><br>" +
 
     "<label>Supplier</label><br>" +
@@ -434,6 +438,7 @@ function buildPurchaseFormHtml() {
 function initPurchaseForm() {
   // Date starts empty - pick a date explicitly (Today included) rather than
   // silently defaulting to today, per explicit request.
+  _purchaseDatePicker = createDateRangePicker(document.getElementById("purchaseDateWrap"), { mode: "day", single: true });
   const methodSelect = document.getElementById("purchaseMethod");
   methodSelect.innerHTML = _invLookups.paymentMethods.map((m) => "<option>" + m + "</option>").join("");
 
@@ -448,7 +453,7 @@ function initPurchaseForm() {
 }
 
 function setPurchaseToday() {
-  if (document.getElementById("purchaseToday").checked) document.getElementById("purchaseDate").value = todayISO();
+  if (document.getElementById("purchaseToday").checked) _purchaseDatePicker.setValue(todayISO());
 }
 
 function toggleNewSupplier() {
@@ -545,7 +550,7 @@ function collectPurchaseItems() {
 async function savePurchase() {
   const items = collectPurchaseItems();
 
-  if (!document.getElementById("purchaseDate").value) { alert("Please select a date."); return; }
+  if (!_purchaseDatePicker.getValue()) { alert("Please select a date."); return; }
   if (!items.length) { alert("Please add at least one item."); return; }
   for (let i = 0; i < items.length; i++) {
     const it = items[i];
@@ -564,7 +569,7 @@ async function savePurchase() {
 
   withSaveStatus(btn, statusEl, "Purchase", async function () {
     const payload = {
-      date: document.getElementById("purchaseDate").value,
+      date: _purchaseDatePicker.getValue(),
       isNewSupplier: isNewSupplier,
       supplierName: isNewSupplier ? supplierName : undefined,
       supplierId: isNewSupplier ? undefined : _supplierCombo.getValue(),
@@ -715,11 +720,7 @@ function openPurchaseFilterSortModal() {
   openModal(
     "<h2>Filter &amp; Sort - Purchase Log</h2>" +
     "<label>Date Range</label><br>" +
-    '<div style="display:flex; align-items:center; gap:8px;">' +
-      '<input type="date" id="purchaseDateFrom" value="' + _purchaseDateFrom + '">' +
-      "<span>to</span>" +
-      '<input type="date" id="purchaseDateTo" value="' + _purchaseDateTo + '">' +
-    "</div><br><br>" +
+    '<span id="purchaseRangeWrap"></span><br><br>' +
     "<label>Category</label>" +
     "<div>" + categoryChecks + "</div><br>" +
     "<label>Status</label>" +
@@ -732,11 +733,14 @@ function openPurchaseFilterSortModal() {
       '<button class="btn-primary" onclick="applyPurchaseFilterSort()">Apply</button>' +
     "</div>"
   );
+  _purchaseRangePicker = createDateRangePicker(document.getElementById("purchaseRangeWrap"), {
+    mode: "day", from: _purchaseDateFrom || null, to: _purchaseDateTo || null
+  });
 }
 
 function applyPurchaseFilterSort() {
-  _purchaseDateFrom = document.getElementById("purchaseDateFrom").value || "";
-  _purchaseDateTo = document.getElementById("purchaseDateTo").value || "";
+  _purchaseDateFrom = _purchaseRangePicker.getFrom() || "";
+  _purchaseDateTo = _purchaseRangePicker.getTo() || "";
   _purchaseCategoryFilter = Array.from(document.querySelectorAll(".purchaseCategoryFilterCheck:checked")).map((cb) => cb.value);
   _purchaseStatusFilter = Array.from(document.querySelectorAll(".purchaseStatusFilterCheck:checked")).map((cb) => cb.value);
   _purchaseSupplierFilter = Array.from(document.querySelectorAll(".purchaseSupplierFilterCheck:checked")).map((cb) => cb.value);
@@ -801,7 +805,7 @@ function buildEditPurchaseFormHtml(purchaseCode, first) {
   return (
     "<h2>Edit Purchase - " + purchaseCode + "</h2>" +
     "<label>Date</label><br>" +
-    '<input type="date" id="editPurchaseDate" value="' + first.date + '"><br><br>' +
+    '<span id="editPurchaseDateWrap"></span><br><br>' +
 
     "<label>Supplier</label><br>" +
     '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">' +
@@ -843,6 +847,7 @@ function buildEditPurchaseFormHtml(purchaseCode, first) {
 }
 
 function initEditPurchaseForm(lines, first) {
+  _editPurchaseDatePicker = createDateRangePicker(document.getElementById("editPurchaseDateWrap"), { mode: "day", single: true, value: first.date });
   const methodSelect = document.getElementById("editPurchaseMethod");
   methodSelect.innerHTML = _invLookups.paymentMethods.map((m) => "<option>" + m + "</option>").join("");
   methodSelect.value = first.method || "";
@@ -962,7 +967,7 @@ function collectEditPurchaseItems() {
 async function saveEditPurchase(purchaseCode) {
   const items = collectEditPurchaseItems();
 
-  if (!document.getElementById("editPurchaseDate").value) { alert("Please select a date."); return; }
+  if (!_editPurchaseDatePicker.getValue()) { alert("Please select a date."); return; }
   if (!items.length) { alert("Please add at least one item."); return; }
   for (let i = 0; i < items.length; i++) {
     const it = items[i];
@@ -981,7 +986,7 @@ async function saveEditPurchase(purchaseCode) {
 
   withSaveStatus(btn, statusEl, "Purchase", async function () {
     const payload = {
-      date: document.getElementById("editPurchaseDate").value,
+      date: _editPurchaseDatePicker.getValue(),
       isNewSupplier: isNewSupplier,
       supplierName: isNewSupplier ? supplierName : undefined,
       supplierId: isNewSupplier ? undefined : _editSupplierCombo.getValue(),
@@ -1029,7 +1034,7 @@ function buildOpnameFormHtml() {
     '<div style="display:flex; align-items:center; gap:8px;">' +
       '<input type="checkbox" id="opnameToday" onchange="setOpnameToday()">' +
       '<label for="opnameToday">Today</label>' +
-      '<input type="date" id="opnameDate">' +
+      '<span id="opnameDateWrap"></span>' +
     "</div><br>" +
 
     '<div style="display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:10px;">' +
@@ -1058,13 +1063,14 @@ function buildOpnameFormHtml() {
 }
 
 function initOpnameForm() {
+  _opnameDatePicker = createDateRangePicker(document.getElementById("opnameDateWrap"), { mode: "day", single: true });
   setOpnameToday();
   enableDragScroll(document.getElementById("opnameChecklistScrollWrap"));
 }
 
 function setOpnameToday() {
-  if (document.getElementById("opnameToday").checked) document.getElementById("opnameDate").value = todayISO();
-  else document.getElementById("opnameDate").value = "";
+  if (document.getElementById("opnameToday").checked) _opnameDatePicker.setValue(todayISO());
+  else _opnameDatePicker.setValue(null);
 }
 
 async function loadOpnameChecklist() {
@@ -1145,7 +1151,7 @@ function filterOpnameRows() {
 }
 
 async function saveStockOpname() {
-  const date = document.getElementById("opnameDate").value;
+  const date = _opnameDatePicker.getValue();
   if (!date) { alert("Please select a date."); return; }
 
   const items = [];
@@ -1177,6 +1183,7 @@ async function saveStockOpname() {
 let _lastOpnameRows = [];
 let _opnameDateFrom = "";
 let _opnameDateTo = "";
+let _opnameRangePicker = null; // set each time the Filter modal opens
 
 function buildOpnameTableShellHtml() {
   return (
@@ -1232,20 +1239,19 @@ function openOpnameFilterModal() {
   openModal(
     "<h2>Filter - Stock Opname Log</h2>" +
     "<label>Date Range</label><br>" +
-    '<div style="display:flex; align-items:center; gap:8px;">' +
-      '<input type="date" id="opnameDateFrom" value="' + _opnameDateFrom + '">' +
-      "<span>to</span>" +
-      '<input type="date" id="opnameDateTo" value="' + _opnameDateTo + '">' +
-    "</div>" +
+    '<span id="opnameRangeWrap"></span>' +
     '<div style="margin-top:16px;">' +
       '<button class="btn-primary" onclick="applyOpnameFilter()">Apply</button>' +
     "</div>"
   );
+  _opnameRangePicker = createDateRangePicker(document.getElementById("opnameRangeWrap"), {
+    mode: "day", from: _opnameDateFrom || null, to: _opnameDateTo || null
+  });
 }
 
 function applyOpnameFilter() {
-  _opnameDateFrom = document.getElementById("opnameDateFrom").value || "";
-  _opnameDateTo = document.getElementById("opnameDateTo").value || "";
+  _opnameDateFrom = _opnameRangePicker.getFrom() || "";
+  _opnameDateTo = _opnameRangePicker.getTo() || "";
   closeModal();
   renderOpnameLogRows();
 }
@@ -1418,6 +1424,7 @@ let _lastConsumptionRows = [];
 let _consumptionSourceFilter = []; // empty = show every Source (default)
 let _consumptionDateFrom = "";
 let _consumptionDateTo = "";
+let _consumptionRangePicker = null; // set each time the Filter & Sort modal opens
 let _consumptionSort = "date-desc";
 const CONSUMPTION_SORT_LABELS = { "date-desc": "Date (Newest)", "date-asc": "Date (Oldest)" };
 
@@ -1488,11 +1495,7 @@ function openConsumptionFilterSortModal() {
   openModal(
     "<h2>Filter &amp; Sort - Consumption Log</h2>" +
     "<label>Date Range</label><br>" +
-    '<div style="display:flex; align-items:center; gap:8px;">' +
-      '<input type="date" id="consumptionDateFrom" value="' + _consumptionDateFrom + '">' +
-      "<span>to</span>" +
-      '<input type="date" id="consumptionDateTo" value="' + _consumptionDateTo + '">' +
-    "</div><br><br>" +
+    '<span id="consumptionRangeWrap"></span><br><br>' +
     "<label>Source</label>" +
     "<div>" + checkboxes + "</div><br>" +
     "<label>Sort</label>" +
@@ -1501,11 +1504,14 @@ function openConsumptionFilterSortModal() {
       '<button class="btn-primary" onclick="applyConsumptionFilterSort()">Apply</button>' +
     "</div>"
   );
+  _consumptionRangePicker = createDateRangePicker(document.getElementById("consumptionRangeWrap"), {
+    mode: "day", from: _consumptionDateFrom || null, to: _consumptionDateTo || null
+  });
 }
 
 function applyConsumptionFilterSort() {
-  _consumptionDateFrom = document.getElementById("consumptionDateFrom").value || "";
-  _consumptionDateTo = document.getElementById("consumptionDateTo").value || "";
+  _consumptionDateFrom = _consumptionRangePicker.getFrom() || "";
+  _consumptionDateTo = _consumptionRangePicker.getTo() || "";
   _consumptionSourceFilter = Array.from(document.querySelectorAll(".consumptionSourceFilterCheck:checked")).map((cb) => cb.value);
   const selectedSort = document.querySelector('input[name="consumptionSortOption"]:checked');
   if (selectedSort) _consumptionSort = selectedSort.value;
@@ -1652,6 +1658,7 @@ let _lastCostUpdateRows = [];
 let _costUpdateSupplierFilter = []; // empty = show every Supplier (default)
 let _costUpdateDateFrom = "";
 let _costUpdateDateTo = "";
+let _costUpdateRangePicker = null; // set each time the Filter & Sort modal opens
 let _costUpdateSort = "date-desc";
 const COST_UPDATE_SORT_LABELS = { "date-desc": "Date (Newest)", "date-asc": "Date (Oldest)" };
 
@@ -1726,11 +1733,7 @@ function openCostUpdateFilterSortModal() {
   openModal(
     "<h2>Filter &amp; Sort - Cost Update Log</h2>" +
     "<label>Date Range</label><br>" +
-    '<div style="display:flex; align-items:center; gap:8px;">' +
-      '<input type="date" id="costUpdateDateFrom" value="' + _costUpdateDateFrom + '">' +
-      "<span>to</span>" +
-      '<input type="date" id="costUpdateDateTo" value="' + _costUpdateDateTo + '">' +
-    "</div><br><br>" +
+    '<span id="costUpdateRangeWrap"></span><br><br>' +
     "<label>Supplier</label>" +
     "<div>" + checkboxes + "</div><br>" +
     "<label>Sort</label>" +
@@ -1739,11 +1742,14 @@ function openCostUpdateFilterSortModal() {
       '<button class="btn-primary" onclick="applyCostUpdateFilterSort()">Apply</button>' +
     "</div>"
   );
+  _costUpdateRangePicker = createDateRangePicker(document.getElementById("costUpdateRangeWrap"), {
+    mode: "day", from: _costUpdateDateFrom || null, to: _costUpdateDateTo || null
+  });
 }
 
 function applyCostUpdateFilterSort() {
-  _costUpdateDateFrom = document.getElementById("costUpdateDateFrom").value || "";
-  _costUpdateDateTo = document.getElementById("costUpdateDateTo").value || "";
+  _costUpdateDateFrom = _costUpdateRangePicker.getFrom() || "";
+  _costUpdateDateTo = _costUpdateRangePicker.getTo() || "";
   _costUpdateSupplierFilter = Array.from(document.querySelectorAll(".costUpdateSupplierFilterCheck:checked")).map((cb) => cb.value);
   const selectedSort = document.querySelector('input[name="costUpdateSortOption"]:checked');
   if (selectedSort) _costUpdateSort = selectedSort.value;

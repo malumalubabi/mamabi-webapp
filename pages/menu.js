@@ -67,6 +67,7 @@ const BATCH_OUTPUT_TYPES = ["Semi-Finished", "Component"];
 
 let _batchLookups = null;
 let _batchOutputCombo = null;
+let _batchDatePicker = null;
 let _lastBatchesData = []; // Ongoing + History combined, for by-batchCode lookups (Change Component, Open Recipe, etc.)
 let _lastHistoryBatches = []; // History only, for toggleShowCancelledBatches' re-render
 
@@ -122,6 +123,7 @@ function toggleShowCancelledBatches() {
 // applies to Ongoing Orders either).
 let _batchHistoryDateFrom = "";
 let _batchHistoryDateTo = "";
+let _batchHistoryRangePicker = null; // set each time the Filter & Sort modal opens
 let _batchHistoryCategoryFilter = []; // empty = show every Category (default)
 let _batchHistorySort = "date-desc";
 const BATCH_HISTORY_SORT_LABELS = { "date-desc": "Date (Newest)", "date-asc": "Date (Oldest)" };
@@ -155,11 +157,7 @@ function openBatchHistoryFilterSortModal() {
   openModal(
     "<h2>Filter &amp; Sort - Batch History</h2>" +
     "<label>Date Range</label><br>" +
-    '<div style="display:flex; align-items:center; gap:8px;">' +
-      '<input type="date" id="batchHistoryDateFrom" value="' + _batchHistoryDateFrom + '">' +
-      "<span>to</span>" +
-      '<input type="date" id="batchHistoryDateTo" value="' + _batchHistoryDateTo + '">' +
-    "</div><br><br>" +
+    '<span id="batchHistoryRangeWrap"></span><br><br>' +
     "<label>Category</label>" +
     "<div>" + categoryChecks + "</div><br>" +
     "<label>Sort</label>" +
@@ -168,11 +166,14 @@ function openBatchHistoryFilterSortModal() {
       '<button class="btn-primary" onclick="applyBatchHistoryFilterSort()">Apply</button>' +
     "</div>"
   );
+  _batchHistoryRangePicker = createDateRangePicker(document.getElementById("batchHistoryRangeWrap"), {
+    mode: "day", from: _batchHistoryDateFrom || null, to: _batchHistoryDateTo || null
+  });
 }
 
 function applyBatchHistoryFilterSort() {
-  _batchHistoryDateFrom = document.getElementById("batchHistoryDateFrom").value || "";
-  _batchHistoryDateTo = document.getElementById("batchHistoryDateTo").value || "";
+  _batchHistoryDateFrom = _batchHistoryRangePicker.getFrom() || "";
+  _batchHistoryDateTo = _batchHistoryRangePicker.getTo() || "";
   _batchHistoryCategoryFilter = Array.from(document.querySelectorAll(".batchHistoryCategoryFilterCheck:checked")).map((cb) => cb.value);
   const selectedSort = document.querySelector('input[name="batchHistorySortOption"]:checked');
   if (selectedSort) _batchHistorySort = selectedSort.value;
@@ -538,7 +539,7 @@ function buildBatchFormHtml() {
     '<div style="display:flex; align-items:center; gap:8px;">' +
       '<input type="checkbox" id="batchToday" onchange="setBatchToday()">' +
       '<label for="batchToday">Today</label>' +
-      '<input type="date" id="batchDate">' +
+      '<span id="batchDateWrap"></span>' +
     "</div><br>" +
 
     "<label>Output SKU</label><br>" +
@@ -576,6 +577,7 @@ let _batchConsumptionComputed = [];
 function initBatchForm() {
   _batchRecipeItems = null;
   _batchBaseYieldQty = null;
+  _batchDatePicker = createDateRangePicker(document.getElementById("batchDateWrap"), { mode: "day", single: true });
   _batchOutputCombo = createCombobox(
     document.getElementById("batchOutputCombo"),
     _batchLookups.skus.filter((s) => BATCH_OUTPUT_TYPES.indexOf(s.item_type) !== -1 && s.status !== "Unavailable").map((s) => ({ value: s.id, label: s.name, sub: s.sku })),
@@ -655,7 +657,7 @@ function renderBatchConsumptionReadonly(batchSize) {
 }
 
 function setBatchToday() {
-  if (document.getElementById("batchToday").checked) document.getElementById("batchDate").value = todayISO();
+  if (document.getElementById("batchToday").checked) _batchDatePicker.setValue(todayISO());
 }
 
 function collectBatchConsumption() {
@@ -664,7 +666,7 @@ function collectBatchConsumption() {
 
 async function saveBatch() {
   const outputSkuId = _batchOutputCombo.getValue();
-  if (!document.getElementById("batchDate").value) { alert("Please select a date."); return; }
+  if (!_batchDatePicker.getValue()) { alert("Please select a date."); return; }
   if (!outputSkuId) { alert("Please select an output SKU."); return; }
 
   const btn = document.getElementById("saveBatchBtn");
@@ -673,7 +675,7 @@ async function saveBatch() {
   withSaveStatus(btn, statusEl, "Batch", async function () {
     const outputItem = _batchLookups.skus.find((s) => s.id === outputSkuId);
     const payload = {
-      date: document.getElementById("batchDate").value,
+      date: _batchDatePicker.getValue(),
       outputSkuId: outputSkuId,
       category: outputItem ? outputItem.category || null : null,
       batchSize: Number(document.getElementById("batchSize").value) || null,

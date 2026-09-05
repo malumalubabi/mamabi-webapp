@@ -439,6 +439,279 @@ function createFreeTextCombobox(container, currentItems, opts, commitValue) {
   };
 }
 
+// ---------- Date range picker (single-button calendar popup) ----------
+//
+// Custom (no library, matches this app's own no-frontend-dependencies
+// convention) replacement for native <input type="date"/"week"/"month"> -
+// those render wildly differently across browsers/OSes, don't express a
+// RANGE at all, and don't match this app's own look. One trigger button
+// shows "from - to" as plain text; clicking it opens a single calendar
+// panel below it - first click picks the range's start, second click its
+// end (whichever order they're clicked in - min/max sorts them out), with
+// everything in between shown as an "in range" wash. A day grid for
+// "day"/"week" mode (a "week" click snaps to that week's own Monday, and
+// the range is later widened to the full end week/month by the caller -
+// see Sales Summary's own salesSummaryRangeEndOfPeriod), or a 12-month
+// grid for "month" mode. Same trigger+panel/outside-click-close shape as
+// createDropdownCombobox above, just a calendar body instead of a
+// searchable option list.
+const DP_MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const DP_MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DP_WEEKDAY_SHORT = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+
+function dpMondayOf(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const dow = dt.getUTCDay() || 7; // Sunday(0) -> 7
+  dt.setUTCDate(dt.getUTCDate() - (dow - 1));
+  return dt.toISOString().slice(0, 10);
+}
+
+function dpFormatDay(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return d + " " + DP_MONTH_SHORT[m - 1] + " " + y;
+}
+
+function dpFormatMonth(monthKey) {
+  const [y, m] = monthKey.split("-").map(Number);
+  return DP_MONTH_NAMES[m - 1] + " " + y;
+}
+
+// opts: { mode: "day"|"week"|"month", from, to (matching format -
+// "YYYY-MM-DD" for day/week - week's is always that week's own Monday - or
+// "YYYY-MM" for month), single (bool - one click commits immediately, no
+// second click/connecting bar; used for the app's plain single-date
+// fields - Order Date, Delivery Date, etc. - instead of a range; pass
+// `value` instead of `from`/`to` in this mode, and onSelect gets called as
+// onSelect(value) instead of onSelect(from, to)), onSelect }.
+function createDateRangePicker(container, opts) {
+  let mode = opts.mode;
+  const single = !!opts.single;
+  let from = single ? (opts.value || null) : (opts.from || null);
+  let to = single ? from : (opts.to || null);
+  let pendingStart = null; // set right after a range's first click, cleared once the second click commits it - unused in single mode
+  let viewYear, viewMonth;
+
+  function setViewFromValue() {
+    const basis = to || from || todayISO();
+    if (mode === "month") {
+      viewYear = Number(basis.split("-")[0]);
+    } else {
+      const [y, m] = basis.split("-").map(Number);
+      viewYear = y;
+      viewMonth = m - 1; // 0-based, matches Date's own convention
+    }
+  }
+  setViewFromValue();
+
+  container.innerHTML =
+    '<div style="position:relative; display:inline-block;">' +
+      '<button type="button" class="btn-compact dp-trigger"></button>' +
+      '<div class="dp-panel" style="display:none;"></div>' +
+    "</div>";
+
+  const wrap = container.firstElementChild;
+  const trigger = wrap.querySelector(".dp-trigger");
+  const panel = wrap.querySelector(".dp-panel");
+
+  function labelOf(value) {
+    return mode === "month" ? dpFormatMonth(value) : dpFormatDay(value);
+  }
+  function renderTrigger() {
+    if (single) {
+      trigger.textContent = from ? labelOf(from) : "Select...";
+      return;
+    }
+    trigger.textContent = from && to ? labelOf(from) + " – " + labelOf(to) : "Select range...";
+  }
+
+  // Plain string comparison already sorts correctly for every mode here -
+  // "day"/"week" values are "YYYY-MM-DD" (week's own the Monday it starts
+  // on) and "month" values are "YYYY-MM", both lexicographically ordered
+  // the same as chronologically.
+  function inRange(cellKey) {
+    return !!(from && to && cellKey >= from && cellKey <= to);
+  }
+
+  // Shared by both grids below. The connecting bar lives on .dp-day-track,
+  // NOT the outer .dp-day/.dp-month cell itself - that cell is just the
+  // click target/grid slot (its own full aspect-ratio:1 height), while the
+  // track is a short, fixed-height band roughly the bubble's own size, so
+  // the visible bar reads as a slim strip through the middle of each cell
+  // rather than a big block filling the whole cell. from/to get the bar's
+  // rounded OUTER cap (start rounds its left edge, end its right edge; a
+  // single-day range gets both classes at once, which the CSS resolves
+  // back to a fully rounded pill) plus a solid bubble; cells strictly
+  // between just get the flat connecting wash; pendingStart (the range's
+  // first click, before a second one completes it) gets a bubble of its
+  // own but no bar yet, since there's nothing to connect to.
+  function rangeTrackClasses(cellKey) {
+    const isFrom = cellKey === from;
+    const isTo = cellKey === to;
+    return (
+      (isFrom ? " dp-day-range-start" : "") +
+      (isTo ? " dp-day-range-end" : "") +
+      (!isFrom && !isTo && inRange(cellKey) ? " dp-day-in-range" : "") +
+      (cellKey === pendingStart ? " dp-day-pending" : "")
+    );
+  }
+
+  function dayGridHtml() {
+    const first = new Date(Date.UTC(viewYear, viewMonth, 1));
+    const startDow = first.getUTCDay() || 7; // Monday=1..Sunday=7, so the grid always starts on a Monday
+    const daysInMonth = new Date(Date.UTC(viewYear, viewMonth + 1, 0)).getUTCDate();
+    const todayStr = todayISO();
+
+    let cells = "";
+    for (let i = 1; i < startDow; i++) cells += "<span></span>";
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = viewYear + "-" + String(viewMonth + 1).padStart(2, "0") + "-" + String(d).padStart(2, "0");
+      const cellKey = mode === "week" ? dpMondayOf(dateStr) : dateStr;
+      const isToday = dateStr === todayStr;
+      cells += '<span class="dp-day' + (isToday ? " dp-day-today" : "") + '" data-date="' + dateStr + '">' +
+        '<span class="dp-day-track' + rangeTrackClasses(cellKey) + '"><span class="dp-day-bubble">' + d + "</span></span>" +
+      "</span>";
+    }
+
+    return (
+      '<div class="dp-header">' +
+        '<button type="button" class="dp-nav" data-nav="-1">&lsaquo;</button>' +
+        "<strong>" + DP_MONTH_NAMES[viewMonth] + " " + viewYear + "</strong>" +
+        '<button type="button" class="dp-nav" data-nav="1">&rsaquo;</button>' +
+      "</div>" +
+      '<div class="dp-weekdays">' + DP_WEEKDAY_SHORT.map((w) => "<span>" + w + "</span>").join("") + "</div>" +
+      '<div class="dp-days">' + cells + "</div>"
+    );
+  }
+
+  function monthGridHtml() {
+    const cells = DP_MONTH_SHORT.map((label, i) => {
+      const monthKey = viewYear + "-" + String(i + 1).padStart(2, "0");
+      return '<span class="dp-month" data-month="' + (i + 1) + '">' +
+        '<span class="dp-day-track' + rangeTrackClasses(monthKey) + '"><span class="dp-day-bubble">' + label + "</span></span>" +
+      "</span>";
+    }).join("");
+
+    return (
+      '<div class="dp-header">' +
+        '<button type="button" class="dp-nav" data-nav="-1">&lsaquo;</button>' +
+        "<strong>" + viewYear + "</strong>" +
+        '<button type="button" class="dp-nav" data-nav="1">&rsaquo;</button>' +
+      "</div>" +
+      '<div class="dp-months">' + cells + "</div>"
+    );
+  }
+
+  // Single mode: one click commits immediately (from=to=that cell), no
+  // waiting on a second click. Range mode - first click of a fresh range:
+  // just remembers it and re-draws (waiting on the second click) - doesn't
+  // touch the last COMMITTED from/to yet, so the previous range stays
+  // visible until a new one is actually finished. Second click: sorts the
+  // two into from/to, commits, closes.
+  function commitPick(cellKey) {
+    if (single) {
+      from = cellKey;
+      to = cellKey;
+      renderTrigger();
+      closePanel();
+      if (opts.onSelect) opts.onSelect(from);
+      return;
+    }
+    if (!pendingStart) {
+      pendingStart = cellKey;
+      renderPanel();
+      return;
+    }
+    from = pendingStart < cellKey ? pendingStart : cellKey;
+    to = pendingStart < cellKey ? cellKey : pendingStart;
+    pendingStart = null;
+    renderTrigger();
+    closePanel();
+    if (opts.onSelect) opts.onSelect(from, to);
+  }
+
+  function renderPanel() {
+    panel.innerHTML = mode === "month" ? monthGridHtml() : dayGridHtml();
+
+    panel.querySelectorAll(".dp-nav").forEach((btn) => {
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        const delta = Number(btn.dataset.nav);
+        if (mode === "month") {
+          viewYear += delta;
+        } else {
+          viewMonth += delta;
+          if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+          else if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+        }
+        renderPanel();
+      });
+    });
+    panel.querySelectorAll(".dp-day[data-date]").forEach((el) => {
+      el.addEventListener("click", function (e) {
+        e.stopPropagation();
+        commitPick(mode === "week" ? dpMondayOf(el.dataset.date) : el.dataset.date);
+      });
+    });
+    panel.querySelectorAll(".dp-month[data-month]").forEach((el) => {
+      el.addEventListener("click", function (e) {
+        e.stopPropagation();
+        commitPick(viewYear + "-" + String(Number(el.dataset.month)).padStart(2, "0"));
+      });
+    });
+  }
+
+  function openPanel() {
+    pendingStart = null; // discard any half-made range from a previous open that got dismissed without a second click
+    setViewFromValue();
+    renderPanel();
+    panel.style.display = "block";
+  }
+  function closePanel() {
+    panel.style.display = "none";
+  }
+
+  trigger.addEventListener("click", function (e) {
+    e.stopPropagation();
+    if (panel.style.display === "block") closePanel(); else openPanel();
+  });
+  // click (not pointerdown) - same reasoning as createDropdownCombobox's
+  // own outside-click close above (a touch-scroll starting outside the
+  // picker shouldn't close it mid-gesture).
+  document.addEventListener("click", function (e) {
+    if (!wrap.contains(e.target)) closePanel();
+  });
+
+  renderTrigger();
+
+  return {
+    getFrom: function () { return from; },
+    getTo: function () { return to; },
+    // Convenience alias for single mode, where from===to always - reads
+    // clearer than getFrom() at a single-date call site.
+    getValue: function () { return from; },
+    // Sets a single-mode picker's value programmatically (e.g. a "Today"
+    // checkbox next to it) without going through a click in the panel.
+    setValue: function (v) {
+      from = v || null;
+      to = single ? from : to;
+      renderTrigger();
+    },
+    // Used when the picker's own granularity changes (Daily/Weekly/Monthly
+    // elsewhere on the page) - swaps both the grid type and the range's
+    // value format together, since a "day" range and a "month" range are
+    // never interchangeable.
+    setMode: function (m, newFrom, newTo) {
+      mode = m;
+      from = newFrom || null;
+      to = newTo || null;
+      pendingStart = null;
+      renderTrigger();
+      closePanel();
+    }
+  };
+}
+
 // ---------- Drag-to-scroll ----------
 //
 // For a wide table wrapped in an overflow-x:auto container - adds

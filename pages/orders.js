@@ -70,6 +70,8 @@ let _ordersLookups = null;
 let _customerCombo = null;
 let _newCustomerAreaCombo = null;
 let _driverCombo = null;
+let _orderDatePicker = null;
+let _deliveryDatePicker = null;
 let _ordersByCode = {}; // last-rendered Ongoing/History rows, keyed by order_code - lets the Mark Paid modal show order details without a re-fetch
 let _ordersCurrentPlatformFilter = "Online";
 let _ordersShowNewOrderBtn = true;
@@ -83,6 +85,7 @@ let _ordersIsPlatformMode = false; // Platform Orders has a different column lay
 let _ordersHistoryRaw = [];
 let _ordersHistoryDateFrom = "";
 let _ordersHistoryDateTo = "";
+let _ordersHistoryRangePicker = null; // set each time the Filter modal opens
 let _ordersHistoryPlatformFilter = [];
 let _ordersHistoryFulfillmentTypeFilter = [];
 
@@ -145,7 +148,7 @@ function buildOrderFormHtml() {
         '<div style="display:flex; align-items:center; gap:8px;">' +
           '<input type="checkbox" id="orderToday" onchange="setOrderToday()">' +
           '<label for="orderToday">Today</label>' +
-          '<input type="date" id="orderDate">' +
+          '<span id="orderDateWrap"></span>' +
         "</div>" +
       "</div>" +
       "<div>" +
@@ -153,7 +156,7 @@ function buildOrderFormHtml() {
         '<div style="display:flex; align-items:center; gap:8px;">' +
           '<input type="checkbox" id="deliveryToday" onchange="setDeliveryToday()">' +
           '<label for="deliveryToday">Today</label>' +
-          '<input type="date" id="deliveryDate">' +
+          '<span id="deliveryDateWrap"></span>' +
         "</div>" +
       "</div>" +
     "</div><br>" +
@@ -303,6 +306,11 @@ function initOrderForm(lookups) {
     { placeholder: "Select driver..." }
   );
 
+  // Order Date starts empty - pick a date explicitly (Today included)
+  // rather than silently defaulting to today, per explicit request.
+  _orderDatePicker = createDateRangePicker(document.getElementById("orderDateWrap"), { mode: "day", single: true });
+  _deliveryDatePicker = createDateRangePicker(document.getElementById("deliveryDateWrap"), { mode: "day", single: true });
+
   // Includes the "-" option (methodSelectOptionsHtml, same as Edit Order/
   // Mark Paid) - a customer hasn't always decided QRIS vs Cash yet at
   // order-creation time, per explicit request.
@@ -333,10 +341,10 @@ function updateFieldUpdatedBadge(input) {
 }
 
 function setOrderToday() {
-  if (document.getElementById("orderToday").checked) document.getElementById("orderDate").value = todayISO();
+  if (document.getElementById("orderToday").checked) _orderDatePicker.setValue(todayISO());
 }
 function setDeliveryToday() {
-  if (document.getElementById("deliveryToday").checked) document.getElementById("deliveryDate").value = todayISO();
+  if (document.getElementById("deliveryToday").checked) _deliveryDatePicker.setValue(todayISO());
 }
 
 function toggleNewCustomer() {
@@ -523,8 +531,8 @@ async function saveOrder() {
       _ordersLookups.customers.push(created); // so it's pickable next time without a reload
     }
     if (!customerId) throw new Error("Please select or add a customer");
-    if (!document.getElementById("orderDate").value) throw new Error("Please select an order date");
-    if (!document.getElementById("deliveryDate").value) throw new Error("Please select a fulfillment date");
+    if (!_orderDatePicker.getValue()) throw new Error("Please select an order date");
+    if (!_deliveryDatePicker.getValue()) throw new Error("Please select a fulfillment date");
 
     // Area/Address are editable now (not readonly) - saving here corrects
     // the customer's own record too, per explicit request. Skipped for a
@@ -552,8 +560,8 @@ async function saveOrder() {
     const driver = orderType === "Delivery" ? resolveDriver(_driverCombo.getValue()) : { driverStaffId: null, driverNameRaw: null };
 
     const payload = {
-      orderDate: document.getElementById("orderDate").value,
-      deliveryDate: document.getElementById("deliveryDate").value || null,
+      orderDate: _orderDatePicker.getValue(),
+      deliveryDate: _deliveryDatePicker.getValue() || null,
       customerId: customerId,
       items: items,
       orderType: orderType,
@@ -601,7 +609,7 @@ function buildEditOrderFormHtml(o) {
         '<div style="display:flex; align-items:center; gap:8px;">' +
           '<input type="checkbox" id="deliveryToday" onchange="setDeliveryToday()">' +
           '<label for="deliveryToday">Today</label>' +
-          '<input type="date" id="deliveryDate">' +
+          '<span id="deliveryDateWrap"></span>' +
         "</div>" +
       "</div>" +
     "</div><br>" +
@@ -655,7 +663,7 @@ function buildEditOrderFormHtml(o) {
 }
 
 function initEditOrderForm(o) {
-  document.getElementById("deliveryDate").value = o.deliveryDate || "";
+  _deliveryDatePicker = createDateRangePicker(document.getElementById("deliveryDateWrap"), { mode: "day", single: true, value: o.deliveryDate || null });
   document.getElementById("orderType").value = o.orderType;
   document.getElementById("orderDeliveryFee").value = o.deliveryFee ? formatRupiah(o.deliveryFee) : "";
   document.getElementById("orderNotes").value = o.notes || "";
@@ -675,14 +683,14 @@ function saveEditOrder(orderCode) {
   const statusEl = document.getElementById("saveOrderStatus");
 
   withSaveStatus(btn, statusEl, "Order", async function () {
-    if (!document.getElementById("deliveryDate").value) throw new Error("Please select a fulfillment date");
+    if (!_deliveryDatePicker.getValue()) throw new Error("Please select a fulfillment date");
 
     const items = collectOrderItems();
     if (!items.length) throw new Error("Add at least one product");
 
     const orderType = document.getElementById("orderType").value;
     const payload = {
-      deliveryDate: document.getElementById("deliveryDate").value || null,
+      deliveryDate: _deliveryDatePicker.getValue() || null,
       items: items,
       orderType: orderType,
       deliveryFee: orderType === "Delivery" ? parseAmount(document.getElementById("orderDeliveryFee").value) : 0,
@@ -786,22 +794,21 @@ function openOrdersHistoryFilterModal() {
   openModal(
     "<h2>Filter - Order History</h2>" +
     "<label>Date Range</label><br>" +
-    '<div style="display:flex; align-items:center; gap:8px;">' +
-      '<input type="date" id="ordersHistoryDateFrom" value="' + _ordersHistoryDateFrom + '">' +
-      "<span>to</span>" +
-      '<input type="date" id="ordersHistoryDateTo" value="' + _ordersHistoryDateTo + '">' +
-    "</div><br><br>" +
+    '<span id="ordersHistoryRangeWrap"></span><br><br>' +
     (platforms.length > 1 ? "<label>Platform</label><div>" + platformChecks + "</div><br>" : "") +
     "<label>Fulfillment Type</label><div>" + fulfillmentTypeChecks + "</div><br>" +
     '<div style="margin-top:16px;">' +
       '<button class="btn-primary" onclick="applyOrdersHistoryFilter()">Apply</button>' +
     "</div>"
   );
+  _ordersHistoryRangePicker = createDateRangePicker(document.getElementById("ordersHistoryRangeWrap"), {
+    mode: "day", from: _ordersHistoryDateFrom || null, to: _ordersHistoryDateTo || null
+  });
 }
 
 function applyOrdersHistoryFilter() {
-  _ordersHistoryDateFrom = document.getElementById("ordersHistoryDateFrom").value || "";
-  _ordersHistoryDateTo = document.getElementById("ordersHistoryDateTo").value || "";
+  _ordersHistoryDateFrom = _ordersHistoryRangePicker.getFrom() || "";
+  _ordersHistoryDateTo = _ordersHistoryRangePicker.getTo() || "";
   const checks = document.querySelectorAll(".ordersHistoryPlatformCheck:checked");
   _ordersHistoryPlatformFilter = checks.length ? Array.from(checks).map((cb) => cb.value) : [];
   const typeChecks = document.querySelectorAll(".ordersHistoryFulfillmentTypeCheck:checked");
@@ -1163,6 +1170,7 @@ function methodSelectOptionsHtml(current) {
 let _lastPaidPayoutOrders = [];
 let _payoutHistoryDateFrom = "";
 let _payoutHistoryDateTo = "";
+let _payoutHistoryRangePicker = null; // set each time the Filter & Sort modal opens
 let _payoutHistorySort = "date-desc";
 const PAYOUT_HISTORY_SORT_LABELS = { "date-desc": "Order Date (Newest)", "date-asc": "Order Date (Oldest)" };
 
@@ -1196,22 +1204,21 @@ function openPayoutHistoryFilterSortModal() {
   openModal(
     "<h2>Filter &amp; Sort - Payout History</h2>" +
     "<label>Order Date Range</label><br>" +
-    '<div style="display:flex; align-items:center; gap:8px;">' +
-      '<input type="date" id="payoutHistoryDateFrom" value="' + _payoutHistoryDateFrom + '">' +
-      "<span>to</span>" +
-      '<input type="date" id="payoutHistoryDateTo" value="' + _payoutHistoryDateTo + '">' +
-    "</div><br><br>" +
+    '<span id="payoutHistoryRangeWrap"></span><br><br>' +
     "<label>Sort</label>" +
     "<div>" + sortRadios + "</div>" +
     '<div style="margin-top:16px;">' +
       '<button class="btn-primary" onclick="applyPayoutHistoryFilterSort()">Apply</button>' +
     "</div>"
   );
+  _payoutHistoryRangePicker = createDateRangePicker(document.getElementById("payoutHistoryRangeWrap"), {
+    mode: "day", from: _payoutHistoryDateFrom || null, to: _payoutHistoryDateTo || null
+  });
 }
 
 function applyPayoutHistoryFilterSort() {
-  _payoutHistoryDateFrom = document.getElementById("payoutHistoryDateFrom").value || "";
-  _payoutHistoryDateTo = document.getElementById("payoutHistoryDateTo").value || "";
+  _payoutHistoryDateFrom = _payoutHistoryRangePicker.getFrom() || "";
+  _payoutHistoryDateTo = _payoutHistoryRangePicker.getTo() || "";
   const selectedSort = document.querySelector('input[name="payoutHistorySortOption"]:checked');
   if (selectedSort) _payoutHistorySort = selectedSort.value;
   closeModal();

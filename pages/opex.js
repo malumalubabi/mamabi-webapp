@@ -21,6 +21,7 @@ let _lastOpexRows = [];
 let _opexCategoryOptions = null;
 let _opexDescriptionOptions = null;
 let _opexDescCombo = null;
+let _opexDatePicker = null;
 
 async function ensureOpexCategoryOptions() {
   if (_opexCategoryOptions) return _opexCategoryOptions;
@@ -126,6 +127,7 @@ function renderOpexSummary(wrap) {
 let _opexCategoryFilter = []; // empty = show every Category (default)
 let _opexDateFrom = "";
 let _opexDateTo = "";
+let _opexRangePicker = null; // set each time the Filter & Sort modal opens
 let _opexSort = "date-desc";
 
 const OPEX_SORT_LABELS = {
@@ -215,11 +217,7 @@ function openOpexFilterSortModal() {
   openModal(
     "<h2>Filter &amp; Sort - Operational Expenses Log</h2>" +
     "<label>Date Range</label><br>" +
-    '<div style="display:flex; align-items:center; gap:8px;">' +
-      '<input type="date" id="opexDateFrom" value="' + _opexDateFrom + '">' +
-      "<span>to</span>" +
-      '<input type="date" id="opexDateTo" value="' + _opexDateTo + '">' +
-    "</div><br><br>" +
+    '<span id="opexRangeWrap"></span><br><br>' +
     "<label>Category</label>" +
     "<div>" + checkboxes + "</div><br>" +
     "<label>Sort</label>" +
@@ -228,11 +226,14 @@ function openOpexFilterSortModal() {
       '<button class="btn-primary" onclick="applyOpexFilterSort()">Apply</button>' +
     "</div>"
   );
+  _opexRangePicker = createDateRangePicker(document.getElementById("opexRangeWrap"), {
+    mode: "day", from: _opexDateFrom || null, to: _opexDateTo || null
+  });
 }
 
 function applyOpexFilterSort() {
-  _opexDateFrom = document.getElementById("opexDateFrom").value || "";
-  _opexDateTo = document.getElementById("opexDateTo").value || "";
+  _opexDateFrom = _opexRangePicker.getFrom() || "";
+  _opexDateTo = _opexRangePicker.getTo() || "";
   _opexCategoryFilter = Array.from(document.querySelectorAll(".opexCategoryFilterCheck:checked")).map((cb) => cb.value);
   const selectedSort = document.querySelector('input[name="opexSortOption"]:checked');
   if (selectedSort) _opexSort = selectedSort.value;
@@ -253,13 +254,13 @@ function openOpexEntryModal(opexCode) {
     "<h2>" + (opexCode ? "Edit Expense - " + opexCode : "Add Expense") + "</h2>" +
     "<label>Date</label><br>" +
     (row
-      ? ('<input type="date" id="opexDate" value="' + row.date + '"><br>')
+      ? ('<span id="opexDateWrap"></span><br>')
       // Not checked by default - pick a date explicitly (Today included)
       // rather than silently defaulting to today, per explicit request.
       : ('<div style="display:flex; align-items:center; gap:8px;">' +
           '<input type="checkbox" id="opexToday" onchange="setOpexToday()">' +
           '<label for="opexToday">Today</label>' +
-          '<input type="date" id="opexDate">' +
+          '<span id="opexDateWrap"></span>' +
         "</div><br>")
     ) +
     "<label>Category</label><br>" +
@@ -292,13 +293,14 @@ function openOpexEntryModal(opexCode) {
     { placeholder: "Type or pick a description...", allowFreeText: true, commitValue: true }
   );
   if (row && row.desc) _opexDescCombo.setSelection(row.desc, row.desc);
+
+  _opexDatePicker = createDateRangePicker(document.getElementById("opexDateWrap"), { mode: "day", single: true, value: row ? row.date : null });
 }
 
 function setOpexToday() {
   const today = document.getElementById("opexToday");
-  const date = document.getElementById("opexDate");
-  if (today.checked) { date.valueAsDate = new Date(); date.disabled = true; }
-  else { date.value = ""; date.disabled = false; }
+  if (today.checked) _opexDatePicker.setValue(todayISO());
+  else _opexDatePicker.setValue(null);
 }
 
 function toggleOpexAmort() {
@@ -309,7 +311,7 @@ function toggleOpexAmort() {
 }
 
 function saveOpexEntry(existingCode) {
-  const date = document.getElementById("opexDate").value;
+  const date = _opexDatePicker.getValue();
   const category = document.getElementById("opexCategory").value;
   const desc = (_opexDescCombo ? _opexDescCombo.getValue() : "").trim();
   const grossAmount = parseAmount(document.getElementById("opexGrossAmount").value);

@@ -27,17 +27,18 @@ registerPage("dashboard", async function (content) {
       '<div class="dv2-col-main">' +
         '<div class="dv2-card dv2-flow-card">' +
           '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; flex-wrap:wrap; gap:8px;">' +
-            "<h4>Revenue Flow</h4>" +
+            "<h4>Revenue Trend</h4>" +
             '<div style="display:flex; gap:8px;">' +
-              '<select id="dv2RevenueView" onchange="dv2RenderRevenueChart()">' +
+              '<select id="dv2RevenueView" class="select-compact" onchange="dv2RenderRevenueChart()">' +
                 '<option value="total">All Channel</option>' +
                 '<option value="channel">Per Channel</option>' +
               "</select>" +
-              '<select id="dv2RevenuePeriod" onchange="dv2RenderRevenueChart()">' +
+              '<select id="dv2RevenuePeriod" class="select-compact" onchange="dv2OnRevenuePeriodChange()">' +
                 '<option value="daily">Daily</option>' +
                 '<option value="weekly">Weekly</option>' +
                 '<option value="monthly">Monthly</option>' +
               "</select>" +
+              '<span id="dv2RevenueRangeWrap"></span>' +
             "</div>" +
           "</div>" +
           '<div id="dv2RevenueChart" class="dv2-flow-chart-wrap"></div>' +
@@ -72,11 +73,60 @@ registerPage("dashboard", async function (content) {
       "</div>" +
     "</div>";
 
+  dv2InitRangePicker("daily");
   dv2RenderRevenueChart();
   dv2WireDonutTooltip(data.opexByCategoryThisMonth);
 });
 
 let _dv2Data = null;
+
+// ---------- Revenue Trend date-range picker integration ----------
+//
+// Shared by Dashboard's own Revenue Trend AND Sales Summary's (pages/
+// sales.js) - both wire a createDateRangePicker (shared.js) to the same
+// Daily/Weekly/Monthly period selector, so the range arithmetic (default
+// starting window, normalizing a month-mode "YYYY-MM" value to a plain
+// date, widening a week/month "to" bound out to that period's actual last
+// day) only has to live in one place.
+const DV2_PICKER_MODE = { daily: "day", weekly: "week", monthly: "month" };
+
+// Sensible starting window per period (~30 days / ~12 weeks / ~12 months
+// back from today) - after this, the user just reopens the picker to look
+// further back or at a narrower window.
+function dv2DefaultRangeValues(period) {
+  const today = todayISO();
+  const [ty, tm, td] = today.split("-").map(Number);
+  const from = new Date(Date.UTC(ty, tm - 1, td));
+  if (period === "daily") from.setUTCDate(from.getUTCDate() - 29);
+  else if (period === "weekly") from.setUTCDate(from.getUTCDate() - 7 * 11);
+  else from.setUTCMonth(from.getUTCMonth() - 11);
+  const fromStr = from.toISOString().slice(0, 10);
+
+  const mode = DV2_PICKER_MODE[period];
+  if (mode === "month") return { from: fromStr.slice(0, 7), to: today.slice(0, 7) };
+  if (mode === "week") return { from: dpMondayOf(fromStr), to: dpMondayOf(today) };
+  return { from: fromStr, to: today };
+}
+
+// A month-mode value is "YYYY-MM" (no day component) - normalizes it to
+// that month's 1st so date-math/comparison can treat every mode uniformly
+// as a plain "YYYY-MM-DD" from here on. Day/week values are already full
+// dates (week's is always its own Monday).
+function dv2NormalizeToDate(value, period) {
+  if (!value) return null;
+  return period === "monthly" ? value + "-01" : value;
+}
+
+// A week/month value is its FIRST day - correct as a lower bound as-is,
+// but as an upper bound it would cut off the rest of that week/month, so
+// this pushes it out to the period's last day instead. No-op for Daily
+// (already an exact day).
+function dv2RangeEndOfPeriod(dateStr, period) {
+  const d = new Date(dateStr + "T00:00:00Z");
+  if (period === "weekly") d.setUTCDate(d.getUTCDate() + 6);
+  else if (period === "monthly") { d.setUTCMonth(d.getUTCMonth() + 1); d.setUTCDate(d.getUTCDate() - 1); }
+  return d.toISOString().slice(0, 10);
+}
 
 function dv2StylesHtml() {
   return (
@@ -173,16 +223,45 @@ function dv2StatCard(label, value, sub) {
 
 // ---------- Revenue Flow chart (inline SVG line + area, no library) ----------
 
+// (Re)creates the date range picker in "period"'s own mode, reset to that
+// period's default window - called on first render and every time Daily/
+// Weekly/Monthly changes, since a "day" range and a "month" range are
+// never interchangeable. Same picker/pattern as Sales Summary's own
+// Revenue Trend (pages/sales.js) - see the DV2_PICKER_MODE block above.
+let _dv2RangePicker = null;
+function dv2InitRangePicker(period) {
+  const mode = DV2_PICKER_MODE[period];
+  const defaults = dv2DefaultRangeValues(period);
+  _dv2RangePicker = createDateRangePicker(document.getElementById("dv2RevenueRangeWrap"), {
+    mode: mode, from: defaults.from, to: defaults.to, onSelect: dv2RenderRevenueChart
+  });
+}
+
+function dv2OnRevenuePeriodChange() {
+  const period = document.getElementById("dv2RevenuePeriod").value;
+  dv2InitRangePicker(period);
+  dv2RenderRevenueChart();
+}
+
 // Period (Daily/Weekly/Monthly) and View (Total/Per Channel) are
 // independent controls, both re-render from the same bucketed data -
 // dv2GroupDaily does the bucketing once, dv2RevenueChartSvg (one line) or
-// dv2RevenueMultiChartSvg (one line per platform) draws it.
+// dv2RevenueMultiChartSvg (one line per platform) draws it. The date range
+// picker filters _dv2Data.revenueTrendDaily (a fixed 90-day window from
+// the backend) down further first - picking a range outside that window
+// just yields no data for those days, same as Sales Summary's own version.
 function dv2RenderRevenueChart() {
   const el = document.getElementById("dv2RevenueChart");
-  if (!el || !_dv2Data) return;
+  if (!el || !_dv2Data || !_dv2RangePicker) return;
   const period = document.getElementById("dv2RevenuePeriod").value;
   const view = document.getElementById("dv2RevenueView").value;
-  const buckets = dv2GroupDaily(_dv2Data.revenueTrendDaily, period);
+
+  const fromStr = dv2NormalizeToDate(_dv2RangePicker.getFrom(), period);
+  const toRaw = dv2NormalizeToDate(_dv2RangePicker.getTo(), period);
+  const toStr = toRaw ? dv2RangeEndOfPeriod(toRaw, period) : null;
+  const filtered = _dv2Data.revenueTrendDaily.filter((d) => (!fromStr || d.date >= fromStr) && (!toStr || d.date <= toStr));
+
+  const buckets = dv2GroupDaily(filtered, period, filtered.length);
 
   if (view === "channel") {
     el.innerHTML = dv2RevenueMultiChartSvg(buckets);
@@ -308,15 +387,21 @@ function dv2WireChartTooltip(el, buckets, view) {
   svg.addEventListener("mouseleave", hide);
 }
 
-// Daily = last 30 raw days as-is. Weekly = grouped by the Monday that
-// starts each day's ISO week. Monthly = grouped by calendar month. All
-// three read from the same 90-day daily dataset (functions/api/
-// dashboard.js's revenueTrendDailyList) - no separate fetch per period.
-// Keeps byPlatform per bucket (summed across its member days), not just
-// the total, so the Per Channel view doesn't need its own bucketing pass.
-function dv2GroupDaily(daily, period) {
+// Daily = last 30 raw days as-is (or rangeCount days if a caller passes
+// one - see Sales Summary's own Revenue Trend, which pre-filters `daily`
+// to its own From/To picker range and passes that filtered length back in
+// here so this doesn't ALSO clip it down to 30; Dashboard's own call site
+// omits it, keeping its original fixed behavior unchanged). Weekly =
+// grouped by the Monday that starts each day's ISO week. Monthly = grouped
+// by calendar month. All three read from the same daily dataset
+// (Dashboard's is a 90-day window - functions/api/dashboard.js's
+// revenueTrendDailyList; Sales Summary's is its own full-history one) - no
+// separate fetch per period. Keeps byPlatform per bucket (summed across its
+// member days), not just the total, so the Per Channel view doesn't need
+// its own bucketing pass.
+function dv2GroupDaily(daily, period, rangeCount) {
   if (period === "daily") {
-    return daily.slice(-30).map((d) => ({ label: dv2ShortDayLabel(d.date), revenue: d.revenue, byPlatform: d.byPlatform }));
+    return daily.slice(-(rangeCount || 30)).map((d) => ({ label: dv2ShortDayLabel(d.date), revenue: d.revenue, byPlatform: d.byPlatform }));
   }
 
   const byBucket = new Map();
@@ -331,10 +416,11 @@ function dv2GroupDaily(daily, period) {
     });
   });
 
-  return order.map((key) => {
+  const buckets = order.map((key) => {
     const b = byBucket.get(key);
     return { label: period === "weekly" ? dv2ShortDayLabel(key) : dv2ShortMonthLabel(key), revenue: b.revenue, byPlatform: b.byPlatform };
   });
+  return rangeCount ? buckets.slice(-rangeCount) : buckets;
 }
 
 function dv2MondayOf(dateStr) {
@@ -391,14 +477,20 @@ const DV2_AXIS_WIDTH = 46;
 // horizontally - per explicit request. top/bottom must match whatever
 // padding the accompanying chart SVG uses so the gridline heights line up.
 // Rp 500K increments (was 3 fixed fractions = effectively 1M steps) - per
-// explicit request for finer gridline granularity. Falls back to just
-// [0, maxVal] if maxVal itself is under one step, so a small-revenue day
-// never ends up with only a "0" tick and nothing marking the top of the
-// chart. Shared by the axis labels AND both chart bodies' gridlines (single
-// + per-channel) so all three can never drift out of alignment with
-// each other.
+// explicit request for finer gridline granularity for a typical DAILY
+// revenue total. That fixed step broke down once this same chart got reused
+// for a much larger aggregate (Sales Summary's Monthly view sums a whole
+// month, tens of millions) - dozens of 500K gridlines piled on top of each
+// other - so the step now escalates to a coarser "nice" one (whichever is
+// the finest option that still keeps 10 or fewer gridlines) instead of
+// staying fixed. Falls back to just [0, maxVal] if maxVal itself is under
+// one step, so a small-revenue day never ends up with only a "0" tick and
+// nothing marking the top of the chart. Shared by the axis labels AND both
+// chart bodies' gridlines (single + per-channel) so all three can never
+// drift out of alignment with each other.
+const DV2_REVENUE_TICK_STEPS = [500000, 1000000, 2000000, 2500000, 5000000, 10000000, 20000000, 25000000, 50000000, 100000000, 200000000, 250000000, 500000000, 1000000000];
 function dv2RevenueTicks(maxVal) {
-  const step = 500000;
+  const step = DV2_REVENUE_TICK_STEPS.find((s) => maxVal / s <= 10) || DV2_REVENUE_TICK_STEPS[DV2_REVENUE_TICK_STEPS.length - 1];
   return maxVal < step
     ? [0, maxVal]
     : Array.from({ length: Math.round(maxVal / step) + 1 }, (_, i) => i * step);

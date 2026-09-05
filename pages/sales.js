@@ -22,11 +22,19 @@ const SALES_TAB_LABELS = { summary: "Summary", log: "Log", draft: "Draft" };
 
 let _salesLookups = null;
 let _lastSalesRows = [];
+// "YYYY-MM" - set lazily off todayISO() (same lazy-init pattern as hr.js's
+// _calendarMonth), so Summary defaults to the current month but Prev/Next
+// can browse any other one without re-fetching (all of Sales history is
+// already in _lastSalesRows).
+let _salesSummaryMonth = null;
+let _saleDatePicker = null; // set each time Input Sales opens
+let _batchEditDatePicker = null; // set each time Edit Batch opens
 let _lastDraftRows = [];
 let _draftReviewDraft = null; // the draft currently open in the Review modal - set on open, read by the fee/gross live-compare handlers
 let _salesLogChannelFilter = []; // empty = show every Channel (default)
 let _salesLogDateFrom = "";
 let _salesLogDateTo = "";
+let _salesLogRangePicker = null; // set each time the Filter & Sort modal opens - see openSalesLogFilterSortModal
 let _salesLogSort = "date-desc";
 const SALES_LOG_SORT_LABELS = { "date-desc": "Date (Newest)", "date-asc": "Date (Oldest)" };
 
@@ -585,14 +593,368 @@ function saveDraftReview(draftId) {
 
 // ---------- Summary ----------
 
+// Shifts a "YYYY-MM" key by N months (negative = earlier) - used for the
+// Month-over-Month comparison row below.
+function salesSummaryShiftMonth(monthKey, offset) {
+  const [y, m] = monthKey.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + offset, 1));
+  return d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, "0");
+}
+
+function salesSummaryTotals(rows) {
+  return rows.reduce(
+    (acc, r) => ({ revenue: acc.revenue + r.revenue, qty: acc.qty + r.qty, grossProfit: acc.grossProfit + r.grossProfit }),
+    { revenue: 0, qty: 0, grossProfit: 0 }
+  );
+}
+
+// Local, more compact than shared.js's formatPercent (2 decimals fixed) -
+// these new sections want either 1 decimal (deltas) or none (channel/
+// quadrant labels), matching what was previewed.
+function salesSummaryPct(frac, decimals) {
+  return (frac * 100).toFixed(decimals) + "%";
+}
+
+function salesSummaryDeltaBadge(value, prevMonthLabel, isPoints) {
+  const up = value >= 0;
+  const text = isPoints ? Math.abs(value).toFixed(1) + "pt" : salesSummaryPct(Math.abs(value), 1);
+  const color = up ? "var(--color-success-pastel)" : "var(--color-error-pastel)";
+  const arrow = up ? "&#9650;" : "&#9660;";
+  return '<div style="font-size:11.5px; margin-top:4px; font-weight:600; color:' + color + ';">' + arrow + " " + text + " vs " + prevMonthLabel + "</div>";
+}
+
+function salesSummaryStatCard(label, value, deltaHtml) {
+  return (
+    '<div class="dv2-stat">' +
+      '<div class="dv2-stat-label">' + label + "</div>" +
+      '<div class="dv2-stat-value">' + value + "</div>" +
+      deltaHtml +
+    "</div>"
+  );
+}
+
+// Month-over-Month stat row - blank delta (no arrow/no claim) when last
+// month had nothing to compare against, rather than a misleading "up
+// infinity%".
+function salesSummaryStatRowHtml(totals, prevTotals, prevMonthLabel) {
+  const margin = totals.revenue ? totals.grossProfit / totals.revenue : 0;
+  const prevMargin = prevTotals.revenue ? prevTotals.grossProfit / prevTotals.revenue : 0;
+  const pctDelta = (cur, prev) => (prev ? salesSummaryDeltaBadge((cur - prev) / prev, prevMonthLabel, false) : "");
+  const marginDelta = prevTotals.revenue ? salesSummaryDeltaBadge((margin - prevMargin) * 100, prevMonthLabel, true) : "";
+
+  return (
+    '<div class="dv2-stat-row" style="margin-bottom:20px;">' +
+      salesSummaryStatCard("Total Revenue", formatRupiah(totals.revenue), pctDelta(totals.revenue, prevTotals.revenue)) +
+      salesSummaryStatCard("Total QTY Sold", String(totals.qty), pctDelta(totals.qty, prevTotals.qty)) +
+      salesSummaryStatCard("Total Gross Profit", formatRupiah(totals.grossProfit), pctDelta(totals.grossProfit, prevTotals.grossProfit)) +
+      salesSummaryStatCard("Gross Margin", salesSummaryPct(margin, 1), marginDelta) +
+    "</div>"
+  );
+}
+
+// Donut arcs hand-rolled the same way as dashboard.js's dv2DonutChartHtml
+// (stroke-dasharray trick on a circle, not <path> arcs). Colors come from
+// dashboard.js's dv2ColorsForPlatforms/dv2SortPlatforms (the same ones
+// Revenue Trend's Per Channel view uses) rather than a second, independent
+// palette - so a platform is always the same color in both charts, per
+// explicit request. Segments are cached on the module (not just returned)
+// so salesSummaryWireChannelMixTooltip, called separately once this HTML
+// is actually in the DOM, can look them back up by data-idx - same
+// two-step render-then-wire split as dashboard.js's OpEx donut
+// (dv2DonutChartHtml/dv2WireDonutTooltip), just not reusing that one
+// directly since it's hardcoded to <path> segments and a category/amount
+// shape, not this donut's <circle> segments and platform/revenue shape.
+let _salesSummaryChannelMixSegments = [];
+
+function salesSummaryChannelMixHtml(summary, totals) {
+  if (!totals.revenue) { _salesSummaryChannelMixSegments = []; return "<p>No sales data yet.</p>"; }
+  const byPlatform = {};
+  summary.forEach((p) => { byPlatform[p.platform] = p; });
+  const platforms = dv2SortPlatforms(Object.keys(byPlatform));
+  const colors = dv2ColorsForPlatforms(platforms);
+
+  const r = 15.9, circumference = 2 * Math.PI * r;
+  let offsetAcc = 0;
+
+  const arcs = platforms.map((platform, i) => {
+    const p = byPlatform[platform];
+    const frac = p.revenue / totals.revenue;
+    const len = frac * circumference;
+    const color = colors[i];
+    const circle =
+      '<circle cx="21" cy="21" r="' + r + '" fill="transparent" stroke="' + color + '" stroke-width="6" ' +
+      'stroke-dasharray="' + len.toFixed(2) + " " + (circumference - len).toFixed(2) + '" ' +
+      'stroke-dashoffset="' + (-offsetAcc).toFixed(2) + '" transform="rotate(-90 21 21)" data-idx="' + i + '" style="cursor:pointer;"></circle>';
+    offsetAcc += len;
+    return { circle: circle, platform: platform, color: color, frac: frac, revenue: p.revenue };
+  });
+  _salesSummaryChannelMixSegments = arcs;
+
+  const legend = arcs.map((a) =>
+    '<div style="display:flex; align-items:center; gap:8px; padding:4px 0; font-size:12.5px;">' +
+      '<span style="width:10px; height:10px; border-radius:50%; flex-shrink:0; background:' + a.color + ';"></span>' +
+      '<span style="flex:1;">' + a.platform + "</span>" +
+      '<span class="font-number" style="font-weight:600;">' + salesSummaryPct(a.frac, 0) + "</span>" +
+    "</div>"
+  ).join("");
+
+  return (
+    '<div id="salesSummaryChannelMixWrap" style="display:flex; align-items:center; gap:18px; flex-wrap:wrap; position:relative;">' +
+      '<svg width="110" height="110" viewBox="0 0 42 42">' +
+        '<circle cx="21" cy="21" r="15.9" fill="transparent" stroke="var(--color-border-on-card)" stroke-width="6"></circle>' +
+        arcs.map((a) => a.circle).join("") +
+      "</svg>" +
+      '<div style="flex:1; min-width:120px;">' + legend + "</div>" +
+      '<div class="dv2-chart-tooltip"></div>' +
+    "</div>"
+  );
+}
+
+// Hover tooltip for the Channel Mix donut - revenue + share per channel,
+// per explicit request. Wired separately after the HTML above is actually
+// in the DOM (called from renderSalesSummaryTab, same split as
+// renderSalesSummaryRevenueChart/dv2WireChartTooltip).
+function salesSummaryWireChannelMixTooltip() {
+  const wrap = document.getElementById("salesSummaryChannelMixWrap");
+  if (!wrap) return;
+  const tooltip = wrap.querySelector(".dv2-chart-tooltip");
+  const svg = wrap.querySelector("svg");
+  if (!tooltip || !svg) return;
+
+  function position(e) {
+    const wrapRect = wrap.getBoundingClientRect();
+    const tooltipWidth = tooltip.offsetWidth || 140;
+    let left = e.clientX - wrapRect.left + 14;
+    if (left + tooltipWidth > wrapRect.width) left = e.clientX - wrapRect.left - tooltipWidth - 14;
+    tooltip.style.left = left + "px";
+    tooltip.style.top = (e.clientY - wrapRect.top - 10) + "px";
+  }
+
+  svg.querySelectorAll("circle[data-idx]").forEach((circle) => {
+    const seg = _salesSummaryChannelMixSegments[Number(circle.dataset.idx)];
+    if (!seg) return;
+    const html =
+      '<div class="dv2-tt-row"><span class="dv2-tt-dot" style="background:' + seg.color + ';"></span>' +
+        seg.platform + ": <span class=\"font-number\">" + formatRupiah(seg.revenue) + "</span> (" + (seg.frac * 100).toFixed(1) + "%)" +
+      "</div>";
+
+    circle.addEventListener("mousemove", function (e) {
+      tooltip.innerHTML = html;
+      tooltip.style.display = "block";
+      position(e);
+    });
+    circle.addEventListener("mouseleave", function () {
+      tooltip.style.display = "none";
+    });
+  });
+}
+
+// Orders = distinct groupKey ("order:.../batch:...", see functions/api/
+// _lib/sales.js) per platform this month - a sales row is one PRODUCT
+// line, not one order, so counting rows here would overcount any
+// multi-item order/batch.
+function salesSummaryAovHtml(rows, summary) {
+  const groupsByPlatform = {};
+  rows.forEach((r) => {
+    if (!groupsByPlatform[r.platform]) groupsByPlatform[r.platform] = new Set();
+    groupsByPlatform[r.platform].add(r.groupKey);
+  });
+
+  return (
+    "<table>" +
+      "<thead><tr><th>Platform</th><th>Orders</th><th>AOV</th></tr></thead>" +
+      "<tbody>" +
+        summary.map((p) => {
+          const orderCount = groupsByPlatform[p.platform] ? groupsByPlatform[p.platform].size : 0;
+          const aov = orderCount ? p.revenue / orderCount : 0;
+          return "<tr><td>" + p.platform + '</td><td class="font-number">' + orderCount + '</td><td><span class="font-number">' + formatRupiah(aov) + "</span></td></tr>";
+        }).join("") +
+      "</tbody>" +
+    "</table>"
+  );
+}
+
+// Classic restaurant "menu engineering" matrix - popularity (qty sold) and
+// profitability (gross margin) each split against this month's own
+// menu-wide average (not a fixed threshold), so the 4 buckets always
+// reflect this specific month's actual product mix. Icon colors: gold
+// star and blue "?" are decorative per explicit request, independent of
+// each quadrant's own semantic color (success/accent/warning/error).
+const SALES_MATRIX_QUAD_META = {
+  Stars: { color: "var(--color-success-pastel)", icon: '<span style="color:#F0B429;">&#9733;</span>', desc: "Popular &middot; High margin" },
+  Puzzles: { color: "var(--color-accent)", icon: '<span style="color:var(--color-info-pastel);">?</span>', desc: "Slow-moving &middot; High margin" },
+  Plowhorses: { color: "var(--color-warning)", icon: "&#128052;", desc: "Popular &middot; Low margin" },
+  Dogs: { color: "var(--color-error-pastel)", icon: "&#128054;", desc: "Slow-moving &middot; Low margin" }
+};
+
+function salesSummaryMenuMatrixHtml(rows) {
+  const byProduct = {};
+  rows.forEach((r) => {
+    const key = r.productName || "(unnamed)";
+    if (!byProduct[key]) byProduct[key] = { name: key, qty: 0, revenue: 0, grossProfit: 0 };
+    const p = byProduct[key];
+    p.qty += r.qty;
+    p.revenue += r.revenue;
+    p.grossProfit += r.grossProfit;
+  });
+  const products = Object.values(byProduct).map((p) => Object.assign({}, p, { margin: p.revenue ? p.grossProfit / p.revenue : 0 }));
+  if (!products.length) return "<p>No sales data yet.</p>";
+
+  const avgQty = products.reduce((s, p) => s + p.qty, 0) / products.length;
+  const avgMargin = products.reduce((s, p) => s + p.margin, 0) / products.length;
+
+  const quads = { Stars: [], Puzzles: [], Plowhorses: [], Dogs: [] };
+  products.forEach((p) => {
+    const popular = p.qty >= avgQty;
+    const profitable = p.margin >= avgMargin;
+    quads[popular ? (profitable ? "Stars" : "Plowhorses") : (profitable ? "Puzzles" : "Dogs")].push(p);
+  });
+  Object.values(quads).forEach((list) => list.sort((a, b) => b.qty - a.qty));
+
+  return (
+    '<div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">' +
+      ["Stars", "Puzzles", "Plowhorses", "Dogs"].map((name) => {
+        const meta = SALES_MATRIX_QUAD_META[name];
+        const items = quads[name];
+        return (
+          '<div style="border-top:4px solid ' + meta.color + '; border-radius:10px; background:var(--color-card-bg); box-shadow:0 1px 3px rgba(5,51,74,0.08); padding:14px;">' +
+            '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:8px;">' +
+              '<span style="font-weight:700; font-size:14px; color:' + meta.color + ';">' + meta.icon + " " + name + "</span>" +
+              '<span style="font-size:11px; color:var(--color-text-muted); white-space:nowrap;">' + meta.desc + "</span>" +
+            "</div>" +
+            (items.length
+              ? items.map((p) =>
+                  '<div style="display:flex; justify-content:space-between; gap:8px; font-size:12.5px; padding:4px 0; border-bottom:1px solid var(--color-border-on-card);">' +
+                    "<span>" + p.name + "</span>" +
+                    '<span style="color:var(--color-text-muted); font-size:11px; white-space:nowrap;">' + p.qty + " pcs &middot; " + salesSummaryPct(p.margin, 0) + "</span>" +
+                  "</div>"
+                ).join("")
+              : '<p style="color:var(--color-text-muted); font-size:12px; margin:0;">No products here yet.</p>') +
+          "</div>"
+        );
+      }).join("") +
+    "</div>"
+  );
+}
+
+// Daily revenue across ALL Sales history (not just this month) - feeds
+// dashboard.js's dv2GroupDaily/dv2RevenueChartSvg/dv2RevenueMultiChartSvg
+// (globally available, same script-global-scope reuse as iconLabel/
+// ICON_PLUS - see index.html's shared <script> list), same charting code
+// as Dashboard's own Revenue Trend, just fed Sales' own full-history
+// bucket instead of Dashboard's 90-day one.
+let _salesSummaryTrendDaily = [];
+function salesSummaryBuildDailyTrend() {
+  const byDate = new Map();
+  _lastSalesRows.forEach((r) => {
+    if (!byDate.has(r.date)) byDate.set(r.date, { date: r.date, revenue: 0, byPlatform: {} });
+    const d = byDate.get(r.date);
+    d.revenue += r.revenue;
+    d.byPlatform[r.platform] = (d.byPlatform[r.platform] || 0) + r.revenue;
+  });
+  return Array.from(byDate.values()).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+}
+
+// Date-range filter, per explicit request/correction - one single-button
+// calendar popup (shared.js's createDateRangePicker: click a start date,
+// then an end date, in the same panel), not two separate pickers, not a
+// native <input type="date"/"week"/"month"> (those render wildly
+// differently across browsers/OSes and don't express a range at all
+// anyway), and not a "Last N" preset dropdown either. The picker's own
+// MODE tracks whatever period is currently selected - a day grid for
+// Daily, a day grid that snaps each click to a whole week for Weekly, a
+// 12-month grid for Monthly - matching how those periods actually bucket
+// the data. Range arithmetic (DV2_PICKER_MODE/dv2DefaultRangeValues/
+// dv2NormalizeToDate/dv2RangeEndOfPeriod) lives in dashboard.js and is
+// shared with Dashboard's own Revenue Trend, which wires the exact same
+// picker the same way - kept in one place so the two can't drift apart.
+let _salesSummaryRangePicker = null;
+
+// (Re)creates the picker in "period"'s own mode, reset to that period's
+// default window - called on first render and every time Daily/Weekly/
+// Monthly changes, since a "day" range and a "month" range are never
+// interchangeable.
+function salesSummaryInitRangePickers(period) {
+  const mode = DV2_PICKER_MODE[period];
+  const defaults = dv2DefaultRangeValues(period);
+  _salesSummaryRangePicker = createDateRangePicker(document.getElementById("salesSummaryRangeWrap"), {
+    mode: mode, from: defaults.from, to: defaults.to, onSelect: renderSalesSummaryRevenueChart
+  });
+}
+
+function salesSummaryOnRevenuePeriodChange() {
+  const period = document.getElementById("salesSummaryRevenuePeriod").value;
+  salesSummaryInitRangePickers(period);
+  renderSalesSummaryRevenueChart();
+}
+
+// Mirrors dashboard.js's dv2RenderRevenueChart exactly, just reading
+// _salesSummaryTrendDaily (set once per renderSalesSummaryTab call) instead
+// of that page's own _dv2Data global - the two pages are never mounted at
+// once, but keeping fully separate state avoids any cross-page coupling.
+function renderSalesSummaryRevenueChart() {
+  const el = document.getElementById("salesSummaryRevenueChart");
+  if (!el) return;
+  const period = document.getElementById("salesSummaryRevenuePeriod").value;
+  const view = document.getElementById("salesSummaryRevenueView").value;
+
+  if (!_salesSummaryRangePicker) return;
+  const fromStr = dv2NormalizeToDate(_salesSummaryRangePicker.getFrom(), period);
+  const toRaw = dv2NormalizeToDate(_salesSummaryRangePicker.getTo(), period);
+  const toStr = toRaw ? dv2RangeEndOfPeriod(toRaw, period) : null;
+  const filtered = _salesSummaryTrendDaily.filter((d) => (!fromStr || d.date >= fromStr) && (!toStr || d.date <= toStr));
+
+  // filtered.length as the rangeCount arg - the date range above already
+  // did the actual bounding, this just tells dv2GroupDaily's Daily branch
+  // not to ALSO re-truncate to its own default last-30-days (which would
+  // silently clip a wider picker selection back down to 30).
+  const buckets = dv2GroupDaily(filtered, period, filtered.length);
+
+  if (view === "channel") {
+    el.innerHTML = dv2RevenueMultiChartSvg(buckets);
+  } else {
+    el.innerHTML = dv2RevenueChartSvg(buckets.map((b) => ({ label: b.label, value: b.revenue })));
+  }
+
+  const scrollEl = el.querySelector(".dv2-chart-scroll");
+  if (scrollEl) {
+    enableDragScroll(scrollEl);
+    scrollEl.scrollLeft = scrollEl.scrollWidth;
+  }
+
+  dv2WireChartTooltip(el, buckets, view);
+}
+
+// Prev/Next re-render off the already-fetched _lastSalesRows, same as
+// hr.js's shiftCalendarMonthNav - no re-fetch needed just to browse a
+// different month.
+function salesSummaryMonthNav(delta) {
+  _salesSummaryMonth = salesSummaryShiftMonth(_salesSummaryMonth, delta);
+  renderSalesSummaryTab(document.getElementById("salesTabContent"));
+}
+
 function renderSalesSummaryTab(wrap) {
-  const monthKey = todayISO().slice(0, 7);
+  if (!_salesSummaryMonth) _salesSummaryMonth = todayISO().slice(0, 7);
+  const monthKey = _salesSummaryMonth;
   const rows = _lastSalesRows.filter((r) => r.date.slice(0, 7) === monthKey);
+  const monthLabel = new Date(monthKey + "-01T00:00:00Z").toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
+
+  // Fixed-width month label slot (same trick as hr.js's shift calendar) so
+  // Prev/Next don't shift position as the label's own text width changes.
+  const monthNavHtml =
+    '<div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">' +
+      '<button class="btn-compact" onclick="salesSummaryMonthNav(-1)">&laquo; Prev</button>' +
+      '<strong style="flex:0 0 100px; text-align:center;">' + monthLabel + "</strong>" +
+      '<button class="btn-compact" onclick="salesSummaryMonthNav(1)">Next &raquo;</button>' +
+    "</div>";
 
   if (!rows.length) {
-    wrap.innerHTML = "<h3>This Month Recap</h3><p>No sales recorded this month yet.</p>";
+    wrap.innerHTML = monthNavHtml + "<p>No sales recorded this month.</p>";
     return;
   }
+
+  const prevMonthKey = salesSummaryShiftMonth(monthKey, -1);
+  const prevRows = _lastSalesRows.filter((r) => r.date.slice(0, 7) === prevMonthKey);
 
   const platforms = Array.from(new Set(rows.map((r) => r.platform)));
   const summary = platforms.map((platform) => {
@@ -605,26 +967,75 @@ function renderSalesSummaryTab(wrap) {
     };
   });
 
-  const totals = summary.reduce(
-    (acc, p) => ({ revenue: acc.revenue + p.revenue, qty: acc.qty + p.qty, grossProfit: acc.grossProfit + p.grossProfit }),
-    { revenue: 0, qty: 0, grossProfit: 0 }
-  );
+  const totals = salesSummaryTotals(rows);
+  const prevTotals = salesSummaryTotals(prevRows);
+  const prevMonthLabel = new Date(prevMonthKey + "-01T00:00:00Z").toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
 
-  const monthLabel = new Date(monthKey + "-01T00:00:00Z").toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
+  _salesSummaryTrendDaily = salesSummaryBuildDailyTrend();
 
   wrap.innerHTML =
-    "<h3>This Month Recap</h3>" +
-    "<table>" +
-      "<thead><tr><th>" + monthLabel + "</th>" + summary.map((p) => "<th>" + p.platform + "</th>").join("") + "<th>Total</th></tr></thead>" +
-      "<tbody>" +
-        '<tr><td>Total Revenue</td>' + summary.map((p) => '<td><span class="font-number">' + formatRupiah(p.revenue) + "</span></td>").join("") + '<td><span class="font-number">' + formatRupiah(totals.revenue) + "</span></td></tr>" +
-        "<tr><td>Total QTY Sold</td>" + summary.map((p) => "<td>" + p.qty + "</td>").join("") + "<td>" + totals.qty + "</td></tr>" +
-        '<tr><td>Total Gross Profit</td>' + summary.map((p) => '<td><span class="font-number">' + formatRupiah(p.grossProfit) + "</span></td>").join("") + '<td><span class="font-number">' + formatRupiah(totals.grossProfit) + "</span></td></tr>" +
-        "<tr><td>Gross Margin</td>" +
-          summary.map((p) => "<td>" + formatPercent(p.revenue ? p.grossProfit / p.revenue : 0) + "</td>").join("") +
-          "<td>" + formatPercent(totals.revenue ? totals.grossProfit / totals.revenue : 0) + "</td></tr>" +
-      "</tbody>" +
-    "</table>";
+    dv2StylesHtml() +
+    monthNavHtml +
+    salesSummaryStatRowHtml(totals, prevTotals, prevMonthLabel) +
+
+    '<div class="dv2-card" style="margin-bottom:20px;">' +
+      "<h4>Recap by Platform</h4>" +
+      "<table>" +
+        "<thead><tr><th>" + monthLabel + "</th>" + summary.map((p) => "<th>" + p.platform + "</th>").join("") + "<th>Total</th></tr></thead>" +
+        "<tbody>" +
+          '<tr><td>Total Revenue</td>' + summary.map((p) => '<td><span class="font-number">' + formatRupiah(p.revenue) + "</span></td>").join("") + '<td><span class="font-number">' + formatRupiah(totals.revenue) + "</span></td></tr>" +
+          "<tr><td>Total QTY Sold</td>" + summary.map((p) => "<td>" + p.qty + "</td>").join("") + "<td>" + totals.qty + "</td></tr>" +
+          '<tr><td>Total Gross Profit</td>' + summary.map((p) => '<td><span class="font-number">' + formatRupiah(p.grossProfit) + "</span></td>").join("") + '<td><span class="font-number">' + formatRupiah(totals.grossProfit) + "</span></td></tr>" +
+          "<tr><td>Gross Margin</td>" +
+            summary.map((p) => "<td>" + formatPercent(p.revenue ? p.grossProfit / p.revenue : 0) + "</td>").join("") +
+            "<td>" + formatPercent(totals.revenue ? totals.grossProfit / totals.revenue : 0) + "</td></tr>" +
+        "</tbody>" +
+      "</table>" +
+    "</div>" +
+
+    '<div class="dv2-grid-2col dv2-align-stretch" style="margin-bottom:20px;">' +
+      '<div class="dv2-col-main">' +
+        '<div class="dv2-card dv2-flow-card">' +
+          '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; flex-wrap:wrap; gap:8px;">' +
+            "<h4>Revenue Trend</h4>" +
+            '<div style="display:flex; gap:8px;">' +
+              '<select id="salesSummaryRevenueView" class="select-compact" onchange="renderSalesSummaryRevenueChart()">' +
+                '<option value="total">All Channel</option>' +
+                '<option value="channel">Per Channel</option>' +
+              "</select>" +
+              '<select id="salesSummaryRevenuePeriod" class="select-compact" onchange="salesSummaryOnRevenuePeriodChange()">' +
+                '<option value="daily">Daily</option>' +
+                '<option value="weekly">Weekly</option>' +
+                '<option value="monthly">Monthly</option>' +
+              "</select>" +
+              '<span id="salesSummaryRangeWrap"></span>' +
+            "</div>" +
+          "</div>" +
+          '<div id="salesSummaryRevenueChart" class="dv2-flow-chart-wrap"></div>' +
+        "</div>" +
+      "</div>" +
+      '<div class="dv2-col-side">' +
+        '<div class="dv2-card">' +
+          "<h4>Channel Mix</h4>" +
+          salesSummaryChannelMixHtml(summary, totals) +
+        "</div>" +
+      "</div>" +
+    "</div>" +
+
+    '<div class="dv2-card" style="margin-bottom:20px;">' +
+      "<h4>Average Order Value</h4>" +
+      salesSummaryAovHtml(rows, summary) +
+    "</div>" +
+
+    '<div class="dv2-card">' +
+      "<h4>Menu Engineering Matrix</h4>" +
+      '<p style="color:var(--color-text-muted); font-size:12px; margin:0 0 12px;">Popularity (qty sold) vs. profitability (gross margin), split against this month\'s menu-wide average.</p>' +
+      salesSummaryMenuMatrixHtml(rows) +
+    "</div>";
+
+  salesSummaryInitRangePickers("daily");
+  renderSalesSummaryRevenueChart();
+  salesSummaryWireChannelMixTooltip();
 }
 
 // ---------- Log ----------
@@ -685,11 +1096,7 @@ function openSalesLogFilterSortModal() {
   openModal(
     "<h2>Filter &amp; Sort - Sales Log</h2>" +
     "<label>Date Range</label><br>" +
-    '<div style="display:flex; align-items:center; gap:8px;">' +
-      '<input type="date" id="salesLogDateFrom" value="' + _salesLogDateFrom + '">' +
-      "<span>to</span>" +
-      '<input type="date" id="salesLogDateTo" value="' + _salesLogDateTo + '">' +
-    "</div><br><br>" +
+    '<span id="salesLogRangeWrap"></span><br><br>' +
     "<label>Channel</label>" +
     "<div>" + checkboxes + "</div><br>" +
     "<label>Sort</label>" +
@@ -698,11 +1105,14 @@ function openSalesLogFilterSortModal() {
       '<button class="btn-primary" onclick="applySalesLogFilterSort()">Apply</button>' +
     "</div>"
   );
+  _salesLogRangePicker = createDateRangePicker(document.getElementById("salesLogRangeWrap"), {
+    mode: "day", from: _salesLogDateFrom || null, to: _salesLogDateTo || null
+  });
 }
 
 function applySalesLogFilterSort() {
-  _salesLogDateFrom = document.getElementById("salesLogDateFrom").value || "";
-  _salesLogDateTo = document.getElementById("salesLogDateTo").value || "";
+  _salesLogDateFrom = _salesLogRangePicker.getFrom() || "";
+  _salesLogDateTo = _salesLogRangePicker.getTo() || "";
   _salesLogChannelFilter = Array.from(document.querySelectorAll(".salesLogChannelCheck:checked")).map((cb) => cb.value);
   const selectedSort = document.querySelector('input[name="salesLogSortOption"]:checked');
   if (selectedSort) _salesLogSort = selectedSort.value;
@@ -919,7 +1329,7 @@ async function openSalesEntryModal() {
     '<div style="display:flex; align-items:center; gap:8px;">' +
       '<input type="checkbox" id="saleToday" onchange="setSaleToday()">' +
       '<label for="saleToday">Today</label>' +
-      '<input type="date" id="saleDate">' +
+      '<span id="saleDateWrap"></span>' +
     "</div><br>" +
 
     "<label>Channel</label><br>" +
@@ -954,20 +1364,15 @@ async function openSalesEntryModal() {
   );
   box.style.maxWidth = "700px";
 
+  _saleDatePicker = createDateRangePicker(document.getElementById("saleDateWrap"), { mode: "day", single: true });
   document.getElementById("saleItemRows").innerHTML = "";
   addSaleItemRow();
 }
 
 function setSaleToday() {
   const today = document.getElementById("saleToday");
-  const date = document.getElementById("saleDate");
-  if (today.checked) {
-    date.value = todayISO();
-    date.disabled = true;
-  } else {
-    date.value = "";
-    date.disabled = false;
-  }
+  if (today.checked) _saleDatePicker.setValue(todayISO());
+  else _saleDatePicker.setValue(null);
 }
 
 // Table row, not the shared flex ".item-row" (would break a <tr>'s column
@@ -1083,7 +1488,7 @@ function collectSaleItems() {
 }
 
 function saveSalesBatch() {
-  const date = document.getElementById("saleDate").value;
+  const date = _saleDatePicker.getValue();
   const platform = document.getElementById("salePlatform").value;
   const items = collectSaleItems();
   const platformFee = parseAmount(document.getElementById("salePlatformFee").value);
@@ -1116,7 +1521,7 @@ function openSalesBatchModal(batchCode) {
   const box = openModal(
     "<h2>Edit Batch - " + batchCode + "</h2>" +
     "<label>Date</label><br>" +
-    '<input type="date" id="batchEditDate" value="' + first.date + '"><br>' +
+    '<span id="batchEditDateWrap"></span><br>' +
 
     "<label>Channel</label><br>" +
     '<select id="batchEditPlatform" onchange="onBatchEditPlatformChange()">' + salePlatformOptionsHtml(first.platform) + "</select><br><br>" +
@@ -1152,6 +1557,7 @@ function openSalesBatchModal(batchCode) {
     "</div>"
   );
   box.style.maxWidth = "700px";
+  _batchEditDatePicker = createDateRangePicker(document.getElementById("batchEditDateWrap"), { mode: "day", single: true, value: first.date });
   document.getElementById("batchEditItemRows").innerHTML = "";
   lines.forEach((r) => addBatchEditItemRow(r));
   onBatchEditPlatformChange();
@@ -1257,7 +1663,7 @@ function updateBatchEditRevenueSummary() {
 // removed, PATCH lines that already existed, POST any brand-new lines
 // (sales.js's POST doubles as "add to batch" when batchCode is set).
 async function saveSalesBatchEdit(batchCode) {
-  const date = document.getElementById("batchEditDate").value;
+  const date = _batchEditDatePicker.getValue();
   const platform = document.getElementById("batchEditPlatform").value;
   const platformFee = parseAmount(document.getElementById("batchEditPlatformFee").value);
   const marketingFee = parseAmount(document.getElementById("batchEditMarketingFee").value);

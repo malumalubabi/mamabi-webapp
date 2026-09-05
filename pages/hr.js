@@ -495,28 +495,29 @@ function closureRowHtml(r) {
   );
 }
 
+let _closureRangePicker = null; // set each time the Add Closure modal opens
+
 function openClosureModal() {
   openModal(
     "<h2>Add Closure</h2>" +
     "<label>Date Range</label><br>" +
-    '<div style="display:flex; align-items:center; gap:8px;">' +
-      '<input type="date" id="closureDateFrom">' +
-      "<span>to</span>" +
-      '<input type="date" id="closureDateTo">' +
-    "</div><br><br>" +
+    '<span id="closureRangeWrap"></span><br><br>' +
     "<label>Reason</label><br>" +
     '<input type="text" id="closureReason" placeholder="e.g. National Holiday"><br><br>' +
     '<button id="saveClosureBtn" class="btn-primary" onclick="saveClosure()">Save</button>' +
     '<span id="saveClosureStatus" class="save-status"></span>'
   );
+  _closureRangePicker = createDateRangePicker(document.getElementById("closureRangeWrap"), { mode: "day" });
 }
 
 function saveClosure() {
-  const dateFrom = document.getElementById("closureDateFrom").value;
-  const dateTo = document.getElementById("closureDateTo").value || dateFrom;
+  const dateFrom = _closureRangePicker.getFrom();
+  // The picker only ever commits from<=to (it sorts the two clicks itself),
+  // so no separate "end before start" check is needed the way the old
+  // native-input pair required.
+  const dateTo = _closureRangePicker.getTo() || dateFrom;
   const reason = document.getElementById("closureReason").value.trim();
   if (!dateFrom) { alert("Please select a date."); return; }
-  if (dateTo < dateFrom) { alert("The end date can't be before the start date."); return; }
 
   const dates = dateRangeArray(dateFrom, dateTo);
 
@@ -605,6 +606,7 @@ let _shiftStaffFilter = []; // empty = show every staff (default)
 let _shiftStatusFilter = []; // empty = show every status (default)
 let _shiftDateFrom = "";
 let _shiftDateTo = "";
+let _shiftFilterRangePicker = null; // set each time the Filter & Sort modal opens
 let _shiftSort = "date-desc";
 let _shiftFiltersInitialized = false;
 
@@ -707,11 +709,7 @@ function openShiftsFilterSortModal() {
   openModal(
     "<h2>Filter &amp; Sort - Shifts Log</h2>" +
     "<label>Date Range</label><br>" +
-    '<div style="display:flex; align-items:center; gap:8px;">' +
-      '<input type="date" id="shiftDateFrom" value="' + _shiftDateFrom + '">' +
-      "<span>to</span>" +
-      '<input type="date" id="shiftDateTo" value="' + _shiftDateTo + '">' +
-    "</div><br><br>" +
+    '<span id="shiftFilterRangeWrap"></span><br><br>' +
     "<label>Staff</label>" +
     "<div>" + staffChecks + "</div><br>" +
     "<label>Status</label>" +
@@ -722,11 +720,14 @@ function openShiftsFilterSortModal() {
       '<button class="btn-primary" onclick="applyShiftsFilterSort()">Apply</button>' +
     "</div>"
   );
+  _shiftFilterRangePicker = createDateRangePicker(document.getElementById("shiftFilterRangeWrap"), {
+    mode: "day", from: _shiftDateFrom || null, to: _shiftDateTo || null
+  });
 }
 
 function applyShiftsFilterSort() {
-  _shiftDateFrom = document.getElementById("shiftDateFrom").value || "";
-  _shiftDateTo = document.getElementById("shiftDateTo").value || "";
+  _shiftDateFrom = _shiftFilterRangePicker.getFrom() || "";
+  _shiftDateTo = _shiftFilterRangePicker.getTo() || "";
   _shiftStaffFilter = Array.from(document.querySelectorAll(".shiftStaffFilterCheck:checked")).map((cb) => cb.value);
   _shiftStatusFilter = Array.from(document.querySelectorAll(".shiftStatusFilterCheck:checked")).map((cb) => cb.value);
   const selectedSort = document.querySelector('input[name="shiftSortOption"]:checked');
@@ -903,6 +904,9 @@ function openDayShiftsModal(dateStr) {
 
 // ---------- Add/Edit Shift modal (shared by Log and Calendar) ----------
 
+let _addShiftRangePicker = null; // set each time openShiftModal opens in "Add" (not Edit) mode - see below
+let _editShiftDatePicker = null; // set each time openShiftModal opens in "Edit" mode
+
 function openShiftModal(code, prefillDate) {
   const row = code ? _lastShifts.find((s) => s.shiftCode === code) : null;
   const staffOptions = _hrStaffList.map((s) => '<option value="' + s.id + '">' + s.name + "</option>").join("");
@@ -919,16 +923,12 @@ function openShiftModal(code, prefillDate) {
     ) +
     (row
       ? ('<label>Date</label><br>' +
-          '<input type="date" id="shiftDate" value="' + row.date + '"><br><br>')
+          '<span id="shiftDateWrap"></span><br><br>')
       // New shift only - a range creates one shift per date in it (skipping
       // whichever ones fail their own guard, e.g. already-scheduled/outlet
       // closed that day), rather than forcing one Add per day.
       : ('<label>Date Range</label><br>' +
-          '<div style="display:flex; align-items:center; gap:8px;">' +
-            '<input type="date" id="shiftDateFrom" value="' + (prefillDate || "") + '">' +
-            "<span>to</span>" +
-            '<input type="date" id="shiftDateTo" value="' + (prefillDate || "") + '">' +
-          "</div><br><br>" +
+          '<span id="addShiftRangeWrap"></span><br><br>' +
           "<label>Days</label><br>" +
           '<p style="font-size:12px; color:var(--color-text-muted); margin:0 0 4px;">Only these weekdays within the range get a shift - uncheck to skip a day (e.g. a weekly off day).</p>' +
           '<div>' + WEEKDAY_SHORT_LABELS.map((label, idx) =>
@@ -949,8 +949,15 @@ function openShiftModal(code, prefillDate) {
     '<span id="saveShiftStatus" class="save-status"></span>'
   );
 
-  if (row) populateShiftRoleOptions(rolesForStaffId(row.staffId), row.role);
-  else updateShiftRoleOptions();
+  if (row) {
+    populateShiftRoleOptions(rolesForStaffId(row.staffId), row.role);
+    _editShiftDatePicker = createDateRangePicker(document.getElementById("shiftDateWrap"), { mode: "day", single: true, value: row.date });
+  } else {
+    updateShiftRoleOptions();
+    _addShiftRangePicker = createDateRangePicker(document.getElementById("addShiftRangeWrap"), {
+      mode: "day", from: prefillDate || null, to: prefillDate || null
+    });
+  }
 }
 
 function populateShiftRoleOptions(roles, selected) {
@@ -987,7 +994,7 @@ function saveShift(existingCode) {
   const statusEl = document.getElementById("saveShiftStatus");
 
   if (existingCode) {
-    const date = document.getElementById("shiftDate").value;
+    const date = _editShiftDatePicker.getValue();
     if (!date) { alert("Please select a date."); return; }
     const body = { date: date, role: role, status: status, notes: notes };
 
@@ -1001,10 +1008,12 @@ function saveShift(existingCode) {
 
   const staffId = document.getElementById("shiftStaffId").value;
   if (!staffId) { alert("Please select a staff member."); return; }
-  const dateFrom = document.getElementById("shiftDateFrom").value;
-  const dateTo = document.getElementById("shiftDateTo").value;
+  // The picker only ever commits from<=to (it sorts the two clicks itself),
+  // so no separate "end before start" check is needed the way the old
+  // native-input pair required.
+  const dateFrom = _addShiftRangePicker.getFrom();
+  const dateTo = _addShiftRangePicker.getTo();
   if (!dateFrom || !dateTo) { alert("Please select a date range."); return; }
-  if (dateTo < dateFrom) { alert("The end date can't be before the start date."); return; }
 
   const selectedWeekdays = Array.from(document.querySelectorAll(".shiftWeekdayCheck:checked")).map((cb) => Number(cb.value));
   if (!selectedWeekdays.length) { alert("Please select at least one day."); return; }

@@ -755,6 +755,7 @@ function deleteCustomer(code) {
 // ================================================================
 
 let _lastStaffRows = [];
+let _staffJoinDatePicker = null; // set each time the Add/Edit Staff modal opens
 let _staffRoleOptions = [];
 let _staffSort = "role-priority";
 let _staffRoleFilter = []; // empty = show every Role (default)
@@ -910,7 +911,7 @@ function openStaffModal(code) {
     "<label>Contact</label><br>" +
     '<input type="text" id="staffContact" value="' + (row ? (row.contact || "") : "") + '"><br><br>' +
     "<label>Join Date</label><br>" +
-    '<input type="date" id="staffJoinDate" value="' + (row ? (row.join_date || "") : "") + '"><br><br>' +
+    '<span id="staffJoinDateWrap"></span><br><br>' +
     (row
       ? ('<label style="font-weight:normal;"><input type="checkbox" id="staffActive"' + (row.is_active ? " checked" : "") + '> Active</label><br><br>')
       : ""
@@ -918,6 +919,7 @@ function openStaffModal(code) {
     '<button id="saveStaffBtn" class="btn-primary" onclick="saveStaff(' + (code ? "'" + code + "'" : "null") + ')">Save</button>' +
     '<span id="saveStaffStatus" class="save-status"></span>'
   );
+  _staffJoinDatePicker = createDateRangePicker(document.getElementById("staffJoinDateWrap"), { mode: "day", single: true, value: row ? (row.join_date || null) : null });
 }
 
 function saveStaff(code) {
@@ -929,7 +931,7 @@ function saveStaff(code) {
     name: name,
     roles: roles,
     contact: document.getElementById("staffContact").value.trim(),
-    joinDate: document.getElementById("staffJoinDate").value || null
+    joinDate: _staffJoinDatePicker.getValue() || null
   };
   if (code) body.isActive = document.getElementById("staffActive").checked;
 

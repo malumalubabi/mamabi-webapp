@@ -181,8 +181,10 @@ function switchCashflowLedgerTab(account) {
 
 let _lastCashflowLedgerRows = [];
 let _cashflowLedgerCategoryFilter = []; // empty = show every Category (default)
+let _cfDatePicker = null; // set each time Input Transaction opens
 let _cashflowLedgerDateFrom = "";
 let _cashflowLedgerDateTo = "";
+let _cashflowLedgerRangePicker = null; // set each time the Filter & Sort modal opens
 let _cashflowLedgerSort = "date-desc";
 const CASHFLOW_LEDGER_SORT_LABELS = { "date-desc": "Date (Newest)", "date-asc": "Date (Oldest)" };
 
@@ -243,11 +245,7 @@ function openCashflowLogFilterSortModal() {
   openModal(
     "<h2>Filter &amp; Sort - Cashflow Ledger</h2>" +
     "<label>Date Range</label><br>" +
-    '<div style="display:flex; align-items:center; gap:8px;">' +
-      '<input type="date" id="cashflowLedgerDateFrom" value="' + _cashflowLedgerDateFrom + '">' +
-      "<span>to</span>" +
-      '<input type="date" id="cashflowLedgerDateTo" value="' + _cashflowLedgerDateTo + '">' +
-    "</div><br><br>" +
+    '<span id="cashflowLedgerRangeWrap"></span><br><br>' +
     "<label>Category</label>" +
     "<div>" + checkboxes + "</div><br>" +
     "<label>Sort</label>" +
@@ -256,11 +254,14 @@ function openCashflowLogFilterSortModal() {
       '<button class="btn-primary" onclick="applyCashflowLedgerFilterSort()">Apply</button>' +
     "</div>"
   );
+  _cashflowLedgerRangePicker = createDateRangePicker(document.getElementById("cashflowLedgerRangeWrap"), {
+    mode: "day", from: _cashflowLedgerDateFrom || null, to: _cashflowLedgerDateTo || null
+  });
 }
 
 function applyCashflowLedgerFilterSort() {
-  _cashflowLedgerDateFrom = document.getElementById("cashflowLedgerDateFrom").value || "";
-  _cashflowLedgerDateTo = document.getElementById("cashflowLedgerDateTo").value || "";
+  _cashflowLedgerDateFrom = _cashflowLedgerRangePicker.getFrom() || "";
+  _cashflowLedgerDateTo = _cashflowLedgerRangePicker.getTo() || "";
   _cashflowLedgerCategoryFilter = Array.from(document.querySelectorAll(".cashflowCategoryFilterCheck:checked")).map((cb) => cb.value);
   const selectedSort = document.querySelector('input[name="cashflowLedgerSortOption"]:checked');
   if (selectedSort) _cashflowLedgerSort = selectedSort.value;
@@ -307,7 +308,7 @@ function buildCashflowFormHtml() {
     '<div style="display:flex; align-items:center; gap:8px;">' +
       '<input type="checkbox" id="cfToday" onchange="setCfToday()">' +
       '<label for="cfToday">Today</label>' +
-      '<input type="date" id="cfDate">' +
+      '<span id="cfDateWrap"></span>' +
     "</div><br>" +
 
     "<label>Account</label><br>" +
@@ -334,12 +335,13 @@ function initCashflowForm() {
   // Date starts empty - pick a date explicitly (Today included) rather
   // than silently defaulting to today, per explicit request (same pattern
   // applied across every other modal - Orders, Purchase, OpEx, ...).
+  _cfDatePicker = createDateRangePicker(document.getElementById("cfDateWrap"), { mode: "day", single: true });
   document.getElementById("cashflowRows").innerHTML = "";
   addCashflowRow();
 }
 
 function setCfToday() {
-  if (document.getElementById("cfToday").checked) document.getElementById("cfDate").value = todayISO();
+  if (document.getElementById("cfToday").checked) _cfDatePicker.setValue(todayISO());
 }
 
 function addCashflowRow() {
@@ -398,7 +400,7 @@ function collectCashflowItems() {
 }
 
 async function saveCashflow() {
-  const date = document.getElementById("cfDate").value;
+  const date = _cfDatePicker.getValue();
   const account = document.getElementById("cfAccount").value;
   const items = collectCashflowItems();
 

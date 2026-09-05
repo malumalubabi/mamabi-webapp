@@ -39,6 +39,7 @@
   --color-muted-tint: rgba(138, 127, 118, 0.15); /* faint - hover wash on in-page tab strips */
   --color-disabled-bg: rgba(27, 40, 51, 0.08);
   --color-nav-bg: color-mix(in srgb, var(--color-bg-page) 82%, white 18%); /* navbar - a touch lighter than the page bg it sits on, per explicit request */
+  --color-range-tint: color-mix(in srgb, var(--color-bg-page) 22%, white 78%); /* date range picker's connecting wash - teal like the page bg, lightened for a light popup, per explicit request */
 
   /* Semantic status tokens - one canonical hex per meaning instead of the
      several near-duplicate greens/reds that had drifted in independently
@@ -384,6 +385,18 @@ select:focus {
 select option {
   background: var(--color-field-bg);
   color: var(--color-text-primary);
+}
+
+/* Compact pill-style select - matches the date range picker trigger's own
+   height/border/radius/color exactly, for a control sitting directly next
+   to it (Sales Summary's Revenue Trend All Channel/Daily selects) instead
+   of the default taller field-style select, per explicit request. */
+select.select-compact {
+  padding: 4px 26px 4px 10px;
+  font-size: 12px;
+  border-color: var(--color-accent);
+  border-radius: 10px;
+  background-color: transparent;
 }
 
 /* ---------- Scrollbar ----------
@@ -800,6 +813,142 @@ th {
   font-size: 12px;
   color: var(--color-text-muted);
   margin-left: 6px;
+}
+
+/* Date range picker (shared.js's createDateRangePicker) - same trigger+floating-panel
+   language as the combobox above (field-bg/border/shadow), just a
+   calendar body instead of a searchable option list. */
+.dp-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  z-index: 1000;
+  width: 220px;
+  background: var(--color-field-bg);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-text-muted);
+  border-radius: 8px;
+  padding: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.dp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+.dp-nav {
+  padding: 2px 8px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  border-radius: 6px;
+}
+.dp-nav:hover {
+  background: var(--color-accent-tint);
+}
+.dp-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  font-size: 10.5px;
+  color: var(--color-text-muted);
+  text-align: center;
+  margin-bottom: 2px;
+}
+.dp-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+/* The cell itself is just the click target/grid slot (its own full
+   aspect-ratio:1 square) - it carries no visible fill of its own. The
+   range's connecting bar lives on the shorter .dp-day-track nested inside
+   it instead (fixed height, close to the bubble's own size), so the bar
+   reads as a slim strip through the middle of each cell instead of a big
+   block filling the whole cell, per explicit correction. */
+.dp-day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  font-size: 12px;
+  cursor: pointer;
+}
+.dp-day-track {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 20px;
+}
+.dp-day-bubble {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+}
+.dp-day:hover .dp-day-bubble {
+  background: var(--color-accent-tint);
+}
+.dp-day-today .dp-day-bubble {
+  font-weight: 700;
+  color: var(--color-bg-page);
+}
+/* Cells strictly between a range's two endpoints - the flat connecting
+   wash, teal like the page background (per explicit request) rather than
+   this app's rose accent, so the whole span reads as one continuous
+   selection instead of a row of separate picks. */
+.dp-day-in-range {
+  background: var(--color-range-tint);
+}
+/* The range's own start/end (or a single still-pending first click) - a
+   solid teal bubble sits AT the target date, and the connecting wash only
+   fills from there INWARD toward the rest of the range (a half-width
+   gradient, not the full cell) so it stops exactly at the target date
+   instead of bleeding past it on the outward side, per explicit
+   correction. A single-day range (both classes on the same cell, or a
+   lone pendingStart) gets no bar at all - nothing to connect to yet. */
+.dp-day-range-start:not(.dp-day-range-end) {
+  background: linear-gradient(to right, transparent 0 50%, var(--color-range-tint) 50% 100%);
+}
+.dp-day-range-end:not(.dp-day-range-start) {
+  background: linear-gradient(to right, var(--color-range-tint) 0 50%, transparent 50% 100%);
+}
+.dp-day-range-start .dp-day-bubble,
+.dp-day-range-end .dp-day-bubble,
+.dp-day-pending .dp-day-bubble {
+  background: var(--color-bg-page);
+  color: var(--color-card-bg);
+  font-weight: 700;
+}
+.dp-months {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+.dp-month {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 0;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.dp-month .dp-day-track {
+  height: auto;
+}
+.dp-month:hover .dp-day-bubble {
+  background: var(--color-accent-tint);
+}
+.dp-month .dp-day-bubble {
+  width: auto;
+  height: auto;
+  padding: 6px 10px;
+  border-radius: 999px;
 }
 
 /* "Saving X..." / "X saved." next to Save buttons */
