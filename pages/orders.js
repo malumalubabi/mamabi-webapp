@@ -303,8 +303,11 @@ function initOrderForm(lookups) {
     { placeholder: "Select driver..." }
   );
 
+  // Includes the "-" option (methodSelectOptionsHtml, same as Edit Order/
+  // Mark Paid) - a customer hasn't always decided QRIS vs Cash yet at
+  // order-creation time, per explicit request.
   const methodSelect = document.getElementById("orderMethod");
-  methodSelect.innerHTML = lookups.paymentMethods.map((m) => "<option>" + m + "</option>").join("");
+  methodSelect.innerHTML = methodSelectOptionsHtml(null);
 
   addOrderItemRow(); // start with one row like the old app
   onOrderTypeChange();
@@ -853,11 +856,21 @@ function buildOrderFormText(o) {
     })
     .join("\n");
 
+  // Fulfillment date (not Order date) - "Tanggal" here means when the
+  // order actually goes out/gets picked up, per explicit request. Long
+  // Indonesian format ("Sabtu, 29 Agustus 2026"), matching the WA
+  // template's own language.
+  const tanggalLabel = o.deliveryDate
+    ? new Date(o.deliveryDate + "T00:00:00Z").toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
+    : "";
+
   return (
     "📝 FORM ORDER - MaluMaluBabi\n\n" +
     "Nama Lengkap: " + o.customerName + "\n" +
     "No. WA: " + waDigits + "\n" +
     "Alamat: " + address + "\n\n" +
+    "Tipe: " + o.orderType + "\n" +
+    "Tanggal: " + tanggalLabel + "\n\n" +
     "Pesanan:\n" +
     itemLines + "\n\n" +
     (o.orderType === "Delivery" && o.deliveryFee > 0 ? "Ongkir: " + Math.round(o.deliveryFee / 1000) + "k\n\n" : "") +
@@ -877,6 +890,8 @@ function buildBlankOrderFormTemplate() {
     "Nama Lengkap: ...\n" +
     "No. WA: ...\n" +
     "Alamat: ...\n\n" +
+    "Tipe: [Delivery/Takeaway]\n" +
+    "Tanggal: ...\n\n" +
     "Pesanan:\n" +
     "1. [item] x [jumlah]\n" +
     "2. [item] x [jumlah]\n\n" +

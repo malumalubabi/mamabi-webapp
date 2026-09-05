@@ -19,7 +19,7 @@
 :root {
   /* "Muted pastel 2-tone" palette (replaces the earlier Deep Space Blue /
      Papaya Whip scheme) - same two-layer model, new hues. */
-  --color-bg-page: #1B2833;       /* header/navbar background */
+  --color-bg-page: #50777a;       /* header/navbar background */
   --color-panel-bg: #F2E9DC;      /* each page's main panel (#content), sits between page bg and cards */
   --color-card-bg: #FBF6EE;       /* cards/controls/table rows INSIDE a panel (.tile, .dv2-card, .modal-box, dropdowns, select) - kept brighter than the panel for depth */
   --color-field-bg: #FCF8F2;      /* editable fields (input/textarea/select/combobox), lightest of the three so a form control never disappears into its card. Flat hex, not color-mix() - unlike the gradients below, this has no earlier-declared fallback to catch an unsupported-color-mix() browser, so a computed value here isn't safe. */
@@ -28,7 +28,7 @@
   --color-text-muted: #8A7F76;    /* secondary/muted text inside a card (SKU codes, captions, ...) */
   --color-accent: #B98289;        /* accent/active-tab/primary-button fill, and ghost-button borders */
   --color-header-title: #FEB5A6;  /* header's "MaluMaluBabi" */
-  --color-header-subtitle: #9C6E6E; /* header's "WebApp" suffix */
+  --color-header-subtitle: var(--color-panel-bg); /* header's "WebApp" suffix - matches the panel's own cream tone per explicit request/reference screenshot */
 
   /* Derived alpha variants of the base colors above (not new hues) - for
      subtle dividers/disabled-field washes that need to sit quietly on top
@@ -38,6 +38,7 @@
   --color-accent-tint: rgba(185, 130, 137, 0.25);
   --color-muted-tint: rgba(138, 127, 118, 0.15); /* faint - hover wash on in-page tab strips */
   --color-disabled-bg: rgba(27, 40, 51, 0.08);
+  --color-nav-bg: color-mix(in srgb, var(--color-bg-page) 82%, white 18%); /* navbar - a touch lighter than the page bg it sits on, per explicit request */
 
   /* Semantic status tokens - one canonical hex per meaning instead of the
      several near-duplicate greens/reds that had drifted in independently
@@ -67,7 +68,6 @@
      lighter/darker stop live from the palette tokens above, so there's no
      second hardcoded hex to keep in sync by hand if a base color changes -
      this is also why the palette swap above needed no changes here. */
-  --gradient-page-bg: linear-gradient(to bottom, var(--color-bg-page), color-mix(in srgb, var(--color-bg-page) 50%, black 50%));
   --gradient-panel-bg: linear-gradient(to bottom, var(--color-panel-bg), color-mix(in srgb, var(--color-panel-bg) 96%, black 4%));
   --gradient-card-bg: linear-gradient(to bottom, var(--color-card-bg), color-mix(in srgb, var(--color-card-bg) 96%, black 4%));
 }
@@ -75,12 +75,11 @@
 body {
   margin: 0;
   font-family: "Plus Jakarta Sans", Arial, sans-serif;
-  /* Plain-color fallback before the gradient - the gradient tokens use
-     color-mix() (Safari 16.2+ only); on an older Safari the gradient
-     declaration is invalid and dropped, but this earlier solid one for the
-     same property still applies instead of leaving the element transparent. */
+  /* Flat, not the gradient panel/card backgrounds use - a subtle top-to-
+     bottom fade was visibly banded on this teal hue (unlike the old dark
+     navy, where it was imperceptible), and flat didn't read as noticeably
+     different anyway, per explicit correction. */
   background: var(--color-bg-page);
-  background: var(--gradient-page-bg);
   color: var(--color-text-on-dark);
 }
 
@@ -135,8 +134,9 @@ header h2 .brand-name {
   -webkit-text-stroke: 0.6px currentColor;
 }
 /* header's own <hr> was removed (index.html) - it doubled up with
-   #navbar's border-bottom directly below it. footer's <hr> is the only
-   divider there, so it stays. */
+   #navbar's border-bottom directly below it (since removed - #navbar is
+   now a flat lighter tint with no border of its own). footer's <hr> is
+   the only divider left, so it stays. */
 footer hr {
   border-color: var(--color-border-on-dark);
 }
@@ -148,12 +148,17 @@ footer {
 }
 
 #content {
-  margin: 16px;
+  /* No top margin - sits flush against the navbar instead of leaving a
+     strip of the (now more visible, lighter-teal) page bg between them,
+     per explicit request. Top corners squared to match that flush edge -
+     a rounded corner there would leave a sliver of page bg peeking
+     through the gap between the curve and the navbar's straight edge. */
+  margin: 0 16px 16px;
   padding: 16px;
   background: var(--color-panel-bg);
   background: var(--gradient-panel-bg);
   color: var(--color-text-primary);
-  border-radius: 10px;
+  border-radius: 0 0 10px 10px;
 }
 
 /* ---------- Heading hierarchy ----------
@@ -446,17 +451,16 @@ th {
 
 /* Navbar - ported verbatim from the old app's
    99 Shared/Layout/LayoutNavbar.html (same dropdown/flyout-submenu
-   structure and highlighting rules). Bar itself stays Deep Space Blue
-   (matching the page it sits on) - the pink accent is reserved for marking
-   which page is currently open (see .navbar-active below), not the whole
-   bar. */
+   structure and highlighting rules). Bar itself is a touch lighter than
+   the page bg it sits on (--color-nav-bg, a flat tint - no border needed
+   to separate it, the tone shift alone reads as its own bar) - the pink
+   accent is reserved for marking which page is currently open (see
+   .navbar-active below), not the whole bar. */
 #navbar {
   display: flex;
   gap: 8px;
   padding: 8px 12px;
-  background: var(--color-bg-page);
-  background: var(--gradient-page-bg);
-  border-bottom: 1px solid var(--color-border-on-dark);
+  background: var(--color-nav-bg);
   /* No flex-wrap - on a narrow/mobile viewport this scrolls horizontally
      (native touch scroll, plus click-and-drag via enableDragScroll() wired
      up once in index.html) instead of squeezing every item or spilling off
@@ -468,15 +472,23 @@ th {
 #navbar > .navbar-item {
   flex-shrink: 0;
 }
-/* Nav item text (Dashboard/Orders/...) is --color-text-on-dark, the
-   palette's dedicated "text on the dark bar" tone - at full contrast (not
-   dimmed), same as body/footer text on the same background. */
+/* Nav item text (Dashboard/Orders/...) is --color-panel-bg, the page
+   panel's own cream tone reused as text - reads much better against this
+   bar's lighter teal than the old --color-text-on-dark pink, which was
+   tuned for the darker page bg elsewhere (footer/body still use that one).
+   margin/padding: negative vertical margin cancels #navbar's own 8px top/
+   bottom padding and the padding is grown to match, so a button's own box
+   (and therefore .navbar-active's wash below) spans the bar's true full
+   height instead of stopping at a padding box floating inside it - text
+   ends up in the exact same spot either way. */
 #navbar > button {
-  padding: 8px 12px 5px;
+  position: relative;
+  margin: -8px 0;
+  padding: 16px 12px;
   border: none;
-  border-bottom: 3px solid transparent;
+  border-radius: 10px 10px 0 0; /* only the bottom corners squared, flush with the straight underline below - top stays rounded like every other button */
   background: none;
-  color: var(--color-text-on-dark);
+  color: var(--color-panel-bg);
   cursor: pointer;
   font: inherit;
 }
@@ -486,13 +498,20 @@ th {
 
 .navbar-item {
   position: relative;
+  /* display:flex + the same negative margin as #navbar > button above -
+     .navbar-item (not its inner button) is the actual flex item here, so
+     the reach-into-#navbar's-padding trick has to live on it instead; the
+     inner button then just naturally fills it (flex's default stretch). */
+  display: flex;
+  margin: -8px 0;
 }
 .navbar-item > button {
-  padding: 8px 12px 5px;
+  position: relative;
+  padding: 16px 12px;
   border: none;
-  border-bottom: 3px solid transparent;
+  border-radius: 10px 10px 0 0; /* only the bottom corners squared, flush with the straight underline below - top stays rounded like every other button */
   background: none;
-  color: var(--color-text-on-dark);
+  color: var(--color-panel-bg);
   cursor: pointer;
   font: inherit;
 }
@@ -586,27 +605,35 @@ th {
   background: var(--color-accent-tint);
 }
 
-/* Active-page marker - "open tab" look, not a solid highlighted button:
-   the currently-open page gets a soft rose wash, rounded top corners, and a
-   thick rose-dark bottom stripe that reads like a tab poking up out of the
-   bar (border-bottom is reserved as transparent on every nav button above,
-   so turning it rose here doesn't shift layout). Parent toggles (e.g.
-   "Finance", or "Engineering" at level 2) get the same treatment when a
-   descendant is active, so it stays visible even while the dropdown/
-   submenu is closed. Split by what's actually behind it: items sitting
-   directly on the Deep Space Blue bar use a bottom stripe (reads as a tab
-   in a horizontal strip); items inside a Papaya Whip dropdown/submenu card
-   use a left stripe instead (a bottom border doesn't read as "active" in a
-   stacked vertical list the same way). */
+/* Active-page marker - a lighter wash spanning the bar's full height (top
+   AND bottom edge, not just a padding box floating inside it) plus a
+   full-width accent underline flush against the bar's bottom edge -
+   replaces the old translucent-rose-wash-with-rounded-corners-and-a-thin-
+   muted-stripe look, per explicit reference/correction. Parent toggles
+   (e.g. "Finance", or "Engineering" at level 2) get the same treatment
+   when a descendant is active, so it stays visible even while the
+   dropdown/submenu is closed. Split by what's actually behind it: items
+   sitting directly on the bar use this wash+underline (reads as a tab in
+   a horizontal strip); items inside a dropdown/submenu card use a left
+   stripe instead (an underline doesn't read as "active" in a stacked
+   vertical list the same way). */
 #navbar > [data-page].navbar-active,
 .navbar-item > button.navbar-active {
   /* Text color intentionally NOT changed here - inactive items stay at
-     full-brightness --color-text-on-dark for readability; only the wash +
-     stripe below mark the active one, per explicit correction. */
+     full-brightness --color-panel-bg for readability; only the wash +
+     underline below mark the active one. */
   font-weight: bold;
-  background: var(--color-accent-tint);
-  border-radius: 8px 8px 0 0;
-  border-bottom-color: var(--color-text-muted);
+  background: color-mix(in srgb, var(--color-nav-bg) 85%, white 15%);
+}
+#navbar > [data-page].navbar-active::after,
+.navbar-item > button.navbar-active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--color-accent);
 }
 .navbar-dropdown [data-page].navbar-active,
 .navbar-subitem > button.navbar-active {
