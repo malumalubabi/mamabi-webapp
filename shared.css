@@ -1051,22 +1051,25 @@ th {
    dashed-border look either way. The actual <input type="file"> stays
    display:none right after it in markup; this div is purely the visual/
    drop target, clicking it forwards to that input. */
-/* --color-panel-bg, not a card tone - this drop zone (Sales Draft's
-   "Create GrabFood Draft") sits directly on the page panel with no
-   enclosing card, and both --color-field-bg and --color-card-bg read as
-   too light/white against it (those are for something sitting INSIDE a
-   card, one level of nesting deeper than this ever does) - per explicit
-   correction (twice - card-bg still wasn't muted enough). Matching the
-   panel's own tone exactly means only the dashed border marks the zone,
-   no fill-contrast at all. */
 .file-drop-zone {
   border: 1.5px dashed var(--color-text-muted);
   border-radius: 10px;
   padding: 14px;
   text-align: center;
   cursor: pointer;
-  background: var(--color-panel-bg);
+  background: var(--color-field-bg);
   transition: border-color 0.15s ease, background 0.15s ease;
+}
+/* Sales Draft's "Create GrabFood Draft" section is the one drop-zone
+   usage that sits directly on the page panel with no enclosing card
+   (every other usage - e.g. Draft Review's own attach zone - is inside a
+   modal, where the default field-bg above already reads fine) - field-bg
+   read as too white/contrasted there, so this scoped override mutes it to
+   the panel's own tone instead, per explicit correction. Kept separate
+   from the base rule rather than changed there, so the modal usage isn't
+   affected by a fix meant for this one spot. */
+.grabfood-draft-card .file-drop-zone {
+  background: var(--color-panel-bg);
 }
 .file-drop-zone:hover,
 .file-drop-zone.drag-over {

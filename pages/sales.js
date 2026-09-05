@@ -144,7 +144,7 @@ let _createGrabFoodMenuSalesFile = null;
 
 function buildCreateGrabFoodDraftHtml() {
   return (
-    '<div style="margin-top:28px; padding:16px 18px; border:1px solid var(--color-border-on-card); border-radius:8px; max-width:560px;">' +
+    '<div class="grabfood-draft-card" style="margin-top:28px; padding:16px 18px; border:1px solid var(--color-border-on-card); border-radius:8px; max-width:560px;">' +
       "<h3 style=\"margin:0 0 4px;\">Create GrabFood Draft</h3>" +
       '<p style="font-size:12px; color:var(--color-text-muted); margin:0 0 14px;">GrabFood only - both files from GrabMerchant &gt; Finance &gt; Reports, same day.</p>' +
       '<div style="display:flex; gap:14px; flex-wrap:wrap;">' +
