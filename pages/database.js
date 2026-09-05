@@ -147,7 +147,7 @@ function renderSkuTable(wrap) {
           "</span>" +
           '<button onclick="openSkuFilterModal()">Set Filter</button>'
         ) +
-        '<button class="btn-primary" onclick="openSkuModal(null)">+ Add SKU</button>' +
+        '<button class="btn-primary" onclick="openSkuModal(null)">' + iconLabel(ICON_PLUS, "Add SKU") + "</button>" +
       "</div>" +
     "</div>" +
     '<div id="skuPaginationNav" class="pagination-nav"></div>' +
@@ -463,7 +463,7 @@ async function renderSupplierSection(wrap) {
       '<div style="display:flex; align-items:center; gap:10px;">' +
         '<span id="supplierFilterSortBadge" style="color:var(--color-text-muted); font-size:12px;"></span>' +
         '<button onclick="openSupplierFilterSortModal()">Filter &amp; Sort</button>' +
-        '<button class="btn-primary" onclick="openSupplierModal(null)">+ Add Supplier</button>' +
+        '<button class="btn-primary" onclick="openSupplierModal(null)">' + iconLabel(ICON_PLUS, "Add Supplier") + "</button>" +
       "</div>" +
     "</div>" +
     '<div id="supplierPaginationNav" class="pagination-nav"></div>' +
@@ -614,7 +614,7 @@ async function renderCustomerSection(wrap) {
       '<div style="display:flex; align-items:center; gap:10px;">' +
         '<span id="customerFilterSortBadge" style="color:var(--color-text-muted); font-size:12px;"></span>' +
         '<button onclick="openCustomerFilterSortModal()">Filter &amp; Sort</button>' +
-        '<button class="btn-primary" onclick="openCustomerModal(null)">+ Add Customer</button>' +
+        '<button class="btn-primary" onclick="openCustomerModal(null)">' + iconLabel(ICON_PLUS, "Add Customer") + "</button>" +
       "</div>" +
     "</div>" +
     '<div id="customerPaginationNav" class="pagination-nav"></div>' +
@@ -773,7 +773,7 @@ async function renderStaffSection(wrap) {
       '<div style="display:flex; align-items:center; gap:10px;">' +
         '<span id="staffFilterSortBadge" style="color:var(--color-text-muted); font-size:12px;"></span>' +
         '<button onclick="openStaffFilterSortModal()">Filter &amp; Sort</button>' +
-        '<button class="btn-primary" onclick="openStaffModal(null)">+ Add Staff</button>' +
+        '<button class="btn-primary" onclick="openStaffModal(null)">' + iconLabel(ICON_PLUS, "Add Staff") + "</button>" +
       "</div>" +
     "</div>" +
     '<div id="staffPaginationNav" class="pagination-nav"></div>' +

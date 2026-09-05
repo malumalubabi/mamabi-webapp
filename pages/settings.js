@@ -308,7 +308,7 @@ function renderManageSettingsListModal() {
     (arranging ? "" :
       ('<div style="margin-bottom:12px; display:flex; align-items:center; gap:8px;">' +
         addFieldHtml +
-        '<button id="addSettingsListItemBtn" class="btn-primary" onclick="addSettingsListItem()">+ Add</button>' +
+        '<button id="addSettingsListItemBtn" class="btn-primary" onclick="addSettingsListItem()">' + iconLabel(ICON_PLUS, "Add") + "</button>" +
         '<span id="addSettingsListItemStatus" class="save-status"></span>' +
       "</div>")
     ) +
@@ -590,7 +590,7 @@ function renderSkuConfigModal() {
     '<div style="margin-bottom:8px; display:flex; align-items:center; gap:8px;">' +
       '<input type="text" id="newSkuCategoryValue" placeholder="New category"> ' +
       '<input type="text" id="newSkuCategoryCode" placeholder="Code (e.g. AROM)" style="width:110px; text-transform:uppercase;"> ' +
-      '<button id="addSkuCategoryBtn" class="btn-primary" onclick="addSkuConfigItem(\'' + catListName.replace(/'/g, "\\'") + '\', \'newSkuCategoryValue\', \'newSkuCategoryCode\', \'addSkuCategoryBtn\', \'addSkuCategoryStatus\')">+ Add</button>' +
+      '<button id="addSkuCategoryBtn" class="btn-primary" onclick="addSkuConfigItem(\'' + catListName.replace(/'/g, "\\'") + '\', \'newSkuCategoryValue\', \'newSkuCategoryCode\', \'addSkuCategoryBtn\', \'addSkuCategoryStatus\')">' + iconLabel(ICON_PLUS, "Add") + "</button>" +
       '<span id="addSkuCategoryStatus" class="save-status"></span>' +
     "</div>" +
     '<table style="max-width:400px;"><thead><tr><th>Category</th><th>Code</th><th></th></tr></thead><tbody>' +
@@ -601,7 +601,7 @@ function renderSkuConfigModal() {
     '<div style="margin-bottom:8px; display:flex; align-items:center; gap:8px;">' +
       '<input type="text" id="newSkuUnitValue" placeholder="New unit"> ' +
       '<input type="text" id="newSkuUnitCode" placeholder="Code (e.g. g)" style="width:110px;"> ' +
-      '<button id="addSkuUnitBtn" class="btn-primary" onclick="addSkuConfigItem(\'SKU Unit Code\', \'newSkuUnitValue\', \'newSkuUnitCode\', \'addSkuUnitBtn\', \'addSkuUnitStatus\')">+ Add</button>' +
+      '<button id="addSkuUnitBtn" class="btn-primary" onclick="addSkuConfigItem(\'SKU Unit Code\', \'newSkuUnitValue\', \'newSkuUnitCode\', \'addSkuUnitBtn\', \'addSkuUnitStatus\')">' + iconLabel(ICON_PLUS, "Add") + "</button>" +
       '<span id="addSkuUnitStatus" class="save-status"></span>' +
     "</div>" +
     '<table style="max-width:400px;"><thead><tr><th>Unit</th><th>Code</th><th></th></tr></thead><tbody>' +

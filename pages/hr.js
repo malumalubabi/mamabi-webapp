@@ -457,7 +457,7 @@ function buildOutletClosuresShellHtml() {
   return (
     '<div style="display:flex; justify-content:space-between; align-items:center;">' +
       "<h3>Outlet Closures</h3>" +
-      '<button class="btn-primary" onclick="openClosureModal()">+ Add Closure</button>' +
+      '<button class="btn-primary" onclick="openClosureModal()">' + iconLabel(ICON_PLUS, "Add Closure") + "</button>" +
     "</div>" +
     '<div id="closuresPaginationNav" class="pagination-nav"></div>' +
     '<div id="closuresScrollWrap" style="overflow-x:auto;">' +
@@ -630,7 +630,7 @@ function renderShiftsLog(wrap) {
     '<div style="display:flex; justify-content:flex-end; align-items:center; gap:10px;">' +
       '<span id="shiftsFilterSortBadge" style="color:var(--color-text-muted); font-size:12px;"></span>' +
       '<button onclick="openShiftsFilterSortModal()">Filter &amp; Sort</button>' +
-      '<button class="btn-primary" onclick="openShiftModal(null)">+ Add Shift</button>' +
+      '<button class="btn-primary" onclick="openShiftModal(null)">' + iconLabel(ICON_PLUS, "Add Shift") + "</button>" +
     "</div>" +
     '<div id="shiftsPaginationNav" class="pagination-nav"></div>' +
     '<div id="shiftsScrollWrap" style="overflow-x:auto;">' +
@@ -768,7 +768,7 @@ function renderShiftsCalendar(wrap) {
         '<strong style="flex:0 0 160px; text-align:center;">' + monthLabel + "</strong>" +
         '<button onclick="shiftCalendarMonthNav(1)">Next &raquo;</button>' +
       "</div>" +
-      '<button class="btn-primary" onclick="openShiftModal(null)">+ Add Shift</button>' +
+      '<button class="btn-primary" onclick="openShiftModal(null)">' + iconLabel(ICON_PLUS, "Add Shift") + "</button>" +
     "</div>" +
     '<div style="display:grid; grid-template-columns:repeat(7, 1fr); gap:6px; font-size:11px; margin-bottom:4px; text-align:center;">' +
       // Sunday's header label in red, matching the wall-calendar convention
@@ -805,15 +805,17 @@ function shiftsCalendarCellHtml(dateStr, dayNum, isToday) {
   const border = isToday ? "border:2px solid var(--color-primary, #333);" : "border:1px solid var(--color-border, #ddd);";
   const calendarEvent = calendarEventForDate(dateStr);
   const outletClosure = outletClosureForDate(dateStr);
-  // Red day number = wall-calendar "tanggal merah" - Sunday (always), an
-  // ad-hoc Outlet Closures date, or an imported calendar event (holiday).
-  // Deliberately NOT the same as closedInfo.closed below, which only
-  // reflects Outlet Hours' weekly pattern - a business's regular off day
-  // isn't a "tanggal merah" (that one still gets the gray background, just
-  // not the red number), and neither Outlet Closures nor a calendar event
-  // affects closedInfo at all - both are informational only.
+  // Red day number = wall-calendar "tanggal merah" - Sunday (always) or an
+  // imported calendar event (holiday). An ad-hoc Outlet Closure does NOT
+  // redden the day number (per explicit correction - that closure's own
+  // "closed" signal is the hoursDot below turning red, not the date
+  // itself). Deliberately NOT the same as closedInfo.closed below, which
+  // only reflects Outlet Hours' weekly pattern - a business's regular off
+  // day isn't a "tanggal merah" (that one still gets the gray background,
+  // just not the red number), and neither Outlet Closures nor a calendar
+  // event affects closedInfo at all - both are informational only.
   const isSunday = new Date(dateStr + "T00:00:00Z").getUTCDay() === 0;
-  const dayNumColor = (isSunday || outletClosure || calendarEvent) ? "#c0392b" : "inherit";
+  const dayNumColor = (isSunday || calendarEvent) ? "#c0392b" : "inherit";
 
   // Separate signal from both of the above - purely "does Outlet Hours'
   // weekly pattern say this weekday is open or closed", as a small fixed-
@@ -822,14 +824,20 @@ function shiftsCalendarCellHtml(dateStr, dayNum, isToday) {
   const weekday = new Date(dateStr + "T00:00:00Z").getUTCDay();
   const hoursRow = _lastOutletHours.find((h) => h.weekday === weekday);
   const weeklyOpen = !hoursRow || hoursRow.isOpen !== false;
-  // Same pastel treatment as Dashboard/Stock Overview's status colors -
-  // 55% the semantic token blended with 45% white (see shared.css's
-  // .status-Safe/.status-Low/.status-Out) - keep new status-style
-  // indicators on this formula going forward instead of a plain flat color.
-  const hoursDotColor = weeklyOpen
-    ? "color-mix(in srgb, var(--color-success) 55%, white 45%)"
-    : "var(--color-text-muted)";
-  const hoursDot = '<span title="' + (weeklyOpen ? "Open" : "Closed") + ' (Outlet Hours)" style="width:8px; height:8px; border-radius:50%; flex:0 0 8px; background:' + hoursDotColor + ';"></span>';
+  // An ad-hoc Outlet Closure overrides the weekly pattern here too - the
+  // outlet is actually closed that day regardless of what a normal
+  // Wednesday looks like, per explicit correction (this dot was only ever
+  // reading weeklyOpen before, so a closure day like a one-off event still
+  // showed green). Same pastel treatment as Dashboard/Stock Overview's
+  // status colors - 55% the semantic token blended with 45% white (see
+  // shared.css's .status-Safe/.status-Low/.status-Out) - keep new
+  // status-style indicators on this formula going forward instead of a
+  // plain flat color.
+  const hoursDotColor = outletClosure
+    ? "var(--color-error-pastel)"
+    : (weeklyOpen ? "color-mix(in srgb, var(--color-success) 55%, white 45%)" : "var(--color-text-muted)");
+  const hoursDotTitle = outletClosure ? "Closed (Outlet Closure)" : (weeklyOpen ? "Open" : "Closed (Outlet Hours)");
+  const hoursDot = '<span title="' + hoursDotTitle + '" style="width:8px; height:8px; border-radius:50%; flex:0 0 8px; background:' + hoursDotColor + ';"></span>';
 
   const namesHtml = dayShifts.length
     ? dayShifts.map((s) => '<div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + (s.staffName || "?") + "</div>").join("")
@@ -889,7 +897,7 @@ function openDayShiftsModal(dateStr) {
         "</tbody></table><br>")
       : '<p style="color:var(--color-text-muted); font-size:13px;">No shifts yet.</p>'
     ) +
-    (closedInfo.closed ? "" : ('<button class="btn-primary" onclick="openShiftModal(null, \'' + dateStr + '\')">+ Add Shift</button>'))
+    (closedInfo.closed ? "" : ('<button class="btn-primary" onclick="openShiftModal(null, \'' + dateStr + '\')">' + iconLabel(ICON_PLUS, "Add Shift") + "</button>"))
   );
 }
 

@@ -213,7 +213,7 @@ function buildOrderFormHtml() {
       "<thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th><th></th></tr></thead>" +
       '<tbody id="orderItemRows"></tbody>' +
     "</table>" +
-    '<button type="button" onclick="addOrderItemRow()">+ Add Item</button>' +
+    '<button type="button" onclick="addOrderItemRow()">' + iconLabel(ICON_PLUS, "Add Item") + "</button>" +
     '<div style="margin-top:8px; font-weight:bold;">Total: <span id="orderGrandTotal" class="font-number">Rp 0</span></div><br>' +
 
     // One shared CSS Grid across BOTH rows (not two separate flex rows) -
@@ -622,7 +622,7 @@ function buildEditOrderFormHtml(o) {
       "<thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th><th></th></tr></thead>" +
       '<tbody id="orderItemRows"></tbody>' +
     "</table>" +
-    '<button type="button" onclick="addOrderItemRow()">+ Add Item</button>' +
+    '<button type="button" onclick="addOrderItemRow()">' + iconLabel(ICON_PLUS, "Add Item") + "</button>" +
     '<div style="margin-top:8px; font-weight:bold;">Total: <span id="orderGrandTotal" class="font-number">Rp 0</span></div><br>' +
 
     '<div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start;">' +
@@ -816,6 +816,20 @@ function orderTotal(o) {
   return o.items.reduce((s, it) => s + it.lineTotal, 0) + o.deliveryFee;
 }
 
+// Monochrome icons for this page's own icon+label buttons (Form Template/
+// Invoice/Edit) - named ORDER_-prefixed rather than the bare ICON_COPY/
+// ICON_PENCIL menu.js and hr.js already use locally, since every page
+// script shares one global scope (see index.html's <script> list) and a
+// bare same-named const declared twice would collide.
+const ORDER_ICON_COPY = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+const ORDER_ICON_PENCIL = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+
+// One shared width for every row of Ongoing Orders' action column
+// (Invoice/Edit, PAID/DELIVERED-or-PICKED-UP, Cancel Order) - each row's
+// own buttons are flexed to exactly fill it, so all three rows' left AND
+// right edges line up instead of each row sizing to its own content.
+const ORDER_ACTIONS_WIDTH = 190;
+
 // "Copy Order Form" (Online Orders only) - a plain-text order summary
 // formatted for pasting straight into a WA chat with the customer, matching
 // an exact template given by explicit request. Built fresh from the order's
@@ -846,6 +860,7 @@ function buildOrderFormText(o) {
     "Alamat: " + address + "\n\n" +
     "Pesanan:\n" +
     itemLines + "\n\n" +
+    (o.orderType === "Delivery" && o.deliveryFee > 0 ? "Ongkir: " + Math.round(o.deliveryFee / 1000) + "k\n\n" : "") +
     "TOTAL: Rp. " + orderTotal(o).toLocaleString("id-ID") + "\n\n" +
     "Metode Bayar: " + (o.paymentMethod ? o.paymentMethod + " (" + o.paymentStatus.toLowerCase() + ")" : "-") + "\n\n" +
     "Catatan: " + (o.notes || "")
@@ -872,11 +887,13 @@ function buildBlankOrderFormTemplate() {
 
 function copyBlankOrderFormTemplate(btn) {
   const text = buildBlankOrderFormTemplate();
-  const originalLabel = btn.textContent;
+  // innerHTML (not textContent) - the button's own label is icon+text, and
+  // textContent would silently drop the icon on restore.
+  const originalHtml = btn.innerHTML;
 
   navigator.clipboard.writeText(text).then(function () {
     btn.textContent = "Copied!";
-    setTimeout(function () { btn.textContent = originalLabel; }, 1500);
+    setTimeout(function () { btn.innerHTML = originalHtml; }, 1500);
   }).catch(function () {
     alert("Couldn't copy automatically. Here's the text:\n\n" + text);
   });
@@ -886,11 +903,11 @@ function copyOrderFormText(btn, orderCode) {
   const o = _ordersByCode[orderCode];
   if (!o) return;
   const text = buildOrderFormText(o);
-  const originalLabel = btn.textContent;
+  const originalHtml = btn.innerHTML;
 
   navigator.clipboard.writeText(text).then(function () {
     btn.textContent = "Copied!";
-    setTimeout(function () { btn.textContent = originalLabel; }, 1500);
+    setTimeout(function () { btn.innerHTML = originalHtml; }, 1500);
   }).catch(function () {
     // Clipboard API can be blocked (permissions, non-HTTPS context) - fall
     // back to showing the text directly so it's never a dead end.
@@ -930,16 +947,27 @@ function customerCell(o, showAddress) {
   );
 }
 
+// Used by Ongoing/History's Items column AND the Mark Paid modal's summary
+// - originally two separate layouts (this one had name/qty as a
+// space-between pair), but that stretched "x1" all the way to the far
+// right edge once reused in the modal's much wider container. Now: name +
+// unit price stack on the left (its own little "conclusion" block, fixed
+// width so a short vs. long/wrapping item name doesn't shift where the
+// second column starts - per explicit correction, every row's qty/total
+// lines up at the same x regardless of name length), and qty + line total
+// sit as a second column to the right of it, bottom-aligned so that pair
+// reads level with the unit price line rather than centered against the
+// whole two-line block.
 function itemsCell(o) {
   return o.items
     .map(function (it) {
       return (
-        '<div style="padding:1px 0;">' +
-          '<div style="display:flex; justify-content:space-between; gap:8px;">' +
-            "<span>" + it.name + "</span>" +
-            '<span style="color:var(--color-text-muted); white-space:nowrap;">x' + it.qty + "</span>" +
+        '<div style="display:flex; align-items:flex-end; gap:10px; padding:1px 0;">' +
+          '<div style="width:100px; flex-shrink:0;">' +
+            "<div>" + it.name + "</div>" +
+            '<span class="font-number" style="color:var(--color-text-muted); font-size:12px;">' + formatRupiah(it.unitPrice) + "</span>" +
           "</div>" +
-          '<span class="font-number" style="color:var(--color-text-muted); font-size:12px;">' + formatRupiah(it.unitPrice) + "</span>" +
+          '<span style="color:var(--color-text-muted); font-size:12px; white-space:nowrap;">x' + it.qty + ' = <span class="font-number">' + formatRupiah(it.unitPrice * it.qty) + "</span></span>" +
         "</div>"
       );
     })
@@ -967,8 +995,8 @@ function renderOrdersTable(wrap, orders, scope) {
       "<h3>" + title + "</h3>" +
       (scope === "ongoing" && _ordersShowNewOrderBtn
         ? '<div style="display:flex; gap:10px;">' +
-            '<button onclick="copyBlankOrderFormTemplate(this)">Copy Template Form</button>' +
-            '<button class="btn-primary" onclick="openOrderModal()">+ New Order</button>' +
+            '<button onclick="copyBlankOrderFormTemplate(this)">' + iconLabel(ORDER_ICON_COPY, "Form Template") + "</button>" +
+            '<button class="btn-primary" onclick="openOrderModal()">' + iconLabel(ICON_PLUS, "New Order") + "</button>" +
           "</div>"
         : "") +
       (scope === "history"
@@ -1003,8 +1031,8 @@ function renderOrdersTable(wrap, orders, scope) {
         ? "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total Price</th><th>Order Status</th><th>Notes</th></tr>"
         : "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total Price</th><th>Status</th><th>Notes</th><th></th></tr>")
     : (scope === "history"
-        ? "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Fulfillment Type</th><th>Order Status</th><th>Notes</th></tr>"
-        : "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Type</th><th>Status</th><th>Notes</th><th></th></tr>");
+        ? "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Type</th><th>Total</th><th>Status</th><th>Notes</th></tr>"
+        : "<tr><th>Date</th><th>Customer</th><th>Items</th><th>Type</th><th>Total</th><th>Status</th><th>Notes</th><th></th></tr>");
 
   // Same overall table width for both Online tables (Ongoing/History) -
   // table-layout stays auto (not fixed), so content still drives each
@@ -1499,17 +1527,32 @@ function savePayoutEdit(btn) {
 // achieved for free).
 function orderActionsHtml(o) {
   const fulfillmentDone = o.fulfillmentStatus !== "Pending";
+
+  // "PAID"/"DELIVERED"/"PICKED UP" are pill-shaped stamp badges
+  // (btn-stamp, shared.css) side by side, rather than stacked/spelled out
+  // as "Mark ..." - per explicit request/reference image. Pastel tokens
+  // (not the flat semantic hex) per this app's own status-color
+  // convention.
+  // flex:1 on both (not a fixed width on either) - they always split
+  // ORDER_ACTIONS_WIDTH exactly in half, so the pair's box size stays
+  // identical whether this row says "DELIVERED" or the shorter
+  // "PICKED UP", and the row's total width always matches the rows above/
+  // below it instead of leaving a gap or overflowing.
+  const paidBtn = o.paymentStatus !== "Paid"
+    ? '<button class="btn-stamp" style="font-size:12px; flex:1; padding:6px 2px; color:var(--color-success-pastel); border-color:var(--color-success-pastel);" onclick="startMarkOrderPaid(\'' + o.orderCode + '\')">PAID</button>'
+    : "";
+  const deliveredBtn = !fulfillmentDone
+    ? '<button class="btn-stamp" style="font-size:12px; flex:1; padding:6px 2px; color:var(--color-info-pastel); border-color:var(--color-info-pastel);" onclick="markOrderDeliveryStatus(\'' + o.orderCode + '\', \'' + o.orderType + '\')">' + (o.orderType === "Takeaway" ? "PICKED UP" : "DELIVERED") + "</button>"
+    : "";
+
   return (
-    // Fixed width (not text-align - text stays centered) so this whole
-    // button stack (with Copy Form above it) reads as one uniform column
-    // instead of each button sizing to its own label's length.
-    (o.paymentStatus !== "Paid" ? '<button style="font-size:12px; width:130px;" onclick="startMarkOrderPaid(\'' + o.orderCode + '\')">Mark Paid</button><br>' : "") +
-    (!fulfillmentDone ? '<button style="font-size:12px; width:130px;" onclick="markOrderDeliveryStatus(\'' + o.orderCode + '\', \'' + o.orderType + '\')">' + (o.orderType === "Takeaway" ? "Mark Picked Up" : "Mark Delivered") + "</button><br>" : "") +
-    // Extra top margin so Cancel sits visibly apart from Mark Paid/Mark
-    // Delivered above it - those two get used often, Cancel rarely, so a
-    // slip of the mouse shouldn't land on it. Label spelled out
-    // ("Cancel Order") since a bare "Cancel" reads as "cancel this action".
-    '<button style="font-size:12px; width:130px; margin-top:10px;" onclick="markOrderCancelled(\'' + o.orderCode + '\')">Cancel Order</button>'
+    // Extra bottom margin so Cancel sits visibly apart from the stamps
+    // above it - those get used often, Cancel rarely, so a slip of the
+    // mouse shouldn't land on it.
+    (paidBtn || deliveredBtn ? '<div style="display:flex; gap:6px; width:' + ORDER_ACTIONS_WIDTH + 'px; margin-bottom:10px;">' + paidBtn + deliveredBtn + "</div>" : "") +
+    // Label spelled out ("Cancel Order") since a bare "Cancel" reads as
+    // "cancel this action". Error-pastel per explicit request.
+    '<button style="font-size:12px; width:' + ORDER_ACTIONS_WIDTH + 'px; color:var(--color-error-pastel); border-color:var(--color-error-pastel);" onclick="markOrderCancelled(\'' + o.orderCode + '\')">Cancel Order</button>'
   );
 }
 
@@ -1529,11 +1572,15 @@ function ongoingRowHtml(o) {
   // Copy Form/Edit Order - Online Orders only, not shared via
   // orderActionsHtml so they never show up on Platform Orders' ongoing rows
   // (GoFood customers ordered through the app, not WA, and their order
-  // details aren't ours to edit). Extra bottom margin after Edit Order
-  // separates this pair from the Mark Paid/etc buttons below.
+  // details aren't ours to edit). Relabeled Invoice/Edit and put side by
+  // side (Edit to Invoice's right) per explicit request - Invoice takes the
+  // remaining width, Edit stays icon-sized. Extra bottom margin after this
+  // row separates it from the Mark Paid/etc buttons below.
   const actions =
-    '<button style="font-size:12px; width:130px;" onclick="copyOrderFormText(this, \'' + o.orderCode + '\')">Copy Form</button><br>' +
-    '<button style="font-size:12px; width:130px; margin-bottom:10px;" onclick="openEditOrderModal(\'' + o.orderCode + '\')">Edit Order</button><br>' +
+    '<div style="display:flex; gap:6px; width:' + ORDER_ACTIONS_WIDTH + 'px; margin-bottom:10px;">' +
+      '<button style="font-size:12px; flex:1; padding:8px 4px;" onclick="copyOrderFormText(this, \'' + o.orderCode + '\')">' + iconLabel(ORDER_ICON_COPY, "Invoice") + "</button>" +
+      '<button style="font-size:12px; flex:1; padding:8px 4px;" onclick="openEditOrderModal(\'' + o.orderCode + '\')">' + iconLabel(ORDER_ICON_PENCIL, "Edit") + "</button>" +
+    "</div>" +
     orderActionsHtml(o);
 
   return (
@@ -1541,8 +1588,8 @@ function ongoingRowHtml(o) {
       "<td>" + dateCell(o) + "</td>" +
       "<td>" + customerCell(o, true) + "</td>" +
       "<td>" + itemsCell(o) + "</td>" +
-      '<td><span class="font-number">' + formatRupiah(orderTotal(o)) + "</span></td>" +
       "<td>" + typeCell(o) + "</td>" +
+      '<td><span class="font-number">' + formatRupiah(orderTotal(o)) + "</span></td>" +
       "<td>" + combinedStatusHtml + "</td>" +
       "<td>" + (o.notes || "") + "</td>" +
       '<td class="orderActions" style="text-align:left;" data-order="' + o.orderCode + '">' + actions + "</td>" +
@@ -1562,8 +1609,8 @@ function historyRowHtml(o) {
       "<td>" + dateCell(o) + "</td>" +
       "<td>" + customerCell(o) + "</td>" +
       "<td>" + itemsCell(o) + "</td>" +
-      "<td>" + totalHtml + "</td>" +
       "<td>" + typeCell(o) + "</td>" +
+      "<td>" + totalHtml + "</td>" +
       "<td>" + statusLabel + statusSub + "</td>" +
       "<td>" + (o.notes || "") + "</td>" +
     "</tr>"
@@ -1728,7 +1775,8 @@ function startMarkOrderPaid(orderCode) {
   const summary = o
     ? (
         "<p><strong>Customer:</strong> " + o.customerName + (o.customerContact ? " (" + formatPhoneDisplay(o.customerContact) + ")" : "") + "</p>" +
-        "<div>" + itemsCell(o) + "</div>" +
+        "<p><strong>Items:</strong></p>" +
+        '<div style="padding-left:12px;">' + itemsCell(o) + "</div>" +
         (o.orderType === "Delivery" && o.deliveryFee > 0 ? '<p><strong>Delivery Fee:</strong> <span class="font-number">' + formatRupiah(o.deliveryFee) + "</span></p>" : "") +
         '<p><strong>Total Price:</strong> <span class="font-number">' + formatRupiah(orderTotal(o)) + "</span></p>"
       )

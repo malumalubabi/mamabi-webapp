@@ -48,6 +48,17 @@
   --color-success: #1a7f37;
   --color-warning: #b08800;
   --color-error: #cf222e;
+  --color-info: #0969da;
+
+  /* Pastel (55% base / 45% white) versions of the semantic tokens above -
+     this app's own status-color convention (see .status-Safe/.status-Low/
+     .status-Out below) instead of a status's full-saturation ink, so a new
+     status-colored element (e.g. the stamp buttons further down) matches
+     the rest of the app instead of looking imported from elsewhere. */
+  --color-success-pastel: color-mix(in srgb, var(--color-success) 55%, white 45%);
+  --color-warning-pastel: color-mix(in srgb, var(--color-warning) 55%, white 45%);
+  --color-error-pastel: color-mix(in srgb, var(--color-error) 55%, white 45%);
+  --color-info-pastel: color-mix(in srgb, var(--color-info) 55%, white 45%);
 
   /* ---------- Subtle gradients ----------
      Small, deliberate variation instead of a flat single-color fill -
@@ -263,6 +274,26 @@ button.btn-icon-edit:hover {
 td.compact-cell {
   padding: 6px 4px;
   text-align: center;
+}
+
+/* Mark Paid/Mark Delivered/Mark Picked Up - a pill-shaped "rubber stamp"
+   badge (bold, uppercase, thick border, fully rounded) instead of a plain
+   rectangular button, per explicit request/reference image - just kept in
+   this app's own pastel palette (color-mix tokens above) rather than the
+   reference's solid ink. Color itself is set per call site (border-color/
+   color inline, one of the *-pastel tokens) since Paid/Delivered carry
+   different meanings - only the stamp shape lives here. Hover tints toward
+   the button's own color (currentColor) instead of the generic ghost-
+   button rose tint, so each stamp's hover still reads as "its" color. */
+button.btn-stamp {
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  border-width: 2px;
+  border-radius: 999px;
+  background: transparent;
+}
+button.btn-stamp:hover {
+  background: color-mix(in srgb, currentColor 15%, transparent);
 }
 
 /* ---------- Text inputs / textarea ----------

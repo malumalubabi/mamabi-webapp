@@ -329,7 +329,7 @@ function openSalesDraftReviewModal(draftId) {
       '<colgroup><col style="width:200px;"><col style="width:90px;"><col style="width:130px;"><col style="width:130px;"><col style="width:74px;"></colgroup>' +
       "<thead><tr><th>Item</th><th>Qty</th><th>Selling Price</th><th>Total</th><th></th></tr></thead>" +
       '<tbody id="draftReviewItemRows"></tbody>' +
-      '<tfoot><tr><td colspan="5"><button type="button" onclick="addDraftReviewItemRow()">+ Add Item</button></td></tr></tfoot>' +
+      '<tfoot><tr><td colspan="5"><button type="button" onclick="addDraftReviewItemRow()">' + iconLabel(ICON_PLUS, "Add Item") + "</button></td></tr></tfoot>" +
     "</table><br>" +
 
     '<div style="display:flex; gap:20px;">' +
@@ -755,7 +755,7 @@ function renderSalesLogTab(wrap) {
       '<div style="display:flex; align-items:center; gap:10px;">' +
         '<span id="salesLogFilterSortBadge" style="color:var(--color-text-muted); font-size:12px;"></span>' +
         '<button onclick="openSalesLogFilterSortModal()">Filter &amp; Sort</button>' +
-        '<button class="btn-primary" onclick="openSalesEntryModal()">+ Input Sales</button>' +
+        '<button class="btn-primary" onclick="openSalesEntryModal()">' + iconLabel(ICON_PLUS, "Input Sales") + "</button>" +
       "</div>" +
     "</div>" +
     '<div id="salesPaginationNav" class="pagination-nav"></div>' +
@@ -930,7 +930,7 @@ async function openSalesEntryModal() {
       '<colgroup><col style="width:200px;"><col style="width:90px;"><col style="width:130px;"><col style="width:130px;"><col style="width:74px;"></colgroup>' +
       "<thead><tr><th>Item</th><th>Qty</th><th>Selling Price</th><th>Total</th><th></th></tr></thead>" +
       '<tbody id="saleItemRows"></tbody>' +
-      '<tfoot><tr><td colspan="5"><button type="button" onclick="addSaleItemRow()">+ Add Item</button></td></tr></tfoot>' +
+      '<tfoot><tr><td colspan="5"><button type="button" onclick="addSaleItemRow()">' + iconLabel(ICON_PLUS, "Add Item") + "</button></td></tr></tfoot>" +
     "</table><br>" +
 
     '<div id="saleFeeSection" style="display:none;">' +
@@ -1132,7 +1132,7 @@ function openSalesBatchModal(batchCode) {
       '<colgroup><col style="width:200px;"><col style="width:90px;"><col style="width:130px;"><col style="width:130px;"><col style="width:74px;"></colgroup>' +
       "<thead><tr><th>Item</th><th>Qty</th><th>Selling Price</th><th>Total</th><th></th></tr></thead>" +
       '<tbody id="batchEditItemRows"></tbody>' +
-      '<tfoot><tr><td colspan="5"><button type="button" onclick="addBatchEditItemRow()">+ Add Item</button></td></tr></tfoot>' +
+      '<tfoot><tr><td colspan="5"><button type="button" onclick="addBatchEditItemRow()">' + iconLabel(ICON_PLUS, "Add Item") + "</button></td></tr></tfoot>" +
     "</table><br>" +
 
     '<div style="display:flex; gap:16px; padding:8px 12px; border:1px solid var(--color-border-on-card); max-width:fit-content;">' +

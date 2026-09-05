@@ -409,7 +409,7 @@ function buildPurchaseFormHtml() {
         '<tbody id="purchaseItemRows"></tbody>' +
       "</table>" +
     "</div>" +
-    '<button type="button" onclick="addPurchaseItemRow()">+ Add Item</button>' +
+    '<button type="button" onclick="addPurchaseItemRow()">' + iconLabel(ICON_PLUS, "Add Item") + "</button>" +
     '<div style="margin-top:8px; font-weight:bold;">Total Cost: <span id="purchaseGrandTotal" class="font-number">Rp 0</span></div><br><br>' +
 
     '<div style="display:flex; gap:20px;">' +
@@ -595,7 +595,7 @@ function buildPurchaseTableShellHtml() {
       '<div style="display:flex; align-items:center; gap:10px;">' +
         '<span id="purchaseFilterSortBadge" style="color:var(--color-text-muted); font-size:12px;"></span>' +
         '<button onclick="openPurchaseFilterSortModal()">Filter &amp; Sort</button>' +
-        '<button class="btn-primary" onclick="openPurchaseModal()">+ Input Purchase</button>' +
+        '<button class="btn-primary" onclick="openPurchaseModal()">' + iconLabel(ICON_PLUS, "Input Purchase") + "</button>" +
       "</div>" +
     "</div>" +
     "<style>" +
@@ -820,7 +820,7 @@ function buildEditPurchaseFormHtml(purchaseCode, first) {
         '<tbody id="editPurchaseItemRows"></tbody>' +
       "</table>" +
     "</div>" +
-    '<button type="button" onclick="addEditPurchaseItemRow()">+ Add Item</button>' +
+    '<button type="button" onclick="addEditPurchaseItemRow()">' + iconLabel(ICON_PLUS, "Add Item") + "</button>" +
     '<div style="margin-top:8px; font-weight:bold;">Total Cost: <span id="editPurchaseGrandTotal" class="font-number">Rp 0</span></div><br><br>' +
 
     '<div style="display:flex; gap:20px;">' +
@@ -1187,7 +1187,7 @@ function buildOpnameTableShellHtml() {
         '<span id="opnameFilterSortBadge" style="color:var(--color-text-muted); font-size:12px;"></span>' +
         '<button onclick="openOpnameFilterModal()">Filter</button>' +
       "</div>" +
-      '<button class="btn-primary" onclick="openOpnameModal()">+ Input Stock Opname</button>' +
+      '<button class="btn-primary" onclick="openOpnameModal()">' + iconLabel(ICON_PLUS, "Input Stock Opname") + "</button>" +
     "</div>" +
     '<div id="opnamePaginationNav" class="pagination-nav"></div>' +
     '<div id="opnameLogScrollWrap" style="overflow-x:auto;">' +

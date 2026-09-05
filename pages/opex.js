@@ -62,7 +62,7 @@ function buildOpexLogShellHtml() {
       '<div style="display:flex; align-items:center; gap:10px;">' +
         '<span id="opexFilterSortBadge" style="color:var(--color-text-muted); font-size:12px;">' + (_opexCategoryFilter.length ? _opexCategoryFilter.join(", ") : "All") + " | " + OPEX_SORT_LABELS[_opexSort] + "</span>" +
         '<button onclick="openOpexFilterSortModal()">Filter &amp; Sort</button>' +
-        '<button class="btn-primary" onclick="openOpexEntryModal()">+ Add Expense</button>' +
+        '<button class="btn-primary" onclick="openOpexEntryModal()">' + iconLabel(ICON_PLUS, "Add Expense") + "</button>" +
       "</div>" +
     "</div>" +
     '<div id="opexPaginationNav" class="pagination-nav"></div>' +

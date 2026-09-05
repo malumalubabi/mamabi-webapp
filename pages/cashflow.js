@@ -153,7 +153,7 @@ function buildCashflowLedgerShellHtml() {
       '<div style="display:flex; align-items:center; gap:10px;">' +
         '<span id="cashflowFilterSortBadge" style="color:var(--color-text-muted); font-size:12px;"></span>' +
         '<button onclick="openCashflowLogFilterSortModal()">Filter &amp; Sort</button>' +
-        '<button class="btn-primary" onclick="openCashflowEntryModal()">+ Input Transaction</button>' +
+        '<button class="btn-primary" onclick="openCashflowEntryModal()">' + iconLabel(ICON_PLUS, "Input Transaction") + "</button>" +
       "</div>" +
     "</div>" +
     '<div id="cashflowLedgerPaginationNav" class="pagination-nav"></div>' +
@@ -322,7 +322,7 @@ function buildCashflowFormHtml() {
       "<thead><tr><th>Description</th><th>Amount</th><th>Category</th><th>Notes</th><th></th></tr></thead>" +
       '<tbody id="cashflowRows"></tbody>' +
     "</table>" +
-    '<button type="button" onclick="addCashflowRow()">+ Add Entry</button>' +
+    '<button type="button" onclick="addCashflowRow()">' + iconLabel(ICON_PLUS, "Add Entry") + "</button>" +
     "<br><br>" +
 
     '<button id="saveCashflowBtn" class="btn-primary" onclick="saveCashflow()">Save</button>' +

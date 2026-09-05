@@ -709,6 +709,21 @@ function closeModalOnEscape(e) {
 const ICON_CHECK_CIRCLE = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
 const ICON_ALERT_TRIANGLE = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
 
+// Bold "+" glyph - every "+ Add X"/"+ New X" button app-wide swaps its
+// literal "+" character for this icon per explicit request (the plain
+// character read as too light/text-like, not an emphasized action symbol).
+// Thicker stroke-width than the other shared icons on purpose, so it still
+// reads as a bold plus at 13px.
+const ICON_PLUS = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+
+// Wraps an icon + label so they center/align on one baseline regardless of
+// the button's own display/width - lets every icon+text button (New Order,
+// Add Item, Invoice, Edit, ...) share one composition instead of each call
+// site hand-rolling its own flex style.
+function iconLabel(icon, label) {
+  return '<span style="display:inline-flex; align-items:center; justify-content:center; gap:6px;">' + icon + label + "</span>";
+}
+
 // opts: { title, body (optional), chip (optional small code/id badge under
 // the body text), confirmLabel, danger (bool - red icon/button, for
 // destructive actions like Delete/Cancel/Remove vs a neutral positive

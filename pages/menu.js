@@ -200,7 +200,7 @@ function renderBatchTable(wrap, rows, scope) {
     '<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">' +
       "<h3>" + title + "</h3>" +
       (scope === "ongoing"
-        ? '<button class="btn-primary" onclick="openBatchModal()">+ Start New Batch</button>'
+        ? '<button class="btn-primary" onclick="openBatchModal()">' + iconLabel(ICON_PLUS, "Start New Batch") + "</button>"
         : '<div style="display:flex; align-items:center; gap:10px;">' +
             '<span style="color:var(--color-text-muted); font-size:12px;">' + batchHistoryFilterSortBadgeText() + "</span>" +
             '<button onclick="openBatchHistoryFilterSortModal()">Filter &amp; Sort</button>' +
@@ -1113,7 +1113,7 @@ function renderManageCostingModal() {
           '<div id="addRecipeLineCombo" style="min-width:220px;"></div>' +
           '<input type="number" id="addRecipeLineQty" min="0" step="any" placeholder="Qty" style="width:90px;">' +
           '<input type="text" id="addRecipeLineUnit" disabled placeholder="Unit" style="background:var(--color-disabled-bg); width:70px;">' +
-          '<button type="button" id="addRecipeLineBtn" onclick="addRecipeLineToCosting()">+ Add</button>' +
+          '<button type="button" id="addRecipeLineBtn" onclick="addRecipeLineToCosting()">' + iconLabel(ICON_PLUS, "Add") + "</button>" +
         "</div>"
       );
 
