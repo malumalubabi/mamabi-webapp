@@ -1878,8 +1878,8 @@ function renderSalesProfitabilityTab(wrap) {
     '<p style="font-size:12px; color:var(--color-text-muted); margin-top:-8px;">Real Net Margin per day, after Food/Packaging Cost, Platform Fee, Promo Fee, and Ad Fee.</p>' +
 
     '<div style="display:flex; align-items:flex-end; gap:16px; margin-bottom:16px;">' +
-      '<div><label>Date Range</label><br><span id="profitRangeWrap"></span></div>' +
-      '<div><label>Channel</label><br>' +
+      '<div><label style="font-weight:700;">Date Range</label><br><span id="profitRangeWrap"></span></div>' +
+      '<div><label style="font-weight:700;">Channel</label><br>' +
         '<select class="select-compact" id="profitChannelSelect" onchange="onProfitabilityChannelChange()">' +
           '<option value="all">All Channel</option><option value="GrabFood">GrabFood</option><option value="GoFood">GoFood</option><option value="Online">Online</option>' +
         "</select>" +
@@ -1887,7 +1887,6 @@ function renderSalesProfitabilityTab(wrap) {
     "</div>" +
 
     "<h4>Data</h4>" +
-    '<p style="font-size:11.5px; color:var(--color-text-muted); margin-top:-6px;">One row per day per Channel &mdash; straight from Sales, no calculation yet.</p>' +
     '<div id="profitDataPaginationNav" class="pagination-nav"></div>' +
     '<div id="profitDataScrollWrap" style="overflow-x:auto;">' +
       "<table>" +
@@ -1908,10 +1907,17 @@ function renderSalesProfitabilityTab(wrap) {
     "</div>" +
     '<button class="add-row-btn" type="button" onclick="addProfitCalcRow()">' + iconLabel(ICON_PLUS, "Add Row") + "</button>" +
 
-    '<p style="font-size:12.5px; font-weight:700; margin-top:16px;">Avg Net Margin / day</p>' +
-    '<div id="profitChartNet"></div>' +
-    '<p style="font-size:12.5px; font-weight:700; margin-top:16px;">Net Margin %</p>' +
-    '<div id="profitChartPct"></div>' +
+    // 26px = the table box's own 14px card padding + a table cell's 12px
+    // padding (shared.css th/td) - lines the chart labels/values up with
+    // the table's own column text above, not just its outer card edge,
+    // since this whole block still reads as part of that one comparison,
+    // per explicit correction.
+    '<div style="margin-left:26px; margin-right:26px;">' +
+      '<p style="font-size:12.5px; font-weight:700; margin-top:16px;">Avg Net Margin / day</p>' +
+      '<div id="profitChartNet"></div>' +
+      '<p style="font-size:12.5px; font-weight:700; margin-top:16px;">Net Margin %</p>' +
+      '<div id="profitChartPct"></div>' +
+    "</div>" +
 
     '<h4 style="margin-top:28px;">Conclusion</h4>' +
     '<p style="font-size:11.5px; color:var(--color-text-muted); margin-top:-6px;">Auto-generated description of the rows above.</p>' +
