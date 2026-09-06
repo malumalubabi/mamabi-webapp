@@ -669,8 +669,7 @@ function initEditOrderForm(o) {
   document.getElementById("orderNotes").value = o.notes || "";
 
   const methodSelect = document.getElementById("editOrderMethod");
-  methodSelect.innerHTML = _ordersLookups.paymentMethods.map((m) => "<option>" + m + "</option>").join("");
-  if (o.paymentMethod) methodSelect.value = o.paymentMethod;
+  methodSelect.innerHTML = methodSelectOptionsHtml(o.paymentMethod || null);
   setCustomerFieldOriginal(document.getElementById("editOrderArea"), o.customerArea || "");
   setCustomerFieldOriginal(document.getElementById("editOrderAddress"), o.customerAddress || "");
 

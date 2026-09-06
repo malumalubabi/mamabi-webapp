@@ -773,6 +773,39 @@ function enableDragScroll(container) {
       dragged = false;
     }
   }, true);
+
+  // Touch (mobile) - same drag-to-scroll as the mouse path above, so a
+  // finger swipe over the table pans it directly instead of relying on
+  // the browser's own touch-scroll (which on a table this wide inside a
+  // scrolling page tends to fight the page's own vertical scroll and only
+  // creep sideways a little at a time). {passive:false} on touchmove is
+  // required so preventDefault() can actually stop that fight once a drag
+  // is recognized.
+  container.addEventListener("touchstart", function (e) {
+    const tag = e.target.tagName;
+    if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+
+    isDown = true;
+    dragged = false;
+    startX = e.touches[0].pageX;
+    startScrollLeft = container.scrollLeft;
+  }, { passive: true });
+
+  container.addEventListener("touchmove", function (e) {
+    if (!isDown) return;
+    const delta = e.touches[0].pageX - startX;
+    if (!dragged && Math.abs(delta) < DRAG_THRESHOLD) return;
+    dragged = true;
+    container.classList.add("dragging");
+    container.scrollLeft = startScrollLeft - delta;
+    e.preventDefault();
+  }, { passive: false });
+
+  container.addEventListener("touchend", function () {
+    if (!isDown) return;
+    isDown = false;
+    container.classList.remove("dragging");
+  });
 }
 
 // ---------- Pagination ----------

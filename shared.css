@@ -453,9 +453,15 @@ th {
   background: var(--color-disabled-bg);
 }
 
-/* Drag-to-scroll wrapper - see enableDragScroll() in shared.js */
+/* Drag-to-scroll wrapper - see enableDragScroll() in shared.js.
+   touch-action:pan-x hands horizontal swipes to our own touch handlers
+   (so a wide table pans directly instead of creeping via the browser's
+   native scroll, which on a table this wide fights the page's own
+   vertical scroll) while still letting vertical swipes pass through
+   untouched for normal page scrolling. */
 .drag-scroll {
   cursor: grab;
+  touch-action: pan-x;
 }
 .drag-scroll.dragging {
   cursor: grabbing;
