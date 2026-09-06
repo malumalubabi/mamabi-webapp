@@ -30,7 +30,9 @@ export async function onRequestPatch({ request, env, params }) {
     if (!existing) return jsonResponse({ error: "Sales batch not found: " + batchCode }, 404);
 
     const platformFee = Number(body.platformFee) || 0;
-    const marketingFee = Number(body.marketingFee) || 0;
+    const promoFee = Number(body.promoFee) || 0;
+    const adFee = Number(body.adFee) || 0;
+    const marketingFee = promoFee + adFee;
     const description = body.platform + ", " + batchCode;
 
     const platformFeeOpexCode = await syncFeeOpex(supabase, brandId, existing.platform_fee_opex_code, platformFee, body.date, "Platform Fee", description);
@@ -42,6 +44,8 @@ export async function onRequestPatch({ request, env, params }) {
         sale_date: body.date,
         platform: body.platform,
         platform_fee: platformFee || null,
+        promo_fee: promoFee || null,
+        ad_fee: adFee || null,
         marketing_fee: marketingFee || null,
         notes: body.notes || null,
         platform_fee_opex_code: platformFeeOpexCode,

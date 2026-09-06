@@ -15,17 +15,28 @@ import { readXlsxSheets } from "./xlsx.js";
 //   Atribusi Layanan   -> Platform Fee (Grab's own split of "Biaya jasa"
 //                         attributable to service)
 //   Atribusi Promosi + Diskon (Dibiayai Merchant) +
-//   Diskon Ongkos Kirim (Dibiayai Merchant) + Biaya sukses pemasaran
-//                      -> Marketing Fee (everything promo/discount/ad-like)
+//   Diskon Ongkos Kirim (Dibiayai Merchant)
+//                      -> Promo Fee (merchant-funded discounts, not ads)
+//   Biaya sukses pemasaran (in the "GrabFood" section) + the separate
+//   "Iklan" section's own "Potongan" column
+//                      -> Ad Fee (paid ads - GrabAds/"Automatic Keywords").
+//                         The "Iklan" section is a DIFFERENT part of the
+//                         same Ringkasan sheet, not nested under "GrabFood"
+//                         - confirmed against a real sample where the
+//                         GrabFood section's own "Biaya sukses pemasaran"
+//                         was 0 every day, while the real ad spend (visible
+//                         in the GrabMerchant app's Finance > Summary >
+//                         Advertisements tile) only showed up here.
 // Every other GrabFood column (tax, packaging fee, shipping cost borne by
 // merchant, adjustments, GrabExpress delivery fee, step-up commission,
 // withholding tax) was 0 in the only real sample seen and isn't folded
-// into either bucket - if one of them is ever non-zero, Platform/Marketing
-// Fee here will legitimately fall short of "Jumlah bersih" (net) by that
+// into any bucket - if one of them is ever non-zero, Platform/Promo/Ad Fee
+// here will legitimately fall short of "Jumlah bersih" (net) by that
 // amount, which is visible (not silently wrong), not blocking.
 const GROSS_HEADER = "Nilai pesanan";
 const PLATFORM_FEE_HEADERS = ["Atribusi Layanan"];
-const MARKETING_FEE_HEADERS = ["Atribusi Promosi", "Diskon (Dibiayai Merchant)", "Diskon Ongkos Kirim (Dibiayai Merchant)", "Biaya sukses pemasaran"];
+const PROMO_FEE_HEADERS = ["Atribusi Promosi", "Diskon (Dibiayai Merchant)", "Diskon Ongkos Kirim (Dibiayai Merchant)"];
+const AD_FEE_HEADERS = ["Biaya sukses pemasaran"];
 
 function parseRupiahCell(v) {
   return Math.abs(Number(v) || 0);
@@ -66,11 +77,32 @@ export async function parseGrabFoodReportXlsx(bytes) {
   const grossCol = colByHeader[GROSS_HEADER];
   if (!grossCol) throw new Error("Could not find the \"" + GROSS_HEADER + "\" column in the Reports file");
 
+  // "Iklan" is its own top-level section in the Ringkasan sheet (siblings
+  // with "GrabFood"/"GrabMart"/"Pembayaran"/"GrabFinance"), not a column
+  // inside GrabFood's own row - absent entirely on a day with no ad spend
+  // at all (never seen in the real samples checked, but not asserted here
+  // since a merchant who's never run ads plausibly wouldn't have the
+  // section either), so this treats a missing section the same as a
+  // zeroed one rather than erroring.
+  let adSectionFee = 0;
+  const adSectionIndex = rows.findIndex((r) => r && r.B === "Iklan");
+  if (adSectionIndex !== -1) {
+    const adHeaderRow = rows[adSectionIndex + 1];
+    const adDataRow = rows[adSectionIndex + 2];
+    if (adHeaderRow && adDataRow) {
+      const adColByHeader = {};
+      Object.keys(adHeaderRow).forEach((col) => { adColByHeader[(adHeaderRow[col] || "").trim()] = col; });
+      const potonganCol = adColByHeader["Potongan"];
+      if (potonganCol) adSectionFee = parseRupiahCell(adDataRow[potonganCol]);
+    }
+  }
+
   return {
     date: start,
     platform: "GrabFood",
     reportGross: parseRupiahCell(dataRow[grossCol]),
     platformFee: sumHeaders(PLATFORM_FEE_HEADERS),
-    marketingFee: sumHeaders(MARKETING_FEE_HEADERS)
+    promoFee: sumHeaders(PROMO_FEE_HEADERS),
+    adFee: sumHeaders(AD_FEE_HEADERS) + adSectionFee
   };
 }

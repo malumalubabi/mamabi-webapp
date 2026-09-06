@@ -91,6 +91,8 @@ export async function getOnlineSalesRows(supabase, brandId) {
         orderType: o.order_type,
         deliveryFee: o.order_type === "Delivery" ? Number(o.delivery_fee) || 0 : 0,
         platformFee: 0,
+        promoFee: 0,
+        adFee: 0,
         marketingFee: 0
       });
     });
@@ -103,7 +105,7 @@ export async function getManualSalesRows(supabase, brandId) {
     .from("sales_entries")
     .select(
       "id, sales_code, sale_date, platform, qty, selling_price, food_cost_snapshot, packaging_cost_snapshot, notes, " +
-      "sku_items(sku, name), sales_batches!inner(brand_id, batch_code, platform_fee, marketing_fee)"
+      "sku_items(sku, name), sales_batches!inner(brand_id, batch_code, platform_fee, promo_fee, ad_fee, marketing_fee)"
     )
     .eq("sales_batches.brand_id", brandId);
   if (error) throw error;
@@ -136,6 +138,8 @@ export async function getManualSalesRows(supabase, brandId) {
       orderType: "",
       deliveryFee: 0,
       platformFee: batch.platform_fee === null ? 0 : Number(batch.platform_fee),
+      promoFee: batch.promo_fee === null ? 0 : Number(batch.promo_fee),
+      adFee: batch.ad_fee === null ? 0 : Number(batch.ad_fee),
       marketingFee: batch.marketing_fee === null ? 0 : Number(batch.marketing_fee)
     };
   });

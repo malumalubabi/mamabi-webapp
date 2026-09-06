@@ -75,7 +75,9 @@ export async function onRequestPost({ request, env }) {
     } else {
       batchCode = await nextCode(supabase, "sales_batches", "batch_code", brandId, "SLB", 4);
       const platformFee = Number(body.platformFee) || 0;
-      const marketingFee = Number(body.marketingFee) || 0;
+      const promoFee = Number(body.promoFee) || 0;
+      const adFee = Number(body.adFee) || 0;
+      const marketingFee = promoFee + adFee;
 
       const { data: inserted, error: batchErr } = await supabase
         .from("sales_batches")
@@ -85,6 +87,8 @@ export async function onRequestPost({ request, env }) {
           sale_date: body.date,
           platform: body.platform,
           platform_fee: platformFee || null,
+          promo_fee: promoFee || null,
+          ad_fee: adFee || null,
           marketing_fee: marketingFee || null,
           notes: body.notes || null
         })

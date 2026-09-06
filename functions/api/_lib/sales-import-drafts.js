@@ -25,7 +25,13 @@ export async function upsertSalesImportDraft(supabase, brandId, draft) {
       platform: draft.platform,
       report_gross: Number(draft.reportGross) || 0,
       platform_fee: Number(draft.platformFee) || 0,
-      marketing_fee: Number(draft.marketingFee) || 0,
+      promo_fee: Number(draft.promoFee) || 0,
+      ad_fee: Number(draft.adFee) || 0,
+      // Kept in sync as promo_fee+ad_fee (not a DB-generated column) so
+      // every other reader of this row's marketing_fee - the drafts list,
+      // the eventual sales_batches row it becomes - still sees one
+      // sensible combined number without having to know about the split.
+      marketing_fee: (Number(draft.promoFee) || 0) + (Number(draft.adFee) || 0),
       source_message_id: draft.sourceMessageId,
       source_link: draft.sourceLink || null,
       items: draft.items || null,

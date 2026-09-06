@@ -15,9 +15,22 @@
 // design discussion). Add its own entry to REPORT_SOURCES + a parser
 // module once a sample email is available.
 import { getSupabase, getBrandId, jsonResponse, errorResponse } from "../_lib/supabase.js";
-import { getGmailAccessToken, searchGmailMessages, getGmailMessage, buildGmailPermalink } from "../_lib/gmail.js";
-import { parseGoFoodReport } from "../_lib/gofood-report-parser.js";
+import { getGmailAccessToken, searchGmailMessages, getGmailMessage, getGmailAttachmentText, buildGmailPermalink } from "../_lib/gmail.js";
+import { parseGoFoodReport, parseGoFoodPotonganPendapatanCsv } from "../_lib/gofood-report-parser.js";
 import { upsertSalesImportDraft } from "../_lib/sales-import-drafts.js";
+
+// Same-day ad spend for a GoFood report - a separate CSV attachment on the
+// same email as the daily report itself (see parseGoFoodPotonganPendapatanCsv's
+// own comment for why this, not the report body's "Potongan layanan" figure
+// or the separate "Pembayaran Berhasil" payout email, is the source used
+// here). A day with no ad spend has no such attachment at all - 0, not an
+// error.
+async function getGoFoodAdFee(accessToken, message) {
+  const attachment = message.attachments.find((a) => /^Laporan Potongan Pendapatan.*\.csv$/i.test(a.filename));
+  if (!attachment) return 0;
+  const csvText = await getGmailAttachmentText(accessToken, message.id, attachment.attachmentId);
+  return parseGoFoodPotonganPendapatanCsv(csvText);
+}
 
 const REPORT_SOURCES = [
   {
@@ -51,12 +64,14 @@ export async function onRequestPost({ request, env }) {
         try {
           const message = await getGmailMessage(accessToken, stub.id);
           const parsed = source.parse({ subject: message.subject, bodyText: message.bodyText });
+          const adFee = source.platform === "GoFood" ? await getGoFoodAdFee(accessToken, message) : 0;
           const draft = await upsertSalesImportDraft(supabase, brandId, {
             date: parsed.date,
             platform: parsed.platform,
             reportGross: parsed.reportGross,
             platformFee: parsed.platformFee,
-            marketingFee: parsed.marketingFee,
+            promoFee: parsed.promoFee,
+            adFee: adFee,
             sourceMessageId: message.id,
             sourceLink: buildGmailPermalink(message.id)
           });

@@ -25,7 +25,7 @@ export async function onRequestGet({ request, env }) {
 
     const { data, error } = await supabase
       .from("sales_import_drafts")
-      .select("id, report_date, platform, report_gross, platform_fee, marketing_fee, source_link, source_files, items, status, confirmed_batch_code, created_at")
+      .select("id, report_date, platform, report_gross, platform_fee, promo_fee, ad_fee, marketing_fee, source_link, source_files, items, status, confirmed_batch_code, created_at")
       .eq("brand_id", brandId)
       .eq("status", status)
       .order("report_date", { ascending: false });
@@ -37,6 +37,8 @@ export async function onRequestGet({ request, env }) {
       platform: r.platform,
       reportGross: Number(r.report_gross),
       platformFee: Number(r.platform_fee),
+      promoFee: Number(r.promo_fee),
+      adFee: Number(r.ad_fee),
       marketingFee: Number(r.marketing_fee),
       sourceLink: r.source_link,
       sourceFiles: r.source_files || [],
@@ -65,7 +67,8 @@ export async function onRequestPost({ request, env }) {
       platform: body.platform,
       reportGross: body.reportGross,
       platformFee: body.platformFee,
-      marketingFee: body.marketingFee,
+      promoFee: body.promoFee,
+      adFee: body.adFee,
       sourceMessageId: body.sourceMessageId,
       sourceLink: body.sourceLink
     });

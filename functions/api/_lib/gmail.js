@@ -78,6 +78,21 @@ function findBodyPart(payload, mimeType) {
   return null;
 }
 
+// Depth-first collection of every part that's a real attachment (has both a
+// filename and an attachmentId - inline body parts have neither) - a report
+// email's CSV/xlsx/eml attachments all show up this way regardless of how
+// deep they sit in a multipart/mixed tree.
+function collectAttachmentParts(payload, out) {
+  out = out || [];
+  if (payload.filename && payload.body && payload.body.attachmentId) {
+    out.push({ filename: payload.filename, mimeType: payload.mimeType, attachmentId: payload.body.attachmentId });
+  }
+  if (payload.parts) {
+    for (const part of payload.parts) collectAttachmentParts(part, out);
+  }
+  return out;
+}
+
 function stripHtml(html) {
   return html
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
@@ -118,8 +133,24 @@ export async function getGmailMessage(accessToken, messageId) {
   return {
     id: data.id,
     subject: headers["subject"] || "",
-    bodyText: bodyText
+    bodyText: bodyText,
+    attachments: collectAttachmentParts(data.payload)
   };
+}
+
+// Fetches one attachment's actual bytes (a separate call - format=full on
+// the message itself only gives back each attachment's ID/size, never its
+// content) and decodes it as UTF-8 text, for a small CSV attachment like
+// "Laporan Potongan Pendapatan" - not meant for binary attachments (xlsx/
+// pdf), which would need the raw bytes instead of a text decode.
+export async function getGmailAttachmentText(accessToken, messageId, attachmentId) {
+  const res = await fetch(
+    "https://gmail.googleapis.com/gmail/v1/users/me/messages/" + messageId + "/attachments/" + attachmentId,
+    { headers: { Authorization: "Bearer " + accessToken } }
+  );
+  if (!res.ok) throw new Error("Gmail get attachment failed (" + res.status + "): " + await res.text());
+  const data = await res.json();
+  return base64UrlDecode(data.data);
 }
 
 // Stable link back to the source email - works regardless of which label

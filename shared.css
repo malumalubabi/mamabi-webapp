@@ -1138,3 +1138,157 @@ th {
   display: flex;
   flex-direction: column;
 }
+
+/* ---------- Filter chip + checkbox popup ----------
+   Sales Profitability's "Marketing Fee Comparison" row builder - each row
+   picks its own Channel/Promo/Ad filter via a small checkbox popup instead
+   of a plain <select> (a group can have MULTIPLE values checked at once,
+   e.g. both GrabFood and GoFood - a dropdown can't represent that). */
+.filter-chip-wrap {
+  position: relative;
+  text-align: left;
+}
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--color-border-on-card);
+  background: var(--color-field-bg);
+  border-radius: 999px;
+  padding: 5px 10px 5px 12px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  max-width: 220px;
+}
+.filter-chip .summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.filter-chip .caret {
+  color: var(--color-text-muted);
+  font-size: 9px;
+  flex-shrink: 0;
+}
+.filter-popup {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-border-on-card);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(27, 40, 51, 0.18);
+  padding: 12px 14px;
+  z-index: 20;
+  width: 190px;
+}
+.filter-popup .group + .group {
+  margin-top: 10px;
+}
+.filter-popup .group-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  margin-bottom: 5px;
+  font-weight: 700;
+}
+.filter-popup label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  padding: 3px 0;
+  cursor: pointer;
+}
+/* Pastel tosca, matching this app's own accent - not blue (browser
+   default) or the rose --color-accent (tried first, read as clashing with
+   this control's neutral field-bg chrome), per explicit correction. */
+.filter-popup input[type="checkbox"] {
+  accent-color: color-mix(in srgb, var(--color-bg-page) 55%, white 45%);
+}
+.remove-btn {
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 15px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.remove-btn:hover {
+  color: var(--color-error);
+}
+.add-row-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px dashed var(--color-border-on-card);
+  background: none;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-top: 10px;
+}
+.add-row-btn:hover {
+  background: var(--color-disabled-bg);
+}
+
+/* Small centered-on-zero horizontal bar chart (Sales Profitability's Avg
+   Net Margin / Net Margin % charts) - a negative value bar grows left of
+   the zero line instead of just turning a number red, since a loss-making
+   comparison row is the one thing here that shouldn't be easy to skim past. */
+.mini-chart-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 7px;
+  font-size: 11.5px;
+}
+.mini-chart-label {
+  width: 150px;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+.mini-chart-track {
+  flex: 1;
+  position: relative;
+  height: 16px;
+  background: var(--color-disabled-bg);
+  border-radius: 3px;
+}
+.mini-chart-zero {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  left: 50%;
+  width: 1px;
+  background: var(--color-border-on-card);
+}
+.mini-chart-bar {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  border-radius: 2px;
+}
+.mini-chart-bar.pos {
+  background: color-mix(in srgb, var(--color-bg-page) 55%, white 45%);
+  left: 50%;
+}
+.mini-chart-bar.neg {
+  background: color-mix(in srgb, var(--color-error) 55%, white 45%);
+  right: 50%;
+}
+.mini-chart-value {
+  width: 100px;
+  text-align: right;
+  flex-shrink: 0;
+}

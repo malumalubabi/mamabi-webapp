@@ -17,8 +17,8 @@
 registerPage("sales", renderSalesPage);
 
 let _activeSalesTab = "summary";
-const SALES_TABS = ["summary", "log", "draft"];
-const SALES_TAB_LABELS = { summary: "Summary", log: "Log", draft: "Draft" };
+const SALES_TABS = ["summary", "profitability", "log", "draft"];
+const SALES_TAB_LABELS = { summary: "Summary", profitability: "Profitability", log: "Log", draft: "Draft" };
 
 let _salesLookups = null;
 let _lastSalesRows = [];
@@ -91,6 +91,7 @@ async function loadSalesData() {
 function renderActiveSalesTab() {
   const wrap = document.getElementById("salesTabContent");
   if (!wrap) return;
+  if (_activeSalesTab === "profitability") return renderSalesProfitabilityTab(wrap);
   if (_activeSalesTab === "log") return renderSalesLogTab(wrap);
   if (_activeSalesTab === "draft") return renderSalesDraftTab(wrap);
   return renderSalesSummaryTab(wrap);
@@ -123,7 +124,7 @@ async function renderSalesDraftTab(wrap) {
     (_lastDraftRows.length
       ? '<div id="salesDraftScrollWrap" style="overflow-x:auto;">' +
           "<table>" +
-            "<thead><tr><th>Date</th><th>Platform</th><th>Report Gross</th><th>Platform Fee</th><th>Marketing Fee</th><th></th></tr></thead>" +
+            "<thead><tr><th>Date</th><th>Platform</th><th>Report Gross</th><th>Platform Fee</th><th>Promo Fee</th><th>Ad Fee</th><th></th></tr></thead>" +
             '<tbody id="salesDraftTbody">' + _lastDraftRows.map(salesDraftRowHtml).join("") + "</tbody>" +
           "</table>" +
         "</div>"
@@ -272,7 +273,8 @@ function salesDraftRowHtml(d) {
       "<td>" + d.platform + "</td>" +
       '<td><span class="font-number">' + formatRupiah(d.reportGross) + "</span></td>" +
       '<td><span class="font-number">' + formatRupiah(d.platformFee) + "</span></td>" +
-      '<td><span class="font-number">' + formatRupiah(d.marketingFee) + "</span></td>" +
+      '<td><span class="font-number">' + formatRupiah(d.promoFee) + "</span></td>" +
+      '<td><span class="font-number">' + formatRupiah(d.adFee) + "</span></td>" +
       '<td class="compact-cell">' +
         '<button class="btn-compact" onclick="openSalesDraftReviewModal(\'' + d.id + '\')">Review</button> ' +
         '<button class="btn-compact" style="color:#b00020;" onclick="confirmRejectSalesDraft(\'' + d.id + '\')">Reject</button>' +
@@ -343,8 +345,10 @@ function openSalesDraftReviewModal(draftId) {
     '<div style="display:flex; gap:20px;">' +
       '<div><label>Platform Fee</label><br><input type="text" id="draftReviewPlatformFee" inputmode="decimal" value="' + (d.platformFee ? formatRupiah(d.platformFee) : "") + '" oninput="formatAmount(this); updateDraftReviewRevenueSummary();">' +
         '<div class="font-number" style="font-size:11px; color:var(--color-text-muted); margin-top:4px;">Report: ' + formatRupiah(d.platformFee) + "</div></div>" +
-      '<div><label>Marketing Fee</label><br><input type="text" id="draftReviewMarketingFee" inputmode="decimal" value="' + (d.marketingFee ? formatRupiah(d.marketingFee) : "") + '" oninput="formatAmount(this); updateDraftReviewRevenueSummary();">' +
-        '<div class="font-number" style="font-size:11px; color:var(--color-text-muted); margin-top:4px;">Report: ' + formatRupiah(d.marketingFee) + "</div></div>" +
+      '<div><label>Promo Fee</label><br><input type="text" id="draftReviewPromoFee" inputmode="decimal" value="' + (d.promoFee ? formatRupiah(d.promoFee) : "") + '" oninput="formatAmount(this); updateDraftReviewRevenueSummary();">' +
+        '<div class="font-number" style="font-size:11px; color:var(--color-text-muted); margin-top:4px;">Report: ' + formatRupiah(d.promoFee) + "</div></div>" +
+      '<div><label>Ad Fee</label><br><input type="text" id="draftReviewAdFee" inputmode="decimal" value="' + (d.adFee ? formatRupiah(d.adFee) : "") + '" oninput="formatAmount(this); updateDraftReviewRevenueSummary();">' +
+        '<div class="font-number" style="font-size:11px; color:var(--color-text-muted); margin-top:4px;">Report: ' + formatRupiah(d.adFee) + "</div></div>" +
     "</div><br><br>" +
 
     '<div style="display:flex; gap:16px; padding:8px 12px; border:1px solid var(--color-border-on-card); max-width:fit-content;">' +
@@ -356,7 +360,7 @@ function openSalesDraftReviewModal(draftId) {
       "</div>" +
       '<div><label>Net Revenue</label><br><strong id="draftReviewNetRevenue" class="font-number" style="font-size:12px;">Rp 0</strong></div>' +
     "</div>" +
-    '<p style="font-size:12px; color:var(--color-text-muted); max-width:480px;">Net Revenue = Gross Revenue - (Platform Fee + Marketing Fee). The Report figure under Gross Revenue is what ' + d.platform + ' reported for this day - a reference to check against, not enforced; save even if it doesn&rsquo;t match exactly.</p><br>' +
+    '<p style="font-size:12px; color:var(--color-text-muted); max-width:480px;">Net Revenue = Gross Revenue - (Platform Fee + Promo Fee + Ad Fee). The Report figure under Gross Revenue is what ' + d.platform + ' reported for this day - a reference to check against, not enforced; save even if it doesn&rsquo;t match exactly.</p><br>' +
 
     "<label>Notes</label><br>" +
     '<input type="text" id="draftReviewNotes"><br><br>' +
@@ -534,8 +538,9 @@ function updateDraftReviewRevenueSummary() {
   });
 
   const platformFee = parseAmount(document.getElementById("draftReviewPlatformFee").value);
-  const marketingFee = parseAmount(document.getElementById("draftReviewMarketingFee").value);
-  const net = gross - platformFee - marketingFee;
+  const promoFee = parseAmount(document.getElementById("draftReviewPromoFee").value);
+  const adFee = parseAmount(document.getElementById("draftReviewAdFee").value);
+  const net = gross - platformFee - promoFee - adFee;
 
   document.getElementById("draftReviewGrossRevenue").textContent = formatRupiah(gross);
   document.getElementById("draftReviewNetRevenue").textContent = formatRupiah(net);
@@ -572,7 +577,8 @@ function saveDraftReview(draftId) {
   const d = _draftReviewDraft;
   const items = collectDraftReviewItems();
   const platformFee = parseAmount(document.getElementById("draftReviewPlatformFee").value);
-  const marketingFee = parseAmount(document.getElementById("draftReviewMarketingFee").value);
+  const promoFee = parseAmount(document.getElementById("draftReviewPromoFee").value);
+  const adFee = parseAmount(document.getElementById("draftReviewAdFee").value);
   const notes = document.getElementById("draftReviewNotes").value || null;
 
   if (!items.length) { alert("Please add at least one product (with qty and selling price)."); return; }
@@ -583,7 +589,7 @@ function saveDraftReview(draftId) {
   withSaveStatus(btn, statusEl, "Sales", async function () {
     const result = await api("sales", {
       method: "POST",
-      body: { date: d.date, platform: d.platform, items: items, platformFee: platformFee, marketingFee: marketingFee, notes: notes }
+      body: { date: d.date, platform: d.platform, items: items, platformFee: platformFee, promoFee: promoFee, adFee: adFee, notes: notes }
     });
     await api("sales-import-drafts/" + encodeURIComponent(draftId), { method: "PATCH", body: { action: "confirm", batchCode: result.batchCode } });
     closeModal();
@@ -1282,7 +1288,8 @@ function salesFeesCellHtml(r) {
   if (r.platform === "GrabFood" || r.platform === "GoFood") {
     const lines = [];
     if (r.platformFee > 0) lines.push(salesFeeLineHtml("Platform", r.platformFee));
-    if (r.marketingFee > 0) lines.push(salesFeeLineHtml("Marketing", r.marketingFee));
+    if (r.promoFee > 0) lines.push(salesFeeLineHtml("Promo", r.promoFee));
+    if (r.adFee > 0) lines.push(salesFeeLineHtml("Ads", r.adFee));
     return lines.length ? lines.join("<br>") : "-";
   }
   return "-"; // Dine In has no fee concept
@@ -1291,7 +1298,7 @@ function salesFeesCellHtml(r) {
 function salesTotalRevenueCellHtml(r) {
   const gross = r.groupRevenue;
   if (r.platform === "GrabFood" || r.platform === "GoFood") {
-    const net = gross - (r.platformFee + r.marketingFee);
+    const net = gross - (r.platformFee + r.promoFee + r.adFee);
     return salesFeeLineHtml("Gross", gross) + "<br>" + salesFeeLineHtml("Net", net);
   }
   return salesFeeLineHtml("Gross", gross);
@@ -1356,7 +1363,8 @@ async function openSalesEntryModal() {
     '<div id="saleFeeSection" style="display:none;">' +
       '<div style="display:flex; gap:20px;">' +
         '<div><label>Platform Fee</label><br><input type="text" id="salePlatformFee" inputmode="decimal" oninput="formatAmount(this); updateSaleRevenueSummary()"></div>' +
-        '<div><label>Marketing Fee</label><br><input type="text" id="saleMarketingFee" inputmode="decimal" oninput="formatAmount(this); updateSaleRevenueSummary()"></div>' +
+        '<div><label>Promo Fee</label><br><input type="text" id="salePromoFee" inputmode="decimal" oninput="formatAmount(this); updateSaleRevenueSummary()"></div>' +
+        '<div><label>Ad Fee</label><br><input type="text" id="saleAdFee" inputmode="decimal" oninput="formatAmount(this); updateSaleRevenueSummary()"></div>' +
       "</div><br><br>" +
     "</div>" +
 
@@ -1364,7 +1372,7 @@ async function openSalesEntryModal() {
       '<div><label>Gross Revenue</label><br><strong id="saleGrossRevenue" class="font-number" style="font-size:12px;">Rp 0</strong></div>' +
       '<div><label>Net Revenue</label><br><strong id="saleNetRevenue" class="font-number" style="font-size:12px;">Rp 0</strong></div>' +
     "</div>" +
-    '<p style="font-size:12px; color:var(--color-text-muted); max-width:480px;">Net Revenue = Gross Revenue - (Platform Fee + Marketing Fee). It\'s not Net Profit yet — Food/Packaging Cost and other Operational Expenses aren\'t subtracted here (look up to Profit and Loss for that).</p><br>' +
+    '<p style="font-size:12px; color:var(--color-text-muted); max-width:480px;">Net Revenue = Gross Revenue - (Platform Fee + Promo Fee + Ad Fee). It\'s not Net Profit yet — Food/Packaging Cost and other Operational Expenses aren\'t subtracted here (look up to Profit and Loss for that).</p><br>' +
 
     "<label>Notes</label><br>" +
     '<input type="text" id="saleNotes"><br><br>' +
@@ -1457,7 +1465,8 @@ function updateSaleFeeSectionVisibility() {
 
   if (!show) {
     document.getElementById("salePlatformFee").value = "";
-    document.getElementById("saleMarketingFee").value = "";
+    document.getElementById("salePromoFee").value = "";
+    document.getElementById("saleAdFee").value = "";
     updateSaleRevenueSummary();
   }
 }
@@ -1479,8 +1488,9 @@ function updateSaleRevenueSummary() {
   });
 
   const platformFee = parseAmount(document.getElementById("salePlatformFee").value);
-  const marketingFee = parseAmount(document.getElementById("saleMarketingFee").value);
-  const net = gross - platformFee - marketingFee;
+  const promoFee = parseAmount(document.getElementById("salePromoFee").value);
+  const adFee = parseAmount(document.getElementById("saleAdFee").value);
+  const net = gross - platformFee - promoFee - adFee;
 
   document.getElementById("saleGrossRevenue").textContent = formatRupiah(gross);
   document.getElementById("saleNetRevenue").textContent = formatRupiah(net);
@@ -1502,14 +1512,15 @@ function saveSalesBatch() {
   const platform = document.getElementById("salePlatform").value;
   const items = collectSaleItems();
   const platformFee = parseAmount(document.getElementById("salePlatformFee").value);
-  const marketingFee = parseAmount(document.getElementById("saleMarketingFee").value);
+  const promoFee = parseAmount(document.getElementById("salePromoFee").value);
+  const adFee = parseAmount(document.getElementById("saleAdFee").value);
   const notes = document.getElementById("saleNotes").value || null;
 
   if (!date) { alert("Please select a date."); return; }
   if (!platform) { alert("Please select a platform."); return; }
   if (!items.length) { alert("Please add at least one product (with qty and selling price)."); return; }
 
-  const body = { date: date, platform: platform, items: items, platformFee: platformFee, marketingFee: marketingFee, notes: notes };
+  const body = { date: date, platform: platform, items: items, platformFee: platformFee, promoFee: promoFee, adFee: adFee, notes: notes };
   const btn = document.getElementById("saveSaleBtn");
   const statusEl = document.getElementById("saveSaleStatus");
 
@@ -1539,7 +1550,8 @@ function openSalesBatchModal(batchCode) {
     '<div id="batchEditFeeSection">' +
       '<div style="display:flex; gap:16px;">' +
         '<div><label>Platform Fee</label><br><input type="text" id="batchEditPlatformFee" inputmode="decimal" value="' + (first.platformFee ? formatRupiah(first.platformFee) : "") + '" oninput="formatAmount(this); updateBatchEditRevenueSummary()"></div>' +
-        '<div><label>Marketing Fee</label><br><input type="text" id="batchEditMarketingFee" inputmode="decimal" value="' + (first.marketingFee ? formatRupiah(first.marketingFee) : "") + '" oninput="formatAmount(this); updateBatchEditRevenueSummary()"></div>' +
+        '<div><label>Promo Fee</label><br><input type="text" id="batchEditPromoFee" inputmode="decimal" value="' + (first.promoFee ? formatRupiah(first.promoFee) : "") + '" oninput="formatAmount(this); updateBatchEditRevenueSummary()"></div>' +
+        '<div><label>Ad Fee</label><br><input type="text" id="batchEditAdFee" inputmode="decimal" value="' + (first.adFee ? formatRupiah(first.adFee) : "") + '" oninput="formatAmount(this); updateBatchEditRevenueSummary()"></div>' +
       "</div><br>" +
     "</div>" +
 
@@ -1638,7 +1650,8 @@ function onBatchEditPlatformChange() {
 
   if (!show) {
     document.getElementById("batchEditPlatformFee").value = "";
-    document.getElementById("batchEditMarketingFee").value = "";
+    document.getElementById("batchEditPromoFee").value = "";
+    document.getElementById("batchEditAdFee").value = "";
   }
   updateBatchEditRevenueSummary();
 }
@@ -1660,8 +1673,9 @@ function updateBatchEditRevenueSummary() {
   });
 
   const platformFee = parseAmount(document.getElementById("batchEditPlatformFee").value);
-  const marketingFee = parseAmount(document.getElementById("batchEditMarketingFee").value);
-  const net = gross - platformFee - marketingFee;
+  const promoFee = parseAmount(document.getElementById("batchEditPromoFee").value);
+  const adFee = parseAmount(document.getElementById("batchEditAdFee").value);
+  const net = gross - platformFee - promoFee - adFee;
 
   document.getElementById("batchEditGrossRevenue").textContent = formatRupiah(gross);
   document.getElementById("batchEditNetRevenue").textContent = formatRupiah(net);
@@ -1676,7 +1690,8 @@ async function saveSalesBatchEdit(batchCode) {
   const date = _batchEditDatePicker.getValue();
   const platform = document.getElementById("batchEditPlatform").value;
   const platformFee = parseAmount(document.getElementById("batchEditPlatformFee").value);
-  const marketingFee = parseAmount(document.getElementById("batchEditMarketingFee").value);
+  const promoFee = parseAmount(document.getElementById("batchEditPromoFee").value);
+  const adFee = parseAmount(document.getElementById("batchEditAdFee").value);
   const notes = document.getElementById("batchEditNotes").value || null;
 
   if (!date) { alert("Please select a date."); return; }
@@ -1705,7 +1720,7 @@ async function saveSalesBatchEdit(batchCode) {
   withSaveStatus(btn, statusEl, "Batch", async function () {
     await api("sales-batches/" + encodeURIComponent(batchCode), {
       method: "PATCH",
-      body: { date: date, platform: platform, platformFee: platformFee, marketingFee: marketingFee, notes: notes }
+      body: { date: date, platform: platform, platformFee: platformFee, promoFee: promoFee, adFee: adFee, notes: notes }
     });
 
     for (let i = 0; i < removedCodes.length; i++) {
@@ -1757,4 +1772,443 @@ function deleteSalesBatchFromModal(batchCode, btn) {
     closeModal();
     await loadSalesData();
   });
+}
+
+// ================================================================
+// ---------- Profitability ----------
+// Real Net Margin per day (Revenue - Food/Packaging Cost - Platform Fee -
+// Promo Fee - Ad Fee), across every Channel including Online - the whole
+// point is comparing GrabFood/GoFood's marked-up, fee-laden price against
+// Online's plain no-markup one, per explicit request. Built from
+// _lastSalesRows (already fetched once per Sales page visit), never a
+// separate endpoint - same "reshape what's already there" precedent as
+// Summary/Log.
+//
+// Two-section layout, per explicit request/design review (see chat
+// history for the several preview iterations this went through):
+//   Data - one row per day per Channel, straight from Sales, no
+//          calculation, paginated 10/page.
+//   Calculation - 3 totals for whatever Date Range + Channel is selected,
+//          then a user-buildable "Marketing Fee Comparison": any number of
+//          rows, each with its own Channel/Promo Fee/Ad Fee filter (via a
+//          checkbox popup, not a plain dropdown - a row can check MULTIPLE
+//          values per group, e.g. both GrabFood and GoFood), two small
+//          centered-on-zero bar charts (Avg Net Margin Rp, and Net Margin
+//          %), and an auto-generated Conclusion paragraph (best vs worst
+//          row, decomposed into revenue delta + cost delta, not just the
+//          net number - plus a small-sample warning). Never a verdict/
+//          recommendation - explicitly rejected in review.
+// ================================================================
+
+let _profitRangePicker = null;
+let _profitDateFrom = null; // set from the picker's own default the first time this tab renders, kept across tab switches after
+let _profitDateTo = null;
+let _profitChannel = "all"; // "all" | "GrabFood" | "GoFood" | "Online"
+let _profitCalcRowIdSeq = 0;
+let _profitCalcRows = []; // [{ id, platform: [], promo: [], ad: [] }]
+let _profitOpenPopupId = null;
+const PROFIT_SMALL_SAMPLE_DAYS = 7;
+
+// Two-step aggregation, same reasoning as withGroupRevenueTotals elsewhere
+// in this file: platformFee/promoFee/adFee are denormalized onto every
+// PRODUCT LINE of a batch/order (all lines in one group share the same
+// value) - summing them per line would over-count by however many lines
+// that group has. Group first (one row per groupKey, fees taken once),
+// then re-aggregate those groups by date+platform.
+function profitabilityDailyRows() {
+  const groups = new Map();
+  _lastSalesRows.forEach((r) => {
+    if (!groups.has(r.groupKey)) {
+      groups.set(r.groupKey, {
+        date: r.date, platform: r.platform, revenue: 0, cost: 0,
+        platformFee: r.platformFee, promoFee: r.promoFee, adFee: r.adFee, deliveryFee: r.deliveryFee
+      });
+    }
+    const g = groups.get(r.groupKey);
+    g.revenue += r.revenue;
+    g.cost += r.foodCost + r.packagingCost;
+  });
+
+  const days = new Map();
+  groups.forEach((g) => {
+    const key = g.date + "|" + g.platform;
+    if (!days.has(key)) days.set(key, { date: g.date, platform: g.platform, revenue: 0, cost: 0, platformFee: 0, promoFee: 0, adFee: 0 });
+    const d = days.get(key);
+    d.revenue += g.revenue;
+    d.cost += g.cost;
+    // Online has no Platform Fee of its own - its Delivery Fee (paid to the
+    // driver) is the one real cost this channel carries, same slot the
+    // Sales Log's own Fees column already reuses for it (salesFeesCellHtml).
+    d.platformFee += g.platform === "Online" ? g.deliveryFee : g.platformFee;
+    d.promoFee += g.promoFee;
+    d.adFee += g.adFee;
+  });
+
+  return Array.from(days.values()).sort((a, b) => a.date.localeCompare(b.date) || a.platform.localeCompare(b.platform));
+}
+
+function profitabilityNetMargin(d) {
+  return d.revenue - d.cost - d.platformFee - d.promoFee - d.adFee;
+}
+
+function profitabilityFilteredDays() {
+  return profitabilityDailyRows().filter((d) =>
+    (!_profitDateFrom || d.date >= _profitDateFrom) &&
+    (!_profitDateTo || d.date <= _profitDateTo) &&
+    (_profitChannel === "all" || d.platform === _profitChannel)
+  );
+}
+
+function onProfitabilityRangeChange(from, to) {
+  _profitDateFrom = from;
+  _profitDateTo = to;
+  renderProfitabilityAll();
+}
+
+function renderSalesProfitabilityTab(wrap) {
+  if (!_profitDateFrom || !_profitDateTo) {
+    const defaults = dv2DefaultRangeValues("daily");
+    _profitDateFrom = defaults.from;
+    _profitDateTo = defaults.to;
+  }
+
+  wrap.innerHTML =
+    dv2StylesHtml() +
+    "<h3>Sales Profitability</h3>" +
+    '<p style="font-size:12px; color:var(--color-text-muted); margin-top:-8px;">Real Net Margin per day, after Food/Packaging Cost, Platform Fee, Promo Fee, and Ad Fee.</p>' +
+
+    '<div style="display:flex; align-items:flex-end; gap:16px; margin-bottom:16px;">' +
+      '<div><label>Date Range</label><br><span id="profitRangeWrap"></span></div>' +
+      '<div><label>Channel</label><br>' +
+        '<select class="select-compact" id="profitChannelSelect" onchange="onProfitabilityChannelChange()">' +
+          '<option value="all">All Channel</option><option value="GrabFood">GrabFood</option><option value="GoFood">GoFood</option><option value="Online">Online</option>' +
+        "</select>" +
+      "</div>" +
+    "</div>" +
+
+    "<h4>Data</h4>" +
+    '<p style="font-size:11.5px; color:var(--color-text-muted); margin-top:-6px;">One row per day per Channel &mdash; straight from Sales, no calculation yet.</p>' +
+    '<div id="profitDataPaginationNav" class="pagination-nav"></div>' +
+    '<div id="profitDataScrollWrap" style="overflow-x:auto;">' +
+      "<table>" +
+        "<thead><tr><th>Date</th><th>Channel</th><th>Revenue</th><th>COGS</th><th>Platform Fee</th><th>Promo Fee</th><th>Ad Fee</th><th>Net Margin</th></tr></thead>" +
+        '<tbody id="profitDataTbody"></tbody>' +
+      "</table>" +
+    "</div>" +
+
+    '<h4 style="margin-top:28px;">Calculation</h4>' +
+    '<div id="profitStatRow"></div>' +
+
+    "<h4>Marketing Fee Comparison</h4>" +
+    '<div style="background:var(--color-card-bg); border:1px solid var(--color-border-on-card); border-radius:8px; padding:4px 14px;">' +
+      "<table>" +
+        '<thead><tr><th style="text-align:left;">Filter</th><th>Days</th><th>Avg Revenue / day</th><th>Avg Net Margin / day</th><th>Net Margin %</th><th></th></tr></thead>' +
+        '<tbody id="profitCalcTbody" class="font-number"></tbody>' +
+      "</table>" +
+    "</div>" +
+    '<button class="add-row-btn" type="button" onclick="addProfitCalcRow()">' + iconLabel(ICON_PLUS, "Add Row") + "</button>" +
+
+    '<p style="font-size:12.5px; font-weight:700; margin-top:16px;">Avg Net Margin / day</p>' +
+    '<div id="profitChartNet"></div>' +
+    '<p style="font-size:12.5px; font-weight:700; margin-top:16px;">Net Margin %</p>' +
+    '<div id="profitChartPct"></div>' +
+
+    '<h4 style="margin-top:28px;">Conclusion</h4>' +
+    '<p style="font-size:11.5px; color:var(--color-text-muted); margin-top:-6px;">Auto-generated description of the rows above.</p>' +
+    '<div id="profitConclusion"></div>';
+
+  document.getElementById("profitChannelSelect").value = _profitChannel;
+  _profitRangePicker = createDateRangePicker(document.getElementById("profitRangeWrap"), {
+    mode: "day", from: _profitDateFrom, to: _profitDateTo, onSelect: onProfitabilityRangeChange
+  });
+
+  if (!_profitCalcRows.length) addProfitCalcRow(null, true);
+
+  wireProfitPopupCloseListener();
+  renderProfitabilityAll();
+}
+
+function onProfitabilityChannelChange() {
+  _profitChannel = document.getElementById("profitChannelSelect").value;
+  // A per-row Channel pick becomes moot (and, if it disagreed with the new
+  // scope, would silently zero that row out) once the toolbar's own
+  // Channel narrows things - clear it so every row starts clean.
+  _profitCalcRows.forEach((r) => { r.platform = []; });
+  renderProfitabilityAll();
+}
+
+function renderProfitabilityAll() {
+  renderProfitabilityData();
+  renderProfitCalcRows();
+}
+
+function renderProfitabilityData() {
+  const days = profitabilityFilteredDays();
+  // Same per-Channel color assignment as Revenue Trend's Per Channel view
+  // and the Channel Mix donut - a Channel reads as the same color
+  // everywhere in the app, per explicit request.
+  const profitPlatforms = dv2SortPlatforms(["GrabFood", "GoFood", "Online"]);
+  const profitPlatformColors = dv2ColorsForPlatforms(profitPlatforms);
+  const dotColor = {};
+  profitPlatforms.forEach((p, i) => { dotColor[p] = profitPlatformColors[i]; });
+
+  document.getElementById("profitDataTbody").innerHTML = days.map((d) => {
+    const nm = profitabilityNetMargin(d);
+    return (
+      "<tr><td>" + dpFormatDay(d.date) + "</td>" +
+      '<td><span style="display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; background:' + dotColor[d.platform] + ';"></span>' + d.platform + "</td>" +
+      '<td><span class="font-number">' + formatRupiah(d.revenue) + "</span></td>" +
+      '<td><span class="font-number">' + formatRupiah(d.cost) + "</span></td>" +
+      '<td><span class="font-number">' + formatRupiah(d.platformFee) + "</span></td>" +
+      '<td><span class="font-number">' + formatRupiah(d.promoFee) + "</span></td>" +
+      '<td><span class="font-number">' + formatRupiah(d.adFee) + "</span></td>" +
+      '<td><span class="font-number"' + (nm < 0 ? ' style="color:var(--color-error);"' : "") + ">" + formatRupiah(nm) + "</span></td></tr>"
+    );
+  }).join("");
+  paginateTable("profitDataTbody", "profitDataPaginationNav", 10);
+  enableDragScroll(document.getElementById("profitDataScrollWrap"));
+
+  const totalRevenue = days.reduce((s, d) => s + d.revenue, 0);
+  const totalNetMargin = days.reduce((s, d) => s + profitabilityNetMargin(d), 0);
+  document.getElementById("profitStatRow").innerHTML =
+    '<div class="dv2-stat-row" style="margin-bottom:20px;">' +
+      salesSummaryStatCard("Total Revenue", formatRupiah(totalRevenue), "") +
+      salesSummaryStatCard("Total Net Margin", formatRupiah(totalNetMargin), "") +
+      salesSummaryStatCard("Net Margin %", salesSummaryPct(totalRevenue ? totalNetMargin / totalRevenue : 0, 1), "") +
+    "</div>";
+}
+
+// ---------- Marketing Fee Comparison rows ----------
+
+// keepExisting: true only for the two starting presets seeded once per tab
+// visit (renderSalesProfitabilityTab) - a manual "+ Add Row" click should
+// never accidentally re-seed those if _profitCalcRows was emptied by hand.
+function addProfitCalcRow(preset, keepExisting) {
+  _profitCalcRowIdSeq++;
+  _profitCalcRows.push(Object.assign({ id: _profitCalcRowIdSeq, platform: [], promo: [], ad: [] }, preset || {}));
+  if (document.getElementById("profitCalcTbody")) renderProfitCalcRows();
+}
+function removeProfitCalcRow(id) {
+  _profitCalcRows = _profitCalcRows.filter((r) => r.id !== id);
+  renderProfitCalcRows();
+}
+function toggleProfitCalcFilterValue(rowId, group, value, checked) {
+  const row = _profitCalcRows.find((r) => r.id === rowId);
+  if (!row) return;
+  if (checked) { if (row[group].indexOf(value) === -1) row[group].push(value); }
+  else { row[group] = row[group].filter((v) => v !== value); }
+  renderProfitCalcRows();
+}
+function toggleProfitCalcPopup(rowId) {
+  _profitOpenPopupId = _profitOpenPopupId === rowId ? null : rowId;
+  renderProfitCalcRows();
+}
+
+// Every checked value in a group gets named ("GrabFood, GoFood" when 2 of
+// 3 Channels are checked) - a group only drops out of the summary at its
+// two "no constraint" edges: nothing checked, or everything checked (same
+// result either way).
+function profitCalcRowSummary(row) {
+  const parts = [];
+  if (row.platform.length && row.platform.length < 3) parts.push(row.platform.join(", "));
+  if (row.promo.length && row.promo.length < 2) parts.push(row.promo.map((v) => (v === "with" ? "With Promo" : "Without Promo")).join(", "));
+  if (row.ad.length && row.ad.length < 2) parts.push(row.ad.map((v) => (v === "with" ? "With Ad" : "Without Ad")).join(", "));
+  return parts.length ? parts.join(", ") : "All days";
+}
+
+function computeProfitCalcRow(row) {
+  const matched = profitabilityFilteredDays().filter((d) => {
+    // A group with 0 or "all options" checked applies no constraint - only
+    // a partial selection actually filters, OR'd across whatever's checked.
+    if (row.platform.length && row.platform.length < 3 && row.platform.indexOf(d.platform) === -1) return false;
+    if (row.promo.length && row.promo.length < 2) {
+      const hasPromo = d.promoFee > 0;
+      if (row.promo.indexOf(hasPromo ? "with" : "without") === -1) return false;
+    }
+    if (row.ad.length && row.ad.length < 2) {
+      const hasAd = d.adFee > 0;
+      if (row.ad.indexOf(hasAd ? "with" : "without") === -1) return false;
+    }
+    return true;
+  });
+  const days = matched.length;
+  const revenue = matched.reduce((s, d) => s + d.revenue, 0);
+  const netMargin = matched.reduce((s, d) => s + profitabilityNetMargin(d), 0);
+  return { days, avgRev: days ? revenue / days : 0, avgNet: days ? netMargin / days : 0, netPct: revenue ? netMargin / revenue : 0 };
+}
+
+function profitCalcCheckboxHtml(rowId, group, value, label, checkedList, locked) {
+  // Locked: forced checked, no onchange - used for Channel once the
+  // toolbar's own Channel selector has already narrowed to one, so the row
+  // visibly reflects that scope instead of just disappearing.
+  if (locked) return '<label><input type="checkbox" checked disabled> ' + label + "</label>";
+  const checked = checkedList.indexOf(value) !== -1;
+  return (
+    '<label><input type="checkbox"' + (checked ? " checked" : "") +
+    ' onchange="toggleProfitCalcFilterValue(' + rowId + ",'" + group + "','" + value + "',this.checked)\"> " + label + "</label>"
+  );
+}
+
+function profitCalcPopupHtml(row) {
+  const channelGroup = _profitChannel === "all"
+    ? '<div class="group"><div class="group-label">Channel</div>' +
+        profitCalcCheckboxHtml(row.id, "platform", "GrabFood", "GrabFood", row.platform) +
+        profitCalcCheckboxHtml(row.id, "platform", "GoFood", "GoFood", row.platform) +
+        profitCalcCheckboxHtml(row.id, "platform", "Online", "Online", row.platform) +
+      "</div>"
+    : '<div class="group"><div class="group-label">Channel</div>' +
+        profitCalcCheckboxHtml(row.id, "platform", _profitChannel, _profitChannel, row.platform, true) +
+      "</div>";
+  return (
+    '<div class="filter-popup" onclick="event.stopPropagation()">' +
+      channelGroup +
+      '<div class="group"><div class="group-label">Promo Fee</div>' +
+        profitCalcCheckboxHtml(row.id, "promo", "with", "With Promo", row.promo) +
+        profitCalcCheckboxHtml(row.id, "promo", "without", "Without Promo", row.promo) +
+      "</div>" +
+      '<div class="group"><div class="group-label">Ad Fee</div>' +
+        profitCalcCheckboxHtml(row.id, "ad", "with", "With Ad", row.ad) +
+        profitCalcCheckboxHtml(row.id, "ad", "without", "Without Ad", row.ad) +
+      "</div>" +
+    "</div>"
+  );
+}
+
+function renderProfitCalcRows() {
+  document.getElementById("profitCalcTbody").innerHTML = _profitCalcRows.map((row) => {
+    const c = computeProfitCalcRow(row);
+    const netStyle = c.avgNet < 0 ? ' style="color:var(--color-error);"' : "";
+    const chipHtml =
+      '<button type="button" class="filter-chip" onclick="event.stopPropagation(); toggleProfitCalcPopup(' + row.id + ')">' +
+        '<span class="summary">' + profitCalcRowSummary(row) + '</span><span class="caret">&#9662;</span>' +
+      "</button>" +
+      (_profitOpenPopupId === row.id ? profitCalcPopupHtml(row) : "");
+    return (
+      "<tr>" +
+        '<td><div class="filter-chip-wrap">' + chipHtml + "</div></td>" +
+        "<td>" + c.days + "</td>" +
+        "<td>" + (c.days ? formatRupiah(c.avgRev) : "&ndash;") + "</td>" +
+        "<td" + netStyle + ">" + (c.days ? formatRupiah(c.avgNet) : "&ndash;") + "</td>" +
+        "<td>" + (c.days ? salesSummaryPct(c.netPct, 1) : "&ndash;") + "</td>" +
+        '<td><button class="remove-btn" type="button" onclick="removeProfitCalcRow(' + row.id + ')" title="Remove row">&times;</button></td>' +
+      "</tr>"
+    );
+  }).join("");
+
+  renderProfitCharts();
+  renderProfitConclusion();
+}
+
+function wireProfitPopupCloseListener() {
+  if (window._profitPopupCloseWired) return;
+  window._profitPopupCloseWired = true;
+  document.addEventListener("click", () => {
+    if (_profitOpenPopupId !== null) { _profitOpenPopupId = null; if (document.getElementById("profitCalcTbody")) renderProfitCalcRows(); }
+  });
+}
+
+// ---------- Charts ----------
+// Same centered-on-zero horizontal bar shape for both metrics - Avg Net
+// Margin (Rp, the actual money question) and Net Margin % (how healthy the
+// margin is regardless of scale, needed to compare a small channel like
+// Online against a much bigger-volume one fairly).
+function profitBarChartHtml(valueOf, formatValue) {
+  const computed = _profitCalcRows.map((row) => ({ row, c: computeProfitCalcRow(row) })).filter((x) => x.c.days > 0);
+  const maxAbs = Math.max(1, ...computed.map((x) => Math.abs(valueOf(x.c))));
+  return computed.map((x) => {
+    const v = valueOf(x.c);
+    const pct = Math.min(100, Math.abs(v) / maxAbs * 50);
+    const barClass = v < 0 ? "neg" : "pos";
+    return (
+      '<div class="mini-chart-row">' +
+        '<div class="mini-chart-label">' + profitCalcRowSummary(x.row) + "</div>" +
+        '<div class="mini-chart-track"><div class="mini-chart-zero"></div><div class="mini-chart-bar ' + barClass + '" style="width:' + pct + '%;"></div></div>' +
+        '<div class="mini-chart-value font-number"' + (v < 0 ? ' style="color:var(--color-error);"' : "") + ">" + formatValue(v) + "</div>" +
+      "</div>"
+    );
+  }).join("");
+}
+
+function renderProfitCharts() {
+  document.getElementById("profitChartNet").innerHTML = profitBarChartHtml((c) => c.avgNet, (v) => formatRupiah(v));
+  document.getElementById("profitChartPct").innerHTML = profitBarChartHtml((c) => c.netPct * 100, (v) => v.toFixed(1) + "%");
+}
+
+// ---------- Conclusion ----------
+// Plain-language description of the rows built above - never a
+// recommendation. Compares the best vs worst row by Avg Net Margin/day
+// (with only 2 rows, that pair IS the whole table; with 3+, a recap below
+// also names the extremes across all of them).
+// Rupiah amounts get their own color/weight (+ tabular digits) so they
+// stand out from the surrounding sentence at a glance, per explicit
+// request - same idea as font-number elsewhere, just also colored here
+// since this is prose, not a table column already implying "this is a
+// number" by its position.
+// Pastel (55% base / 45% white) versions of the base colors, not the full-
+// saturation hex - same convention as salesSummaryDeltaBadge's own delta
+// arrows above, kept soft enough to sit as running text rather than read
+// as a loud highlight.
+function profitAmountSpan(n) {
+  // Two mixes stacked: 80/20 toward white first (the actual pastel "fade"
+  // the app's own convention calls for, per explicit correction - stays at
+  // this ratio regardless of the darkening below), THEN that pastel is
+  // darkened toward black - two different, independent knobs (fade amount
+  // vs depth), not one ratio doing both jobs.
+  return '<span class="font-number" style="color:color-mix(in srgb, color-mix(in srgb, var(--color-accent) 80%, white 20%) 85%, black 15%); font-weight:600;">' + formatRupiah(n) + "</span>";
+}
+// Metric names (revenue/cost/Net Margin) get their own color too - a third
+// one, distinct from both the plain sentence text and the Rp amounts
+// above, so "what's being measured" reads apart from "how much" at a
+// glance.
+function profitMetricSpan(text) {
+  return '<span style="color:color-mix(in srgb, color-mix(in srgb, var(--color-info) 80%, white 20%) 85%, black 15%); font-weight:600;">' + text + "</span>";
+}
+
+function renderProfitConclusion() {
+  const el = document.getElementById("profitConclusion");
+  const withData = _profitCalcRows.map((r) => ({ row: r, c: computeProfitCalcRow(r) })).filter((x) => x.c.days > 0);
+
+  if (withData.length < 2) {
+    el.innerHTML = '<p style="font-size:12px; color:var(--color-text-muted);">Add at least 2 rows above (with matching days) to see a comparison here.</p>';
+    return;
+  }
+
+  withData.sort((a, b) => b.c.avgNet - a.c.avgNet);
+  const best = withData[0];
+  const worst = withData[withData.length - 1];
+  const bestCost = best.c.avgRev - best.c.avgNet;
+  const worstCost = worst.c.avgRev - worst.c.avgNet;
+
+  // One self-contained clause per metric - "[rowA] [metric] ([valueA]) was
+  // lower/higher than [rowB] ([valueB])" - names the row it's about
+  // (italic, both sides) right next to its own value, and underlines the
+  // comparison word, so nothing needs a separate title line to disambiguate
+  // which value belongs to which row (per explicit correction - the
+  // earlier "vs" layout still left readers guessing).
+  const bestLabel = profitCalcRowSummary(best.row);
+  const worstLabel = profitCalcRowSummary(worst.row);
+  function comparisonClause(metricLabel, bestVal, worstVal) {
+    const cmp = bestVal >= worstVal ? "higher" : "lower";
+    // The extra margin-right isn't decorative - italic text's own slant
+    // visually crowds whatever comes right after it (the real space
+    // character alone reads as no space at all here), per explicit report.
+    return "'" + bestLabel + "' " + profitMetricSpan(metricLabel) + " (" + profitAmountSpan(bestVal) + ') was <em style="margin-right:2px;">' + cmp + "</em> than '" + worstLabel + "' (" + profitAmountSpan(worstVal) + ")";
+  }
+  let html = "<p><strong>" + bestLabel + "</strong> vs <strong>" + worstLabel + "</strong>: " +
+    comparisonClause("revenue", best.c.avgRev, worst.c.avgRev) + "/day; " +
+    comparisonClause("combined cost (Food/Packaging + Platform + Promo + Ad Fee)", bestCost, worstCost) + "/day; " +
+    comparisonClause("Net Margin", best.c.avgNet, worst.c.avgNet) + "/day." +
+  "</p>";
+
+  const thin = [];
+  if (best.c.days < PROFIT_SMALL_SAMPLE_DAYS) thin.push(profitCalcRowSummary(best.row) + " (" + best.c.days + " day" + (best.c.days === 1 ? "" : "s") + ")");
+  if (worst.c.days < PROFIT_SMALL_SAMPLE_DAYS) thin.push(profitCalcRowSummary(worst.row) + " (" + worst.c.days + " day" + (worst.c.days === 1 ? "" : "s") + ")");
+  if (thin.length) html += '<p style="color:var(--color-error);">&#9888; Small sample: ' + thin.join(", ") + " &mdash; treat as a signal to watch, not a settled result.</p>";
+
+  if (withData.length > 2) {
+    html += "<p>Across all " + withData.length + " rows: highest is <strong>" + profitCalcRowSummary(best.row) + "</strong> (" + profitAmountSpan(best.c.avgNet) +
+      "/day), lowest is <strong>" + profitCalcRowSummary(worst.row) + "</strong> (" + profitAmountSpan(worst.c.avgNet) + "/day).</p>";
+  }
+
+  el.innerHTML = '<div style="background:var(--color-card-bg); border:1px solid var(--color-border-on-card); border-radius:8px; padding:14px 16px; font-size:12.5px; line-height:1.6;">' + html + "</div>";
 }
