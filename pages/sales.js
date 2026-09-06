@@ -1851,6 +1851,15 @@ function profitabilityNetMargin(d) {
   return d.revenue - d.cost - d.platformFee - d.promoFee - d.adFee;
 }
 
+// A 2-digit-day variant of shared.js's dpFormatDay ("9 Aug 2026" ->
+// "09 Aug 2026") - scoped to just this table's own formatter rather than
+// changing dpFormatDay itself, which would reformat every date picker
+// app-wide, not only this one.
+function profitFormatDate(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return String(d).padStart(2, "0") + " " + DP_MONTH_SHORT[m - 1] + " " + y;
+}
+
 function profitabilityFilteredDays() {
   return profitabilityDailyRows().filter((d) =>
     (!_profitDateFrom || d.date >= _profitDateFrom) &&
@@ -1888,8 +1897,22 @@ function renderSalesProfitabilityTab(wrap) {
 
     "<h4>Data</h4>" +
     '<div id="profitDataPaginationNav" class="pagination-nav"></div>' +
+    "<style>" +
+      "#profitDataTable { table-layout: fixed; min-width: 960px; }" +
+      "#profitDataTable th, #profitDataTable td { white-space: nowrap; }" +
+      // Channel's own width already includes the gap to Revenue (a fixed
+      // column's padding eats into its own box rather than adding visible
+      // space after it, and nowrap content just overflows through that
+      // padding anyway - widening the column itself is what actually
+      // reserves the gap). Net Margin gets extra width too, for the "-Rp"
+      // sign plus up to 7 digits without feeling flush against the
+      // scroll wrap's own edge.
+      "#profitDataTable .colDate { width: 110px; } #profitDataTable .colChannel { width: 130px; }" +
+      "#profitDataTable .colAmount { width: 112px; } #profitDataTable .colNetMargin { width: 110px; }" +
+    "</style>" +
     '<div id="profitDataScrollWrap" style="overflow-x:auto;">' +
-      "<table>" +
+      '<table id="profitDataTable">' +
+        '<colgroup><col class="colDate"><col class="colChannel"><col class="colAmount"><col class="colAmount"><col class="colAmount"><col class="colAmount"><col class="colAmount"><col class="colNetMargin"></colgroup>' +
         "<thead><tr><th>Date</th><th>Channel</th><th>Revenue</th><th>COGS</th><th>Platform Fee</th><th>Promo Fee</th><th>Ad Fee</th><th>Net Margin</th></tr></thead>" +
         '<tbody id="profitDataTbody"></tbody>' +
       "</table>" +
@@ -1961,7 +1984,7 @@ function renderProfitabilityData() {
   document.getElementById("profitDataTbody").innerHTML = days.map((d) => {
     const nm = profitabilityNetMargin(d);
     return (
-      "<tr><td>" + dpFormatDay(d.date) + "</td>" +
+      "<tr><td>" + profitFormatDate(d.date) + "</td>" +
       '<td><span style="display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; background:' + dotColor[d.platform] + ';"></span>' + d.platform + "</td>" +
       '<td><span class="font-number">' + formatRupiah(d.revenue) + "</span></td>" +
       '<td><span class="font-number">' + formatRupiah(d.cost) + "</span></td>" +
