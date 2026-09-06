@@ -674,6 +674,14 @@ function salesSummaryChannelMixHtml(summary, totals) {
   const colors = dv2ColorsForPlatforms(platforms);
 
   const r = 15.9, circumference = 2 * Math.PI * r;
+  // Each segment overlaps its neighbors by this much (in the same units as
+  // the circle's own circumference, ~99.9 here) - stacking exact
+  // edge-to-edge dasharray segments left a hairline anti-aliasing seam of
+  // the base circle's color showing through at every boundary. Nudging
+  // both edges out by half this amount makes adjacent segments overlap
+  // slightly instead of exactly meet, so whichever one paints on top
+  // (later in DOM) fully covers the seam.
+  const OVERLAP = 0.6;
   let offsetAcc = 0;
 
   const arcs = platforms.map((platform, i) => {
@@ -681,10 +689,12 @@ function salesSummaryChannelMixHtml(summary, totals) {
     const frac = p.revenue / totals.revenue;
     const len = frac * circumference;
     const color = colors[i];
+    const dashLen = Math.min(circumference, len + OVERLAP);
+    const dashOffset = offsetAcc - OVERLAP / 2;
     const circle =
       '<circle cx="21" cy="21" r="' + r + '" fill="transparent" stroke="' + color + '" stroke-width="6" ' +
-      'stroke-dasharray="' + len.toFixed(2) + " " + (circumference - len).toFixed(2) + '" ' +
-      'stroke-dashoffset="' + (-offsetAcc).toFixed(2) + '" transform="rotate(-90 21 21)" data-idx="' + i + '" style="cursor:pointer;"></circle>';
+      'stroke-dasharray="' + dashLen.toFixed(2) + " " + (circumference - dashLen).toFixed(2) + '" ' +
+      'stroke-dashoffset="' + (-dashOffset).toFixed(2) + '" transform="rotate(-90 21 21)" data-idx="' + i + '" style="cursor:pointer;"></circle>';
     offsetAcc += len;
     return { circle: circle, platform: platform, color: color, frac: frac, revenue: p.revenue };
   });

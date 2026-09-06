@@ -1115,7 +1115,19 @@ function renderCurrentPage() {
     return;
   }
   content.innerHTML = "<p>Loading...</p>";
-  Promise.resolve(renderFn(content)).catch(function (err) {
+  Promise.resolve(renderFn(content)).then(function () {
+    // Sub-tab strips (Inventory's Stock Overview/Purchase Log/...,
+    // Sales's Log/Draft/Summary, etc.) are a fixed-width flex row with no
+    // wrap (shared.css's .tabs) - on a narrow/mobile viewport the trailing
+    // tabs run off the edge with no way back to them. One central hook
+    // here covers every page's tab strip without each page having to wire
+    // it up itself - the strip itself is only built once per page render
+    // (switching tabs afterward just swaps the content under it, see e.g.
+    // switchInventoryStockTab), so this doesn't need to re-run on every
+    // tab click, and enableDragScroll no-ops on an already-wired element
+    // anyway.
+    document.querySelectorAll(".tabs").forEach(enableDragScroll);
+  }).catch(function (err) {
     content.innerHTML = '<p style="color:#d32f2f">Error loading page: ' + (err.message || err) + "</p>";
   });
 }

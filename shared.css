@@ -39,6 +39,7 @@
   --color-muted-tint: rgba(138, 127, 118, 0.15); /* faint - hover wash on in-page tab strips */
   --color-disabled-bg: rgba(27, 40, 51, 0.08);
   --color-nav-bg: color-mix(in srgb, var(--color-bg-page) 82%, white 18%); /* navbar - a touch lighter than the page bg it sits on, per explicit request */
+  --color-nav-active-wash: color-mix(in srgb, var(--color-nav-bg) 85%, white 15%); /* navbar's own active-item wash - reused by the dropdown/subdropdown below so they read as part of the bar, not a separate cream card */
   --color-range-tint: color-mix(in srgb, var(--color-bg-page) 22%, white 78%); /* date range picker's connecting wash - teal like the page bg, lightened for a light popup, per explicit request */
 
   /* Semantic status tokens - one canonical hex per meaning instead of the
@@ -435,6 +436,22 @@ select.select-compact {
   height: 0;
 }
 
+/* Fully hides the scrollbar (thumb included, not just the arrow buttons
+   above) for #navbar and .tabs specifically - both are a horizontal strip
+   meant to read as swipeable/draggable, not as "a scrollable box": the
+   trailing edge getting cropped plus the drag-to-scroll cursor/touch
+   handling already signal it scrolls, and a visible track+thumb
+   underneath just reads as a layout glitch instead. */
+#navbar,
+.tabs {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* old Edge/IE */
+}
+#navbar::-webkit-scrollbar,
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
 /* Row-separator only (border-bottom), no vertical grid lines - a full cell
    grid reads as busy; a bottom line per row is enough to track a row across
    a wide table. */
@@ -548,9 +565,12 @@ th {
   position: fixed;
   flex-direction: column;
   min-width: 170px;
-  background: var(--color-card-bg);
-  background: var(--gradient-card-bg);
-  color: var(--color-text-primary);
+  /* Matches the bar it hangs off of (--color-nav-bg/--color-panel-bg text,
+     same as #navbar's own buttons) instead of the cream every content card
+     uses - reads as part of the navbar, not a separate popover, per
+     explicit request. */
+  background: var(--color-nav-bg);
+  color: var(--color-panel-bg);
   box-shadow: 0 2px 6px rgba(0,0,0,0.25);
   /* Was 100 - lower than .combo-panel's 1000 (shared.css, further down),
      so a page with an open/rendered combobox could paint over the nav
@@ -581,7 +601,7 @@ th {
   font: inherit;
 }
 .navbar-dropdown button:hover {
-  background: var(--color-accent-tint);
+  background: var(--color-nav-active-wash);
 }
 
 /* Level-2 submenu (e.g. Menu > Engineering > Pricing) - flyout to the right
@@ -600,9 +620,8 @@ th {
   left: 100%;
   flex-direction: column;
   min-width: 170px;
-  background: var(--color-card-bg);
-  background: var(--gradient-card-bg);
-  color: var(--color-text-primary);
+  background: var(--color-nav-bg);
+  color: var(--color-panel-bg);
   box-shadow: 0 2px 6px rgba(0,0,0,0.25);
   z-index: 2001;
 }
@@ -621,7 +640,7 @@ th {
   font: inherit;
 }
 .navbar-subdropdown button:hover {
-  background: var(--color-accent-tint);
+  background: var(--color-nav-active-wash);
 }
 
 /* Active-page marker - a lighter wash spanning the bar's full height (top
@@ -642,7 +661,7 @@ th {
      full-brightness --color-panel-bg for readability; only the wash +
      underline below mark the active one. */
   font-weight: bold;
-  background: color-mix(in srgb, var(--color-nav-bg) 85%, white 15%);
+  background: var(--color-nav-active-wash);
 }
 #navbar > [data-page].navbar-active::after,
 .navbar-item > button.navbar-active::after {
@@ -657,8 +676,8 @@ th {
 .navbar-dropdown [data-page].navbar-active,
 .navbar-subitem > button.navbar-active {
   font-weight: bold;
-  background: var(--color-accent-tint);
-  border-left: 3px solid var(--color-text-muted);
+  background: var(--color-nav-active-wash);
+  border-left: 3px solid var(--color-accent);
   padding-left: 9px; /* 12px minus the 3px stripe, keeps text aligned with inactive rows */
 }
 
@@ -670,8 +689,17 @@ th {
   gap: 4px;
   border-bottom: 1px solid var(--color-border-on-card);
   margin-bottom: 16px;
+  /* No flex-wrap - on a narrow/mobile viewport this scrolls horizontally
+     instead (native touch scroll, plus click/touch-and-drag via
+     enableDragScroll(), wired up once for every .tabs strip in
+     renderCurrentPage()) rather than spilling the trailing tabs off the
+     edge unreachably. Same pattern as #navbar itself. */
+  overflow-x: auto;
+  overflow-y: hidden; /* setting only overflow-x otherwise makes the browser compute overflow-y as auto too, showing a stray vertical scrollbar */
+  -webkit-overflow-scrolling: touch;
 }
 .tabs button {
+  flex-shrink: 0;
   padding: 8px 16px;
   border: 1px solid transparent;
   border-bottom: none;
